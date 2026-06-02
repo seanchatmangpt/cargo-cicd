@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_imports)]
 
+pub mod evidence;
 pub mod adapters;
 pub mod autonomic;
 pub mod cicd_toml;
