@@ -1,55 +1,34 @@
 [project]
-name = 'cargo-cicd'
-version = '26.6.2'
+name = "cargo-cicd"
+version = "26.6.2"
+description = "Manufacturing surface for cargo-cicd — CI/CD helper for Rust workspaces"
 
 [ontology]
-source = 'ontology/cargo-cicd.ttl'
+source = "ontology/cargo-cicd.ttl"
+standard_only = false
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Generation passes
-# Each [[generate]] block is one manufacturing pass.
-# template   — Tera template path relative to this file
-# output_dir — directory where generated files are written (one file per row)
-# query      — SPARQL SELECT query used to populate template variables
-# ─────────────────────────────────────────────────────────────────────────────
+[generation]
+output_dir = "."
 
-[[generate]]
-template   = 'templates/noun.rs.tera'
-output_dir = 'src/nouns/'
-query      = 'queries/commands.rq'
-# Variables injected per noun row:
-#   noun_name   — the nounName literal (e.g. "status")
-#   verbs       — list of { name, description } for all verbs of that noun
-#   description — rdfs:comment of the noun individual
-groupby = 'nounName'
+[inference]
+rules = [
+    { name = "command-projection", construct = "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }" }
+]
 
-[[generate]]
-template   = 'templates/command_doc.md.tera'
-output_dir = 'docs/commands/'
-query      = 'queries/commands.rq'
-# Variables injected per (noun, verb) row:
-#   noun_name   — nounName literal
-#   verb_name   — verbName literal
-#   description — rdfs:comment of the verb individual
-output_filename = '{{ noun_name }}/{{ verb_name }}.md'
+[[rules]]
+name = "noun-modules"
+query = "queries/commands.rq"
+template = "templates/noun.rs.tera"
+output = "src/nouns/{{noun_name}}.rs"
 
-[[generate]]
-template   = 'templates/cli_test.rs.tera'
-output_dir = 'tests/cli/'
-query      = 'queries/commands.rq'
-# Variables injected per (noun, verb) row:
-#   noun_name   — nounName literal
-#   verb_name   — verbName literal
-#   description — rdfs:comment of the verb individual
-output_filename = '{{ noun_name }}_{{ verb_name }}_test.rs'
+[[rules]]
+name = "command-docs"
+query = "queries/commands.rq"
+template = "templates/command_doc.md.tera"
+output = "docs/commands/{{noun_name}}.md"
 
-[[generate]]
-template   = 'templates/cicd_toml_schema.rs.tera'
-output_dir = 'src/'
-query      = 'queries/commands.rq'
-# Single output file aggregating all nouns.
-output_filename = 'cicd_toml_schema.rs'
-groupby    = 'all'
-# Extra variables:
-#   project_version — from [project].version above
-#   nouns           — list of { name, config_fields } for all noun individuals
+[[rules]]
+name = "cli-tests"
+query = "queries/commands.rq"
+template = "templates/cli_test.rs.tera"
+output = "tests/cli/test_{{noun_name}}.rs"

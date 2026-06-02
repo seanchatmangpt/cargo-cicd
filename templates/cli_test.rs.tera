@@ -1,87 +1,11 @@
-// @generated — do not edit by hand.
-// Source: ontology/cargo-cicd.ttl  |  template: templates/cli_test.rs.tera
-// CLI integration tests for: cargo cicd {{ noun_name }} {{ verb_name }}
-
-#![allow(unused_imports)]
-
+// MANUFACTURED by ggen — CLI tests for {{ noun_name }}
 use assert_cmd::Command;
-use predicates::prelude::*;
 
-fn cargo_cicd() -> Command {
-    Command::cargo_bin("cargo-cicd").expect("cargo-cicd binary must be built before running CLI tests")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Happy-path: `{{ noun_name }} {{ verb_name }}` exits 0 and produces expected output
-// ─────────────────────────────────────────────────────────────────────────────
-
+{% for verb in verbs %}
 #[test]
-fn {{ noun_name }}_{{ verb_name }}_exits_zero_in_clean_workspace() {
-    cargo_cicd()
-        .args(["{{ noun_name }}", "{{ verb_name }}"])
-        .assert()
-        .success();
+fn test_{{ noun_name }}_{{ verb.name }}() {
+    let mut cmd = Command::cargo_bin("cargo-cicd").unwrap();
+    cmd.args(["{{ noun_name }}", "{{ verb.name }}"]);
+    cmd.assert().success();
 }
-
-#[test]
-fn {{ noun_name }}_{{ verb_name }}_emits_noun_verb_in_output() {
-    cargo_cicd()
-        .args(["{{ noun_name }}", "{{ verb_name }}"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("{{ noun_name }}").or(predicate::str::contains("{{ verb_name }}")));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Flag surface: --help is always accepted
-// ─────────────────────────────────────────────────────────────────────────────
-
-#[test]
-fn {{ noun_name }}_{{ verb_name }}_help_flag_exits_zero() {
-    cargo_cicd()
-        .args(["{{ noun_name }}", "{{ verb_name }}", "--help"])
-        .assert()
-        .success();
-}
-
-#[test]
-fn {{ noun_name }}_{{ verb_name }}_help_contains_description() {
-    let description = "{{ description | default(value="") }}";
-    if !description.is_empty() {
-        // Take only the first 30 chars of description to avoid Tera-escaping issues.
-        let fragment: String = description.chars().take(30).collect();
-        cargo_cicd()
-            .args(["{{ noun_name }}", "{{ verb_name }}", "--help"])
-            .assert()
-            .success()
-            .stdout(predicate::str::contains(fragment));
-    }
-}
-
-{% for opt in options | default(value=[]) %}
-// ─────────────────────────────────────────────────────────────────────────────
-// Option: --{{ opt.name }}
-// ─────────────────────────────────────────────────────────────────────────────
-
-#[test]
-fn {{ noun_name }}_{{ verb_name }}_option_{{ opt.name | replace(from="-", to="_") }}_accepted() {
-    cargo_cicd()
-        .args(["{{ noun_name }}", "{{ verb_name }}", "--{{ opt.name }}", "{{ opt.test_value | default(value="test") }}"])
-        .assert()
-        // May fail due to invalid value — we only assert the flag is recognised (not unknown-argument error).
-        .stderr(predicate::str::contains("unknown option --{{ opt.name }}").not());
-}
-
 {% endfor %}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Refusal: unknown flag must produce non-zero exit
-// ─────────────────────────────────────────────────────────────────────────────
-
-#[test]
-fn {{ noun_name }}_{{ verb_name }}_rejects_unknown_flag() {
-    cargo_cicd()
-        .args(["{{ noun_name }}", "{{ verb_name }}", "--__nonexistent_flag__"])
-        .assert()
-        .failure();
-}

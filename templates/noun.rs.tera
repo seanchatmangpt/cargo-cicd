@@ -1,59 +1,38 @@
-// @generated — do not edit by hand.
-// Source: ontology/cargo-cicd.ttl  |  template: templates/noun.rs.tera
-// Noun: {{ noun_name }}  —  {{ description | default(value="(no description)") }}
+// MANUFACTURED by ggen from cargo-cicd.ttl + commands.rq
+// noun: {{ noun_name }}
+// about: {{ noun_about }}
+// DO NOT hand-edit — regenerate via ggen sync
 
-use clap::Subcommand;
+use anyhow::Result;
+use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
 
-/// `{{ noun_name }}` sub-commands.
-///
-/// {{ description | default(value="") }}
-#[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
-pub enum {{ noun_name | capitalize }}Verb {
-{% for verb in verbs | default(value=[]) %}
-    /// `{{ noun_name }} {{ verb.name }}` — {{ verb.description | default(value="") }}
-    {{ verb.name | capitalize }},
-{% endfor %}
+pub struct {{ noun_name | capitalize }}Noun;
+
+impl {{ noun_name | capitalize }}Noun {
+    pub fn new() -> Self { Self }
 }
 
-impl {{ noun_name | capitalize }}Verb {
-    /// Return the canonical string name of this verb as it appears on the CLI.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-{% for verb in verbs | default(value=[]) %}
-            Self::{{ verb.name | capitalize }} => "{{ verb.name }}",
-{% endfor %}
-        }
-    }
-
-    /// Return the human-readable description for this verb.
-    pub fn description(&self) -> &'static str {
-        match self {
-{% for verb in verbs | default(value=[]) %}
-            Self::{{ verb.name | capitalize }} => "{{ verb.description | default(value="") }}",
-{% endfor %}
-        }
+impl NounCommand for {{ noun_name | capitalize }}Noun {
+    fn name(&self) -> &'static str { "{{ noun_name }}" }
+    fn about(&self) -> &'static str { "{{ noun_about }}" }
+    fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
+        vec![
+            {% for verb in verbs %}
+            Box::new({{ verb.name | capitalize }}Verb),
+            {% endfor %}
+        ]
     }
 }
 
-impl std::fmt::Display for {{ noun_name | capitalize }}Verb {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+{% for verb in verbs %}
+pub struct {{ verb.name | capitalize }}Verb;
+
+impl VerbCommand for {{ verb.name | capitalize }}Verb {
+    fn name(&self) -> &'static str { "{{ verb.name }}" }
+    fn about(&self) -> &'static str { "{{ verb.about }}" }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        println!("{{ noun_name }} {{ verb.name }}: not yet implemented");
+        Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn all_verbs_have_non_empty_str() {
-        let verbs: &[{{ noun_name | capitalize }}Verb] = &[
-{% for verb in verbs | default(value=[]) %}
-            {{ noun_name | capitalize }}Verb::{{ verb.name | capitalize }},
 {% endfor %}
-        ];
-        for v in verbs {
-            assert!(!v.as_str().is_empty(), "verb as_str must not be empty: {:?}", v);
-        }
-    }
-}

@@ -1,284 +1,82 @@
 @prefix cicd: <https://cargo-cicd.rs/ontology#> .
-@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix owl:  <http://www.w3.org/2002/07/owl#> .
-@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Ontology declaration
-# ─────────────────────────────────────────────────────────────────────────────
+# cargo-cicd command surface ontology
+# Source law for ggen manufacturing
 
-<https://cargo-cicd.rs/ontology>
-    a owl:Ontology ;
-    rdfs:label "cargo-cicd command vocabulary" ;
-    rdfs:comment "Defines the noun/verb command surface for the cargo-cicd manufacturing tool." .
+# ── Nouns ────────────────────────────────────────────────────────
+cicd:status a cicd:Noun ;
+    rdfs:label "status" ;
+    cicd:about "Show workspace CI/CD status" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:statusShow) .
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Core classes
-# ─────────────────────────────────────────────────────────────────────────────
+cicd:target a cicd:Noun ;
+    rdfs:label "target" ;
+    cicd:about "Manage target directory" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:targetShow cicd:targetPrune) .
 
-cicd:Noun
-    a owl:Class ;
-    rdfs:label "Noun" ;
-    rdfs:comment "A top-level command group (noun) in the cargo-cicd CLI surface." .
+cicd:test a cicd:Noun ;
+    rdfs:label "test" ;
+    cicd:about "Run changed tests" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:testChanged) .
 
-cicd:Verb
-    a owl:Class ;
-    rdfs:label "Verb" ;
-    rdfs:comment "A sub-command (verb) nested under a Noun that produces a specific artifact or side effect." .
+cicd:trybuild a cicd:Noun ;
+    rdfs:label "trybuild" ;
+    cicd:about "Manage trybuild fixtures" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:trybuildChanged) .
 
-cicd:Command
-    a owl:Class ;
-    rdfs:label "Command" ;
-    rdfs:comment "A fully-qualified noun+verb pair that represents a single invocable CLI command." .
+cicd:git a cicd:Noun ;
+    rdfs:label "git" ;
+    cicd:about "Git phase management" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:gitStatus cicd:gitClose) .
 
-cicd:CicdToml
-    a owl:Class ;
-    rdfs:label "CicdToml" ;
-    rdfs:comment "The cicd.toml configuration file surface — the single source of policy truth for a workspace." .
+cicd:publish a cicd:Noun ;
+    rdfs:label "publish" ;
+    cicd:about "Publish cicd.toml workspace state" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:publishRun) .
 
-cicd:WorkspaceState
-    a owl:Class ;
-    rdfs:label "WorkspaceState" ;
-    rdfs:comment "The observable state of a Cargo workspace at a point in time (crates, deps, features)." .
+cicd:workspace a cicd:Noun ;
+    rdfs:label "workspace" ;
+    cicd:about "Workspace diagnostics" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:workspaceDoctor) .
 
-cicd:TargetState
-    a owl:Class ;
-    rdfs:label "TargetState" ;
-    rdfs:comment "The build-target state for a crate (dirty, clean, pruned, stale)." .
+# ── Verbs ────────────────────────────────────────────────────────
+cicd:statusShow a cicd:Verb ; rdfs:label "show" ; cicd:about "Show full CI/CD status" .
+cicd:targetShow a cicd:Verb ; rdfs:label "show" ; cicd:about "Show target directory size and state" .
+cicd:targetPrune a cicd:Verb ; rdfs:label "prune" ; cicd:about "Plan or execute target directory cleanup" .
+cicd:testChanged a cicd:Verb ; rdfs:label "changed" ; cicd:about "Run tests for changed files only" .
+cicd:trybuildChanged a cicd:Verb ; rdfs:label "changed" ; cicd:about "Run trybuild for changed fixtures only" .
+cicd:gitStatus a cicd:Verb ; rdfs:label "status" ; cicd:about "Show git repository state" .
+cicd:gitClose a cicd:Verb ; rdfs:label "close" ; cicd:about "Enforce phase closure: stage, commit, verify" .
+cicd:publishRun a cicd:Verb ; rdfs:label "run" ; cicd:about "Emit cicd.toml with current workspace state" .
+cicd:workspaceDoctor a cicd:Verb ; rdfs:label "doctor" ; cicd:about "Diagnose workspace health" .
 
-cicd:ChangedFileState
-    a owl:Class ;
-    rdfs:label "ChangedFileState" ;
-    rdfs:comment "The set of source files that have changed relative to a reference commit or branch." .
+# ── Policies ────────────────────────────────────────────────────
+cicd:TargetPressurePolicy a cicd:Policy ;
+    rdfs:label "target_pressure" ;
+    cicd:mode "suggest" ;
+    cicd:enabled true .
 
-cicd:TestPlan
-    a owl:Class ;
-    rdfs:label "TestPlan" ;
-    rdfs:comment "A derived plan of which tests must run given a ChangedFileState and workspace graph." .
+cicd:ToolchainMismatchPolicy a cicd:Policy ;
+    rdfs:label "toolchain_mismatch" ;
+    cicd:mode "suggest" ;
+    cicd:enabled true .
 
-cicd:TrybuildFixtureState
-    a owl:Class ;
-    rdfs:label "TrybuildFixtureState" ;
-    rdfs:comment "The state of trybuild compile-fail and compile-pass fixtures relative to current sources." .
+cicd:TrybuildChangedPolicy a cicd:Policy ;
+    rdfs:label "trybuild_changed" ;
+    cicd:mode "suggest" ;
+    cicd:enabled true .
 
-cicd:GitPhaseState
-    a owl:Class ;
-    rdfs:label "GitPhaseState" ;
-    rdfs:comment "The git lifecycle phase state (open, staged, committed, closed) of the working tree." .
-
-cicd:ProcessEvent
-    a owl:Class ;
-    rdfs:label "ProcessEvent" ;
-    rdfs:comment "An OCEL-compatible process event emitted during command execution for process-mining replay." .
-
-cicd:ArtifactState
-    a owl:Class ;
-    rdfs:label "ArtifactState" ;
-    rdfs:comment "The state of a produced artifact (receipt, binary, package tarball) after a manufacturing stage." .
-
-cicd:PolicyState
-    a owl:Class ;
-    rdfs:label "PolicyState" ;
-    rdfs:comment "The evaluated state of autonomic policies defined in cicd.toml at a given WorkspaceState." .
-
-cicd:ProjectionProfile
-    a owl:Class ;
-    rdfs:label "ProjectionProfile" ;
-    rdfs:comment "A named projection profile that maps a WorkspaceState to a reduced TargetState or TestPlan." .
-
-cicd:AutonomicPolicy
-    a owl:Class ;
-    rdfs:label "AutonomicPolicy" ;
-    rdfs:comment "A declarative policy rule in cicd.toml that triggers autonomic actions on WorkspaceState transitions." .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Properties
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:hasVerb
-    a owl:ObjectProperty ;
-    rdfs:domain cicd:Noun ;
-    rdfs:range  cicd:Verb ;
-    rdfs:label "hasVerb" ;
-    rdfs:comment "Associates a Noun with one of its Verb sub-commands." .
-
-cicd:verbOf
-    a owl:ObjectProperty ;
-    owl:inverseOf cicd:hasVerb ;
-    rdfs:domain cicd:Verb ;
-    rdfs:range  cicd:Noun ;
-    rdfs:label "verbOf" ;
-    rdfs:comment "The inverse of hasVerb — links a Verb back to its parent Noun." .
-
-cicd:verbName
-    a owl:DatatypeProperty ;
-    rdfs:domain cicd:Verb ;
-    rdfs:range  xsd:string ;
-    rdfs:label "verbName" ;
-    rdfs:comment "The bare string name of a verb as it appears on the CLI (e.g. 'show', 'prune')." .
-
-cicd:nounName
-    a owl:DatatypeProperty ;
-    rdfs:domain cicd:Noun ;
-    rdfs:range  xsd:string ;
-    rdfs:label "nounName" ;
-    rdfs:comment "The bare string name of a noun as it appears on the CLI (e.g. 'status', 'target')." .
-
-cicd:producesState
-    a owl:ObjectProperty ;
-    rdfs:domain cicd:Command ;
-    rdfs:range  cicd:ArtifactState ;
-    rdfs:label "producesState" ;
-    rdfs:comment "The ArtifactState or ProcessEvent a Command produces upon successful execution." .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Noun individuals
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:status
-    a cicd:Noun ;
-    cicd:nounName "status" ;
-    rdfs:label "status noun" ;
-    rdfs:comment "Top-level noun grouping workspace and git status inspection commands." .
-
-cicd:target
-    a cicd:Noun ;
-    cicd:nounName "target" ;
-    rdfs:label "target noun" ;
-    rdfs:comment "Top-level noun grouping build-target lifecycle commands (show, prune)." .
-
-cicd:test
-    a cicd:Noun ;
-    cicd:nounName "test" ;
-    rdfs:label "test noun" ;
-    rdfs:comment "Top-level noun grouping test execution commands scoped to changed files." .
-
-cicd:trybuild
-    a cicd:Noun ;
-    cicd:nounName "trybuild" ;
-    rdfs:label "trybuild noun" ;
-    rdfs:comment "Top-level noun grouping trybuild fixture gate commands for type-law receipts." .
-
-cicd:git
-    a cicd:Noun ;
-    cicd:nounName "git" ;
-    rdfs:label "git noun" ;
-    rdfs:comment "Top-level noun grouping git lifecycle phase commands (status, close)." .
-
-cicd:publish
-    a cicd:Noun ;
-    cicd:nounName "publish" ;
-    rdfs:label "publish noun" ;
-    rdfs:comment "Top-level noun grouping crate publish/release commands." .
-
-cicd:workspace
-    a cicd:Noun ;
-    cicd:nounName "workspace" ;
-    rdfs:label "workspace noun" ;
-    rdfs:comment "Top-level noun grouping workspace health and doctor commands." .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — status
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:status_show
-    a cicd:Verb ;
-    cicd:verbName "show" ;
-    cicd:verbOf cicd:status ;
-    rdfs:label "status show" ;
-    rdfs:comment "Show current workspace status: crate inventory, dirty files, and feature matrix." .
-
-cicd:status hasVerb cicd:status_show .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — target
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:target_show
-    a cicd:Verb ;
-    cicd:verbName "show" ;
-    cicd:verbOf cicd:target ;
-    rdfs:label "target show" ;
-    rdfs:comment "Show the build-target state for all crates: clean, dirty, stale, or pruned." .
-
-cicd:target_prune
-    a cicd:Verb ;
-    cicd:verbName "prune" ;
-    cicd:verbOf cicd:target ;
-    rdfs:label "target prune" ;
-    rdfs:comment "Prune stale build artifacts from target/ to reclaim disk space without a full clean." .
-
-cicd:target hasVerb cicd:target_show, cicd:target_prune .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — test
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:test_changed
-    a cicd:Verb ;
-    cicd:verbName "changed" ;
-    cicd:verbOf cicd:test ;
-    rdfs:label "test changed" ;
-    rdfs:comment "Run only the tests affected by changed files relative to the reference branch." .
-
-cicd:test hasVerb cicd:test_changed .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — trybuild
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:trybuild_changed
-    a cicd:Verb ;
-    cicd:verbName "changed" ;
-    cicd:verbOf cicd:trybuild ;
-    rdfs:label "trybuild changed" ;
-    rdfs:comment "Run only the trybuild type-law fixtures affected by changed source files." .
-
-cicd:trybuild hasVerb cicd:trybuild_changed .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — git
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:git_status
-    a cicd:Verb ;
-    cicd:verbName "status" ;
-    cicd:verbOf cicd:git ;
-    rdfs:label "git status" ;
-    rdfs:comment "Show the git lifecycle phase state of the working tree (open, staged, committed)." .
-
-cicd:git_close
-    a cicd:Verb ;
-    cicd:verbName "close" ;
-    cicd:verbOf cicd:git ;
-    rdfs:label "git close" ;
-    rdfs:comment "Advance the git lifecycle phase to closed: commit, tag, and emit a receipt." .
-
-cicd:git hasVerb cicd:git_status, cicd:git_close .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — publish
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:publish_emit
-    a cicd:Verb ;
-    cicd:verbName "emit" ;
-    cicd:verbOf cicd:publish ;
-    rdfs:label "publish emit" ;
-    rdfs:comment "Emit a crate release: validate, package, and publish to the configured registry." .
-
-cicd:publish hasVerb cicd:publish_emit .
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Verb individuals — workspace
-# ─────────────────────────────────────────────────────────────────────────────
-
-cicd:workspace_doctor
-    a cicd:Verb ;
-    cicd:verbName "doctor" ;
-    cicd:verbOf cicd:workspace ;
-    rdfs:label "workspace doctor" ;
-    rdfs:comment "Run workspace health checks: toolchain, feature matrix, cicd.toml schema, dep tree." .
-
-cicd:workspace hasVerb cicd:workspace_doctor .
+cicd:GitPhaseDirtyPolicy a cicd:Policy ;
+    rdfs:label "git_phase_dirty" ;
+    cicd:mode "suggest" ;
+    cicd:enabled true .
