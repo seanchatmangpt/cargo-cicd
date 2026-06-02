@@ -4,6 +4,7 @@ pub mod adapters;
 pub mod autonomic;
 pub mod cicd_toml;
 pub mod engine;
+pub mod integrations;
 pub mod nouns;
 pub mod policies;
 pub mod state;
