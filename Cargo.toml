@@ -25,6 +25,10 @@ anyhow = "1"
 walkdir = "2"
 serde_json = "1"
 
+[[test]]
+name = "feature_projection"
+path = "tests/feature_projection.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
