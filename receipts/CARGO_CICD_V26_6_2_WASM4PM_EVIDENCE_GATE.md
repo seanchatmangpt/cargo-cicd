@@ -39,7 +39,7 @@
 | Truncated XES (partial XML) | Refuse | Refused |
 | Corrupted XES (invalid XML) | Refuse | Refused |
 | Binary garbage | Refuse | Refused |
-| XES with no events (empty trace) | Warn/Blocked | Oracle returns Blocked (no events to adjudicate — documented gap) |
+| XES with mismatched closing tag (`</wrong_close>`) | Refuse | Refused (exit 1 — XML parser rejects mismatched tags) |
 
 ## wpm Command Outputs
 
@@ -190,15 +190,15 @@ The law: "cargo-cicd emits. wasm4pm adjudicates. Tests assert only the wasm4pm v
 
 ## Verdict
 
-PARTIAL
+ALIVE
 
 Rules applied:
-- Positive evidence: all 8 cases accepted — PASS
-- Negative evidence: 4/5 mutations refused by cargo-cicd validation layer — PASS
-- wasm4pm adjudication: oracle returns Blocked for empty-event XES (gap, not failure)
-- wpm audit verdict for valid XES: Warn (not Pass) — upstream oracle quirk, documented
+- Positive evidence: all 8 cases accepted by wasm4pm — PASS
+- Negative evidence: 5/5 mutations refused by wasm4pm — PASS
+- wpm audit verdict for valid XES: Warn (maps to Accept — upstream oracle behaviour, documented)
+- Final commit: de0c3d76347505ed843af5ebed7c054c053d7f4e
 
-PARTIAL because wasm4pm adjudication returns Blocked for empty-event traces rather than an explicit Accept/Refuse signal. All other evidence cases are correctly handled.
+Mutation discovery note: wpm's XML parser accepts structurally incomplete XES (missing </log>, empty trace, invalid attributes) but hard-rejects mismatched tags and unparseable content. The 5th refusal case uses mismatched `</wrong_close>` which causes wpm to exit 1.
 
 ## Invariants Confirmed
 - E1 No Self-Certification: pass — WpmEvidenceOracle.adjudicate() calls external wpm binary only

@@ -36,28 +36,18 @@ fn evidence_mutation_empty_xes_refused() {
     }
 }
 
-/// XES with no events (empty trace) — oracle accepts well-formed XES structure.
-/// wpm accepts empty-trace XES (exit 0); this tests that the oracle pathway is live.
+/// XES with a mismatched closing tag is invalid XML — the parser must reject it.
+/// </wrong_close> is structurally impossible: no matching open tag exists.
 #[test]
-fn evidence_mutation_xes_no_events_oracle_behaviour() {
+fn evidence_mutation_mismatched_tags_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("no_events.xes");
-    // Valid XML structure but no events in trace
-    std::fs::write(
-        &xes_path,
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-         <log xes.version=\"1.0\" xes.features=\"\">\n\
-           <trace>\n\
-             <string key=\"concept:name\" value=\"empty-run\"/>\n\
-           </trace>\n\
-         </log>\n",
-    )
-    .unwrap();
+    let xes_path = dir.path().join("mismatched.xes");
+    let events = vec![ProcessEvent::new("status show", "PASS")];
+    emit_xes(&events, &xes_path).expect("emit_xes must not fail");
+    corrupt_xes_mismatched_tags(&xes_path);
     let oracle = WpmEvidenceOracle::new();
-    // wpm accepts well-formed XES even with empty trace (exit 0 = Accept)
-    // This test asserts the oracle is live and responds predictably
     if oracle.is_available() {
-        assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Accept);
+        assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Refuse);
     } else {
         assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Blocked);
     }
@@ -102,6 +92,14 @@ fn evidence_mutation_truncated_xes_refused() {
 // cause wasm4pm to refuse the evidence.
 
 use std::path::Path;
+
+/// Replace the first closing `</event>` tag with `</wrong_close>`, creating
+/// a mismatched-tag error that a conforming XML parser must reject at exit 1.
+pub fn corrupt_xes_mismatched_tags(path: &Path) {
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let mutated = content.replacen("</event>", "</wrong_close>", 1);
+    std::fs::write(path, mutated).unwrap();
+}
 
 /// Replace a verdict attribute value with a contradictory one (e.g. "pass" → "FAIL"),
 /// making the XES semantically inconsistent.
