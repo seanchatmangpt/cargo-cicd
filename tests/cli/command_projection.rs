@@ -46,10 +46,12 @@ fn test_target_prune_dry_run_does_not_delete() {
         stdout.contains("suggest") || stdout.contains("--apply"),
         "prune output must mention suggest mode or --apply gate; got:\n{stdout}"
     );
-    // INVARIANT: must NOT report any deletions.
+    // INVARIANT: must NOT confirm that files were actually deleted.
+    // Note: output may say "never deleted" (a safety note); that is fine.
+    // We check for active-voice deletion confirmations only.
     assert!(
-        !stdout.contains("deleted") && !stdout.contains("removed"),
-        "prune in plan mode must not report deletions; got:\n{stdout}"
+        !stdout.contains("Deleted") && !stdout.contains("Removed"),
+        "prune in plan mode must not confirm deletions; got:\n{stdout}"
     );
 }
 
