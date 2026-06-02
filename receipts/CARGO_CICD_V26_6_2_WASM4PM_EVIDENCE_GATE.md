@@ -160,6 +160,34 @@ test result: ok. 8 passed; 0 failed
 - wasm4pm is run as SHELL_OUT only; FILE_EXCHANGE adapter deferred to v26.6.3+
 - Oracle XES audit verdict for valid XES is Warn (not Pass) — upstream oracle behaviour; cargo-cicd accepts Warn as a legitimate non-Blocked verdict
 
+## Final Run Summary (2026-06-02)
+
+| Suite | Tests | Passed | Failed | Blocked |
+|-------|-------|--------|--------|---------|
+| unit tests (lib + main) | 8 | 8 | 0 | 0 |
+| autonomic_policies | 23 | 23 | 0 | 0 |
+| changed_tests | 4 | 4 | 0 | 0 |
+| cicd_toml_truth | 3 | 3 | 0 | 0 |
+| cli/command_projection | 8 | 8 | 0 | 0 |
+| feature_projection | 4 | 4 | 0 | 0 |
+| feature_projections | 4 | 4 | 0 | 0 |
+| fixture_workspaces | 8 | 8 | 0 | 0 |
+| git_phase_closure | 3 | 3 | 0 | 0 |
+| interactions | 7 | 7 | 0 | 0 |
+| invariants | 5 | 5 | 0 | 0 |
+| policies | 3 | 3 | 0 | 0 |
+| wasm4pm_evidence_gate | 8 | 8 | 0 | 0 |
+| wasm4pm_evidence_mutation | 5 | 5 | 0 | 0 |
+| wasm4pm_harness | 7 | 7 | 0 | 0 |
+| wasm4pm_refusal_cases | 7 | 7 | 0 | 0 |
+| wasm4pm_shell | 5 | 5 | 0 | 0 |
+| doc-tests | 1 | 1 | 0 | 0 |
+| **TOTAL** | **113** | **113** | **0** | **0** |
+
+clippy --all-features: PASS (0 warnings, 0 errors)
+
+The law: "cargo-cicd emits. wasm4pm adjudicates. Tests assert only the wasm4pm verdict."
+
 ## Verdict
 
 PARTIAL
