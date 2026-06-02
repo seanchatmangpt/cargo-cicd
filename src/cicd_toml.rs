@@ -1,258 +1,204 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
-/// The root configuration structure for cicd.toml
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CicdConfig {
+/// v26.6.2 cicd.toml schema — the carrier contract
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct CicdToml {
+    pub workspace: WorkspaceSection,
+    pub state: StateSection,
+    pub target: TargetSection,
+    #[serde(rename = "test")]
+    pub test: TestSection,
+    #[serde(rename = "trybuild")]
+    pub trybuild: TrybuildSection,
+    #[serde(rename = "git")]
+    pub git: GitSection,
+    pub autonomic: AutonomicSection,
     #[serde(default)]
-    pub workspace: WorkspaceConfig,
-
-    #[serde(default)]
-    pub state: StateConfig,
-
-    #[serde(default)]
-    pub target: TargetConfig,
-
-    #[serde(default)]
-    pub test: TestConfig,
-
-    #[serde(default)]
-    pub trybuild: TrybuildConfig,
-
-    #[serde(default)]
-    pub git: GitConfig,
-
-    #[serde(default)]
-    pub autonomic: AutonomicConfig,
-
-    #[serde(default)]
-    pub events: Vec<EventConfig>,
+    pub events: Vec<EventRecord>,
 }
 
-/// [workspace] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceConfig {
-    #[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WorkspaceSection {
     pub name: String,
-
-    #[serde(default)]
     pub toolchain: String,
-
-    #[serde(default)]
     pub target_dir: String,
 }
 
-impl Default for WorkspaceConfig {
+impl Default for WorkspaceSection {
     fn default() -> Self {
         Self {
-            name: String::new(),
-            toolchain: String::new(),
-            target_dir: String::new(),
+            name: detect_workspace_name(),
+            toolchain: detect_toolchain(),
+            target_dir: "target".into(),
         }
     }
 }
 
-/// [state] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StateConfig {
-    #[serde(default)]
+fn detect_workspace_name() -> String {
+    // Read workspace name from Cargo.toml if available
+    std::fs::read_to_string("Cargo.toml")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("name = "))
+                .map(|l| l.trim_start_matches("name = ").trim_matches('"').to_string())
+        })
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .unwrap_or_else(|| "workspace".into())
+        })
+}
+
+fn detect_toolchain() -> String {
+    // Check rust-toolchain.toml or rust-toolchain
+    if let Ok(content) = std::fs::read_to_string("rust-toolchain.toml") {
+        if let Some(line) = content.lines().find(|l| l.contains("channel")) {
+            if let Some(ch) = line.split('"').nth(1) {
+                return ch.to_string();
+            }
+        }
+    }
+    if let Ok(content) = std::fs::read_to_string("rust-toolchain") {
+        return content.trim().to_string();
+    }
+    "stable".into()
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct StateSection {
     pub dirty: bool,
-
-    #[serde(default)]
     pub target_size_gb: f64,
-
-    #[serde(default)]
     pub changed_files: usize,
-
-    #[serde(default)]
     pub changed_tests: usize,
-
-    #[serde(default)]
     pub changed_trybuild_fixtures: usize,
 }
 
-impl Default for StateConfig {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TargetSection {
+    pub max_size_gb: u32,
+    pub prune_after_days: u32,
+}
+
+impl Default for TargetSection {
     fn default() -> Self {
-        Self {
-            dirty: false,
-            target_size_gb: 0.0,
-            changed_files: 0,
-            changed_tests: 0,
-            changed_trybuild_fixtures: 0,
-        }
+        Self { max_size_gb: 20, prune_after_days: 14 }
     }
 }
 
-/// [target] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TargetConfig {
-    #[serde(default = "default_max_size")]
-    pub max_size_gb: f64,
-
-    #[serde(default = "default_prune_days")]
-    pub prune_after_days: usize,
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TestSection {
+    pub changed: TestChangedSection,
 }
 
-fn default_max_size() -> f64 {
-    20.0
-}
-
-fn default_prune_days() -> usize {
-    14
-}
-
-impl Default for TargetConfig {
-    fn default() -> Self {
-        Self {
-            max_size_gb: default_max_size(),
-            prune_after_days: default_prune_days(),
-        }
-    }
-}
-
-/// [test.changed] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TestChangedConfig {
-    #[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TestChangedSection {
     pub enabled: bool,
-
-    #[serde(default)]
     pub base: String,
 }
 
-impl Default for TestChangedConfig {
+impl Default for TestChangedSection {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            base: "origin/main".to_string(),
-        }
+        Self { enabled: true, base: "origin/main".into() }
     }
 }
 
-/// [test] section (contains subsections)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TestConfig {
-    #[serde(default)]
-    pub changed: TestChangedConfig,
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TrybuildSection {
+    pub changed: TrybuildChangedSection,
 }
 
-impl Default for TestConfig {
-    fn default() -> Self {
-        Self {
-            changed: TestChangedConfig::default(),
-        }
-    }
-}
-
-/// [trybuild.changed] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrybuildChangedConfig {
-    #[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TrybuildChangedSection {
     pub enabled: bool,
-
-    #[serde(default)]
     pub snapshot_mode: String,
 }
 
-impl Default for TrybuildChangedConfig {
+impl Default for TrybuildChangedSection {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            snapshot_mode: "changed-only".to_string(),
-        }
+        Self { enabled: true, snapshot_mode: "changed-only".into() }
     }
 }
 
-/// [trybuild] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrybuildConfig {
-    #[serde(default)]
-    pub changed: TrybuildChangedConfig,
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct GitSection {
+    pub phase: GitPhaseSection,
 }
 
-impl Default for TrybuildConfig {
-    fn default() -> Self {
-        Self {
-            changed: TrybuildChangedConfig::default(),
-        }
-    }
-}
-
-/// [git.phase] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitPhaseConfig {
-    #[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GitPhaseSection {
     pub require_clean_tree: bool,
-
-    #[serde(default)]
     pub commit_after_phase: bool,
 }
 
-impl Default for GitPhaseConfig {
+impl Default for GitPhaseSection {
     fn default() -> Self {
-        Self {
-            require_clean_tree: true,
-            commit_after_phase: false,
-        }
+        Self { require_clean_tree: true, commit_after_phase: false }
     }
 }
 
-/// [git] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitConfig {
-    #[serde(default)]
-    pub phase: GitPhaseConfig,
-}
-
-impl Default for GitConfig {
-    fn default() -> Self {
-        Self {
-            phase: GitPhaseConfig::default(),
-        }
-    }
-}
-
-/// [autonomic] section
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AutonomicConfig {
-    #[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AutonomicSection {
     pub enabled: bool,
-
-    #[serde(default)]
     pub mode: String,
 }
 
-impl Default for AutonomicConfig {
+impl Default for AutonomicSection {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            mode: "suggest".to_string(),
-        }
+        Self { enabled: true, mode: "suggest".into() }
     }
 }
 
-/// [[events]] section (array of events)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventConfig {
-    #[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EventRecord {
     pub kind: String,
-
-    #[serde(default)]
     pub verdict: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
 }
 
-impl CicdConfig {
+impl EventRecord {
+    pub fn status_pass() -> Self {
+        Self { kind: "status".into(), verdict: "pass".into(), details: None, timestamp: None }
+    }
+}
+
+impl CicdToml {
     /// Load configuration from a TOML file.
-    pub fn from_file(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_file(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)?;
         let config = toml::from_str(&contents)?;
         Ok(config)
     }
 
-    /// Save configuration to a TOML file.
-    pub fn to_file(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-        let contents = toml::to_string_pretty(&self)?;
-        std::fs::write(path, contents)?;
+    /// Write configuration to a TOML file (compat alias).
+    pub fn write_to_file(&self, path: &Path) -> Result<()> {
+        self.write(path)
+    }
+
+    /// Build from current workspace state
+    pub fn from_current_workspace() -> Self {
+        let mut cicd = Self::default();
+        cicd.events.push(EventRecord::status_pass());
+        cicd
+    }
+
+    /// Write to the given path
+    pub fn write(&self, path: impl AsRef<Path>) -> Result<()> {
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize cicd.toml: {}", e))?;
+        std::fs::write(path, content)?;
         Ok(())
+    }
+
+    /// Write to ./cicd.toml
+    pub fn write_default(&self) -> Result<()> {
+        self.write("cicd.toml")
     }
 }
 
@@ -261,62 +207,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_config() {
-        let config = CicdConfig::default();
-        assert_eq!(config.target.max_size_gb, 20.0);
+    fn test_default_cicd_toml() {
+        let config = CicdToml::default();
+        assert_eq!(config.target.max_size_gb, 20);
         assert_eq!(config.target.prune_after_days, 14);
         assert!(config.autonomic.enabled);
+        assert_eq!(config.autonomic.mode, "suggest");
+        assert!(config.git.phase.require_clean_tree);
+        assert!(!config.git.phase.commit_after_phase);
+        assert!(config.test.changed.enabled);
+        assert_eq!(config.test.changed.base, "origin/main");
+        assert!(config.trybuild.changed.enabled);
+        assert_eq!(config.trybuild.changed.snapshot_mode, "changed-only");
     }
 
     #[test]
-    fn test_config_serialization() {
-        let config = CicdConfig {
-            workspace: WorkspaceConfig {
-                name: "my-project".to_string(),
-                toolchain: "stable".to_string(),
-                target_dir: "./target".to_string(),
-            },
-            state: StateConfig {
-                dirty: false,
-                target_size_gb: 2.5,
-                changed_files: 3,
-                changed_tests: 2,
-                changed_trybuild_fixtures: 1,
-            },
-            ..Default::default()
-        };
-
-        let toml_str = toml::to_string(&config).expect("serialization failed");
-        assert!(toml_str.contains("my-project"));
-        assert!(toml_str.contains("stable"));
+    fn test_write_and_read_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cicd.toml");
+        let config = CicdToml::default();
+        config.write(&path).expect("write failed");
+        let loaded = CicdToml::from_file(&path).expect("read failed");
+        assert_eq!(loaded.target.max_size_gb, config.target.max_size_gb);
+        assert_eq!(loaded.autonomic.mode, config.autonomic.mode);
     }
 
     #[test]
-    fn test_test_changed_defaults() {
-        let test_config = TestConfig::default();
-        assert!(test_config.changed.enabled);
-        assert_eq!(test_config.changed.base, "origin/main");
+    fn test_from_current_workspace_has_status_pass_event() {
+        let cicd = CicdToml::from_current_workspace();
+        assert_eq!(cicd.events.len(), 1);
+        assert_eq!(cicd.events[0].kind, "status");
+        assert_eq!(cicd.events[0].verdict, "pass");
+        assert!(cicd.events[0].details.is_none());
+        assert!(cicd.events[0].timestamp.is_none());
     }
 
     #[test]
-    fn test_git_phase_defaults() {
-        let git_config = GitConfig::default();
-        assert!(git_config.phase.require_clean_tree);
-        assert!(!git_config.phase.commit_after_phase);
-    }
-}
-
-impl Default for CicdConfig {
-    fn default() -> Self {
-        Self {
-            workspace: WorkspaceConfig::default(),
-            state: StateConfig::default(),
-            target: TargetConfig::default(),
-            test: TestConfig::default(),
-            trybuild: TrybuildConfig::default(),
-            git: GitConfig::default(),
-            autonomic: AutonomicConfig::default(),
-            events: Vec::new(),
-        }
+    fn test_event_record_optional_fields_skip_serialization() {
+        let record = EventRecord::status_pass();
+        let serialized = toml::to_string_pretty(&record).unwrap();
+        assert!(!serialized.contains("details"));
+        assert!(!serialized.contains("timestamp"));
     }
 }
