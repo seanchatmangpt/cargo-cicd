@@ -1,5 +1,7 @@
 use crate::adapters::ChangedFileDetector;
+use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
+use std::time::Instant;
 
 pub struct TestNoun;
 impl TestNoun {
@@ -34,6 +36,7 @@ impl VerbCommand for TestChangedVerb {
         "Run tests for changed files only"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let start = Instant::now();
         let base = "origin/main";
         let changed = ChangedFileDetector::changed_rs_files(base);
         let test_files: Vec<_> = changed
@@ -58,6 +61,14 @@ impl VerbCommand for TestChangedVerb {
         }
         println!();
         println!("note: exact affected-test selection is conservative by design");
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+        let event = ProcessEvent::new("test changed", "PASS");
+        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
+        if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
+        let _ = duration_ms;
         Ok(())
     }
 }

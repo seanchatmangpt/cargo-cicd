@@ -1,5 +1,7 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
+use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
+use std::time::Instant;
 
 pub struct StatusNoun;
 impl StatusNoun {
@@ -35,23 +37,31 @@ pub struct StatusShowVerb;
 
 impl StatusShowVerb {
     fn execute(&self) -> anyhow::Result<()> {
+        let start = Instant::now();
         println!("cargo-cicd workspace status");
         println!("===========================");
         let toolchain = ToolchainDetector::active_toolchain();
         println!("toolchain:    {}", toolchain);
         let target_gb = TargetScannerAdapter::total_size_gb("target");
-        let verdict = TargetScannerAdapter::verdict(target_gb, 20.0);
-        println!("target:       {:.2} GB [{}]", target_gb, verdict);
+        let verdict_str = TargetScannerAdapter::verdict(target_gb, 20.0);
+        println!("target:       {:.2} GB [{}]", target_gb, verdict_str);
         let git = GitStatusAdapter::query().unwrap_or_default();
         println!("branch:       {}", git.branch);
         println!("dirty files:  {}", git.dirty_files.len());
         println!("untracked:    {}", git.untracked_files.len());
-        let dirty_word = if git.dirty_files.is_empty() && git.untracked_files.is_empty() {
-            "clean"
-        } else {
-            "dirty"
-        };
+        let dirty = !git.dirty_files.is_empty() || !git.untracked_files.is_empty();
+        let dirty_word = if dirty { "dirty" } else { "clean" };
         println!("git:          {}", dirty_word);
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+        let ev_verdict = if dirty { "WARN" } else { "PASS" };
+        let changed_files: Vec<&str> = git.dirty_files.iter().map(String::as_str).chain(git.untracked_files.iter().map(String::as_str)).collect();
+        let event = ProcessEvent::new("status show", ev_verdict);
+        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
+        if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
+        let _ = duration_ms;
         Ok(())
     }
 }

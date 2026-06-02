@@ -2,6 +2,7 @@ use crate::adapters::{
     ChangedFileDetector, GitStatusAdapter, TargetScannerAdapter, ToolchainDetector,
 };
 use crate::cicd_toml::CicdToml;
+use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct PublishNoun;
@@ -68,6 +69,12 @@ impl VerbCommand for PublishRunVerb {
         println!("  target:       {:.2} GB", cicd.state.target_size_gb);
         println!("  dirty:        {}", cicd.state.dirty);
         println!("  changed:      {}", cicd.state.changed_files);
+
+        let event = ProcessEvent::new("publish run", "PASS");
+        let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
+        if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
         Ok(())
     }
 }

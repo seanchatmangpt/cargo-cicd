@@ -1,5 +1,6 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::autonomic::policies::{run_all_policies, GitState, PolicyVerdict, WorkspaceInfo};
+use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct WorkspaceNoun;
@@ -103,10 +104,18 @@ impl VerbCommand for WorkspaceDoctorVerb {
         }
 
         println!();
-        if !has_cargo || !has_git {
+        let verdict = if !has_cargo || !has_git {
             println!("FAIL: workspace has critical issues");
+            "FAIL"
         } else {
             println!("workspace is healthy");
+            "PASS"
+        };
+
+        let event = ProcessEvent::new("workspace doctor", verdict);
+        let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
+        if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+            eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
     }

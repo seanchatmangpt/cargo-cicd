@@ -6,6 +6,8 @@ mod adapters;
 mod autonomic;
 mod cicd_toml;
 mod engine;
+pub mod evidence;
+mod integrations;
 mod nouns;
 mod policies;
 mod state;

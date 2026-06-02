@@ -1,5 +1,7 @@
 use crate::adapters::GitStatusAdapter;
+use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
+use std::time::Instant;
 
 pub struct GitNoun;
 impl GitNoun {
@@ -34,6 +36,7 @@ impl VerbCommand for GitStatusVerb {
         "Show git repository state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let start = Instant::now();
         let status = GitStatusAdapter::query()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
         println!("git status");
@@ -63,6 +66,12 @@ impl VerbCommand for GitStatusVerb {
             "recommendation: run 'cargo cicd git close' to stage and commit"
         };
         println!("next: {}", next);
+        let duration_ms = start.elapsed().as_millis() as u64;
+        let ev_verdict = if status.dirty_files.is_empty() && status.untracked_files.is_empty() { "PASS" } else { "WARN" };
+        let event = ProcessEvent::new("git status", ev_verdict);
+        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
+        let _ = crate::evidence::emit_xes(&[event], &evidence_path);
+        let _ = duration_ms;
         Ok(())
     }
 }
@@ -80,8 +89,14 @@ impl VerbCommand for GitCloseVerb {
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
         println!("git phase closure");
         println!("=================");
+        let dirty_before = status.dirty_files.len() + status.untracked_files.len();
         if status.dirty_files.is_empty() && status.untracked_files.is_empty() {
             println!("tree is clean — phase already closed");
+            let event = ProcessEvent::new("git close", "PASS");
+            let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
+            if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+                eprintln!("warning: evidence emission failed: {}", e);
+            }
             return Ok(());
         }
         println!("dirty files:   {}", status.dirty_files.len());
@@ -91,6 +106,12 @@ impl VerbCommand for GitCloseVerb {
         println!("stage and commit your changes before closing the phase.");
         println!();
         println!("refusing to hide unrelated dirty files — no silent batch commit.");
+        let event = ProcessEvent::new("git close", "FAIL");
+        let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
+        if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
+        let _ = dirty_before;
         Err(clap_noun_verb::error::NounVerbError::execution_error(
             "phase closure refused: tree is dirty. Stage and commit manually, then re-run.",
         ))
