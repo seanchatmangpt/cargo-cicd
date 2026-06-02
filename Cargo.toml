@@ -29,6 +29,11 @@ serde_json = "1"
 name = "feature_projection"
 path = "tests/feature_projection.rs"
 
+[[test]]
+name = "cli"
+harness = true
+path = "tests/cli/command_projection.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
