@@ -7,6 +7,10 @@ impl WorkspaceNoun {
     pub fn new() -> Self {
         Self
     }
+    pub fn run_doctor() -> anyhow::Result<()> {
+        WorkspaceDoctorVerb.run(&VerbArgs::new(clap::ArgMatches::default()))
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
 }
 impl Default for WorkspaceNoun {
     fn default() -> Self {

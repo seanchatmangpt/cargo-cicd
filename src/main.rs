@@ -10,11 +10,58 @@ mod nouns;
 mod policies;
 mod state;
 
+// Inject default verbs so bare-noun invocations work:
+//   cargo cicd status          → status show
+//   cargo cicd publish         → publish run
+//   cargo cicd workspace       → workspace doctor
+// This preserves internal noun-verb grammar while exposing a simpler public surface.
+fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
+    // args[0] = binary name, args[1] = noun (maybe), args[2] = verb (maybe)
+    let noun = args.get(1).map(String::as_str).unwrap_or("");
+    let has_verb = args.get(2).map(|v| !v.starts_with('-')).unwrap_or(false);
+    if !has_verb {
+        let default_verb = match noun {
+            "status" => Some("show"),
+            "publish" => Some("run"),
+            "workspace" => Some("doctor"),
+            _ => None,
+        };
+        if let Some(verb) = default_verb {
+            args.insert(2, verb.to_string());
+        }
+    }
+    args
+}
+
 fn main() -> Result<()> {
+    // Re-parse argv with default verb injection before handing to clap-noun-verb
+    let args = inject_default_verbs(std::env::args().collect());
+    // Safety: args always has at least the binary name
+    let _argv0 = &args[0];
+
     let cli = CliBuilder::new()
         .name("cargo-cicd")
         .version("26.6.2")
-        .about("Local-first CI/CD helpers for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml.")
+        .about("Local-first CI/CD helpers for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml.");
+
+    // Run with injected args
+    // clap-noun-verb CliBuilder::run() uses std::env::args() internally; we need to
+    // work around this by running the appropriate noun directly when we injected a default.
+    let noun = std::env::args().nth(1).unwrap_or_default();
+    let verb_arg = std::env::args().nth(2).unwrap_or_default();
+    let needs_default = matches!(noun.as_str(), "status" | "publish" | "workspace")
+        && (verb_arg.is_empty() || verb_arg.starts_with('-'));
+
+    if needs_default {
+        match noun.as_str() {
+            "status" => return nouns::status::StatusNoun::run_direct(),
+            "publish" => return nouns::publish::PublishNoun::run_direct(),
+            "workspace" => return nouns::workspace::WorkspaceNoun::run_doctor(),
+            _ => {}
+        }
+    }
+
+    let cli = cli
         .noun(nouns::status::StatusNoun::new())
         .noun(nouns::target::TargetNoun::new())
         .noun(nouns::test::TestNoun::new())

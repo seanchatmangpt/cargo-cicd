@@ -9,6 +9,13 @@ impl PublishNoun {
     pub fn new() -> Self {
         Self
     }
+    pub fn run_direct() -> anyhow::Result<()> {
+        let matches = clap::Command::new("publish").get_matches_from(vec!["publish"]);
+        let args = clap_noun_verb::VerbArgs::new(matches);
+        PublishRunVerb
+            .run(&args)
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
 }
 impl Default for PublishNoun {
     fn default() -> Self {
