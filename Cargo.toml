@@ -51,6 +51,10 @@ path = "tests/changed_tests.rs"
 name = "git_phase_closure"
 path = "tests/git_phase_closure.rs"
 
+[[test]]
+name = "invariants"
+path = "tests/invariants.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
