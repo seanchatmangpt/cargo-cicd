@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap_noun_verb::CliBuilder;
 
-mod engine;
-mod state;
 mod adapters;
 mod autonomic;
+mod cicd_toml;
+mod engine;
 mod nouns;
 mod policies;
-mod cicd_toml;
+mod state;
 
 fn main() -> Result<()> {
     let cli = CliBuilder::new()

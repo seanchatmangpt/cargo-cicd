@@ -30,9 +30,7 @@ impl ChangedFileDetector {
     pub fn is_trybuild_fixture(path: &str) -> bool {
         path.contains("/tests/")
             && (path.ends_with(".rs") || path.ends_with(".stderr") || path.ends_with(".stdout"))
-            && (path.contains("compile_fail")
-                || path.contains("trybuild")
-                || path.contains("ui/"))
+            && (path.contains("compile_fail") || path.contains("trybuild") || path.contains("ui/"))
     }
 }
 

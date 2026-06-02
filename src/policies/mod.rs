@@ -1,20 +1,27 @@
+pub mod git_phase_dirty;
 pub mod target_pressure;
 pub mod toolchain_mismatch;
 pub mod trybuild_changed;
-pub mod git_phase_dirty;
 
+pub use git_phase_dirty::GitPhaseDirtyPolicy;
 pub use target_pressure::TargetPressurePolicy;
 pub use toolchain_mismatch::ToolchainMismatchPolicy;
 pub use trybuild_changed::TrybuildChangedPolicy;
-pub use git_phase_dirty::GitPhaseDirtyPolicy;
 
 /// Policy mode — only suggest is enabled by default
 #[derive(Debug, Clone, PartialEq)]
-pub enum PolicyMode { Suggest, Apply }
+pub enum PolicyMode {
+    Suggest,
+    Apply,
+}
 
 /// Policy verdict
 #[derive(Debug, Clone, PartialEq)]
-pub enum PolicyVerdict { Pass, Warn, Alert }
+pub enum PolicyVerdict {
+    Pass,
+    Warn,
+    Alert,
+}
 
 /// Common policy interface
 pub trait CicdPolicy {

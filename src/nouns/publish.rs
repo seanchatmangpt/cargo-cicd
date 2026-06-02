@@ -1,13 +1,23 @@
-use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
+use crate::adapters::{
+    ChangedFileDetector, GitStatusAdapter, TargetScannerAdapter, ToolchainDetector,
+};
 use crate::cicd_toml::CicdToml;
-use crate::adapters::{TargetScannerAdapter, GitStatusAdapter, ChangedFileDetector, ToolchainDetector};
+use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct PublishNoun;
-impl PublishNoun { pub fn new() -> Self { Self } }
+impl PublishNoun {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 impl NounCommand for PublishNoun {
-    fn name(&self) -> &'static str { "publish" }
-    fn about(&self) -> &'static str { "Publish cicd.toml with current workspace state" }
+    fn name(&self) -> &'static str {
+        "publish"
+    }
+    fn about(&self) -> &'static str {
+        "Publish cicd.toml with current workspace state"
+    }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
         vec![Box::new(PublishRunVerb)]
     }
@@ -15,8 +25,12 @@ impl NounCommand for PublishNoun {
 
 pub struct PublishRunVerb;
 impl VerbCommand for PublishRunVerb {
-    fn name(&self) -> &'static str { "run" }
-    fn about(&self) -> &'static str { "Emit cicd.toml with current workspace state" }
+    fn name(&self) -> &'static str {
+        "run"
+    }
+    fn about(&self) -> &'static str {
+        "Emit cicd.toml with current workspace state"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let mut cicd = CicdToml::from_current_workspace();
         let target_gb = TargetScannerAdapter::total_size_gb(&cicd.workspace.target_dir);
@@ -25,8 +39,14 @@ impl VerbCommand for PublishRunVerb {
         cicd.state.dirty = !git.dirty_files.is_empty() || !git.untracked_files.is_empty();
         let changed = ChangedFileDetector::changed_rs_files(&cicd.test.changed.base);
         cicd.state.changed_files = changed.len();
-        cicd.state.changed_tests = changed.iter().filter(|f| ChangedFileDetector::is_test_file(f)).count();
-        cicd.state.changed_trybuild_fixtures = changed.iter().filter(|f| ChangedFileDetector::is_trybuild_fixture(f)).count();
+        cicd.state.changed_tests = changed
+            .iter()
+            .filter(|f| ChangedFileDetector::is_test_file(f))
+            .count();
+        cicd.state.changed_trybuild_fixtures = changed
+            .iter()
+            .filter(|f| ChangedFileDetector::is_trybuild_fixture(f))
+            .count();
         cicd.workspace.toolchain = ToolchainDetector::active_toolchain();
         cicd.write_default()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;

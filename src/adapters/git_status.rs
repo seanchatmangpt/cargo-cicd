@@ -14,7 +14,9 @@ impl GitStatusAdapter {
         let branch_out = Command::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
             .output()?;
-        result.branch = String::from_utf8_lossy(&branch_out.stdout).trim().to_string();
+        result.branch = String::from_utf8_lossy(&branch_out.stdout)
+            .trim()
+            .to_string();
 
         let status_out = Command::new("git")
             .args(["status", "--porcelain"])
@@ -34,9 +36,7 @@ impl GitStatusAdapter {
                     result.staged_files.push(file.clone());
                     result.dirty_files.push(file);
                 }
-                (Some('M'), _) | (Some('A'), _) | (Some('D'), _) => {
-                    result.staged_files.push(file)
-                }
+                (Some('M'), _) | (Some('A'), _) | (Some('D'), _) => result.staged_files.push(file),
                 (Some('?'), Some('?')) => result.untracked_files.push(file),
                 _ => {}
             }

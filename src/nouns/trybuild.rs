@@ -1,12 +1,20 @@
-use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
 use crate::adapters::ChangedFileDetector;
+use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct TrybuildNoun;
-impl TrybuildNoun { pub fn new() -> Self { Self } }
+impl TrybuildNoun {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 impl NounCommand for TrybuildNoun {
-    fn name(&self) -> &'static str { "trybuild" }
-    fn about(&self) -> &'static str { "Manage trybuild fixtures" }
+    fn name(&self) -> &'static str {
+        "trybuild"
+    }
+    fn about(&self) -> &'static str {
+        "Manage trybuild fixtures"
+    }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
         vec![Box::new(TrybuildChangedVerb)]
     }
@@ -14,12 +22,19 @@ impl NounCommand for TrybuildNoun {
 
 pub struct TrybuildChangedVerb;
 impl VerbCommand for TrybuildChangedVerb {
-    fn name(&self) -> &'static str { "changed" }
-    fn about(&self) -> &'static str { "Run trybuild for changed fixtures only" }
+    fn name(&self) -> &'static str {
+        "changed"
+    }
+    fn about(&self) -> &'static str {
+        "Run trybuild for changed fixtures only"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let base = "origin/main";
         let changed = ChangedFileDetector::changed_rs_files(base);
-        let fixtures: Vec<_> = changed.iter().filter(|f| ChangedFileDetector::is_trybuild_fixture(f)).collect();
+        let fixtures: Vec<_> = changed
+            .iter()
+            .filter(|f| ChangedFileDetector::is_trybuild_fixture(f))
+            .collect();
         println!("trybuild changed plan");
         println!("====================");
         println!("base ref:             {}", base);

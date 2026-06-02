@@ -72,7 +72,14 @@ pub fn read_git_state() -> Result<GitState> {
         }
     };
 
-    Ok(GitState { branch, dirty, staged, untracked, ahead, behind })
+    Ok(GitState {
+        branch,
+        dirty,
+        staged,
+        untracked,
+        ahead,
+        behind,
+    })
 }
 
 /// List files changed between `base` and HEAD using `git diff --name-only <base>`.
@@ -115,7 +122,13 @@ pub fn read_git_phase(root: &Path) -> Result<GitPhaseState> {
 
 fn git_branch(root: &Path) -> Result<String> {
     let out = Command::new("git")
-        .args(["-C", root.to_str().unwrap_or("."), "rev-parse", "--abbrev-ref", "HEAD"])
+        .args([
+            "-C",
+            root.to_str().unwrap_or("."),
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+        ])
         .output()?;
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
@@ -133,7 +146,13 @@ fn git_dirty_files(root: &Path) -> Result<Vec<std::path::PathBuf>> {
 
 fn git_staged_files(root: &Path) -> Result<Vec<std::path::PathBuf>> {
     let out = Command::new("git")
-        .args(["-C", root.to_str().unwrap_or("."), "diff", "--name-only", "--cached"])
+        .args([
+            "-C",
+            root.to_str().unwrap_or("."),
+            "diff",
+            "--name-only",
+            "--cached",
+        ])
         .output()?;
     let files = String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -144,7 +163,13 @@ fn git_staged_files(root: &Path) -> Result<Vec<std::path::PathBuf>> {
 
 fn git_untracked_files(root: &Path) -> Result<Vec<std::path::PathBuf>> {
     let out = Command::new("git")
-        .args(["-C", root.to_str().unwrap_or("."), "ls-files", "--others", "--exclude-standard"])
+        .args([
+            "-C",
+            root.to_str().unwrap_or("."),
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+        ])
         .output()?;
     let files = String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -156,8 +181,12 @@ fn git_untracked_files(root: &Path) -> Result<Vec<std::path::PathBuf>> {
 fn git_ahead_behind(root: &Path) -> Result<(usize, usize)> {
     let out = Command::new("git")
         .args([
-            "-C", root.to_str().unwrap_or("."),
-            "rev-list", "--left-right", "--count", "HEAD...@{upstream}",
+            "-C",
+            root.to_str().unwrap_or("."),
+            "rev-list",
+            "--left-right",
+            "--count",
+            "HEAD...@{upstream}",
         ])
         .output()?;
     let s = String::from_utf8_lossy(&out.stdout);

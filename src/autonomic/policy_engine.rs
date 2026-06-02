@@ -8,7 +8,11 @@ pub fn evaluate_policy(name: &str, mode: PolicyMode, signals: Vec<String>) -> Po
             if signals.is_empty() {
                 (PolicyVerdict::Pass, "no signals — clean".to_string())
             } else {
-                let rec = format!("address {} signal(s): {}", signals.len(), signals.join(", "));
+                let rec = format!(
+                    "address {} signal(s): {}",
+                    signals.len(),
+                    signals.join(", ")
+                );
                 (PolicyVerdict::Warn, rec)
             }
         }

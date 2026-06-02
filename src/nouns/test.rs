@@ -1,12 +1,20 @@
-use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
 use crate::adapters::ChangedFileDetector;
+use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct TestNoun;
-impl TestNoun { pub fn new() -> Self { Self } }
+impl TestNoun {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 impl NounCommand for TestNoun {
-    fn name(&self) -> &'static str { "test" }
-    fn about(&self) -> &'static str { "Run changed tests" }
+    fn name(&self) -> &'static str {
+        "test"
+    }
+    fn about(&self) -> &'static str {
+        "Run changed tests"
+    }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
         vec![Box::new(TestChangedVerb)]
     }
@@ -14,12 +22,19 @@ impl NounCommand for TestNoun {
 
 pub struct TestChangedVerb;
 impl VerbCommand for TestChangedVerb {
-    fn name(&self) -> &'static str { "changed" }
-    fn about(&self) -> &'static str { "Run tests for changed files only" }
+    fn name(&self) -> &'static str {
+        "changed"
+    }
+    fn about(&self) -> &'static str {
+        "Run tests for changed files only"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let base = "origin/main";
         let changed = ChangedFileDetector::changed_rs_files(base);
-        let test_files: Vec<_> = changed.iter().filter(|f| ChangedFileDetector::is_test_file(f)).collect();
+        let test_files: Vec<_> = changed
+            .iter()
+            .filter(|f| ChangedFileDetector::is_test_file(f))
+            .collect();
         println!("changed test plan");
         println!("=================");
         println!("base ref:         {}", base);

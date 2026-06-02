@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::cicd_toml::CicdToml;
+use anyhow::Result;
 use std::path::Path;
 
 pub struct CicdTomlWriter;

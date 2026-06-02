@@ -27,7 +27,11 @@ pub fn scan_target(path: &Path) -> Result<TargetInfo> {
         0
     };
     let size_gb = size_bytes as f64 / 1_073_741_824.0;
-    Ok(TargetInfo { path: path.to_path_buf(), size_bytes, size_gb })
+    Ok(TargetInfo {
+        path: path.to_path_buf(),
+        size_bytes,
+        size_gb,
+    })
 }
 
 /// Identify candidate subdirectories for pruning: `incremental/` and `deps/` subtrees.

@@ -1,9 +1,9 @@
-pub mod workspace;
-pub mod toolchain;
-pub mod target;
 pub mod changed;
-pub mod test_plan;
-pub mod git_phase;
 pub mod event;
+pub mod git_phase;
 pub mod policy;
 pub mod projection;
+pub mod target;
+pub mod test_plan;
+pub mod toolchain;
+pub mod workspace;

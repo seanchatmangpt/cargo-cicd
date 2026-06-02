@@ -1,12 +1,20 @@
-use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
 use crate::adapters::GitStatusAdapter;
+use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct GitNoun;
-impl GitNoun { pub fn new() -> Self { Self } }
+impl GitNoun {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 impl NounCommand for GitNoun {
-    fn name(&self) -> &'static str { "git" }
-    fn about(&self) -> &'static str { "Git phase management" }
+    fn name(&self) -> &'static str {
+        "git"
+    }
+    fn about(&self) -> &'static str {
+        "Git phase management"
+    }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
         vec![Box::new(GitStatusVerb), Box::new(GitCloseVerb)]
     }
@@ -14,8 +22,12 @@ impl NounCommand for GitNoun {
 
 pub struct GitStatusVerb;
 impl VerbCommand for GitStatusVerb {
-    fn name(&self) -> &'static str { "status" }
-    fn about(&self) -> &'static str { "Show git repository state" }
+    fn name(&self) -> &'static str {
+        "status"
+    }
+    fn about(&self) -> &'static str {
+        "Show git repository state"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let status = GitStatusAdapter::query()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
@@ -30,11 +42,15 @@ impl VerbCommand for GitStatusVerb {
         println!();
         if !status.dirty_files.is_empty() {
             println!("dirty files:");
-            for f in &status.dirty_files { println!("  M {}", f); }
+            for f in &status.dirty_files {
+                println!("  M {}", f);
+            }
         }
         if !status.untracked_files.is_empty() {
             println!("untracked:");
-            for f in &status.untracked_files { println!("  ? {}", f); }
+            for f in &status.untracked_files {
+                println!("  ? {}", f);
+            }
         }
         let next = if status.dirty_files.is_empty() && status.untracked_files.is_empty() {
             "tree is clean — ready to push"
@@ -48,8 +64,12 @@ impl VerbCommand for GitStatusVerb {
 
 pub struct GitCloseVerb;
 impl VerbCommand for GitCloseVerb {
-    fn name(&self) -> &'static str { "close" }
-    fn about(&self) -> &'static str { "Enforce phase closure: stage outputs, commit, verify clean" }
+    fn name(&self) -> &'static str {
+        "close"
+    }
+    fn about(&self) -> &'static str {
+        "Enforce phase closure: stage outputs, commit, verify clean"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let status = GitStatusAdapter::query()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
@@ -67,7 +87,7 @@ impl VerbCommand for GitCloseVerb {
         println!();
         println!("refusing to hide unrelated dirty files — no silent batch commit.");
         Err(clap_noun_verb::error::NounVerbError::execution_error(
-            "phase closure refused: tree is dirty. Stage and commit manually, then re-run."
+            "phase closure refused: tree is dirty. Stage and commit manually, then re-run.",
         ))
     }
 }

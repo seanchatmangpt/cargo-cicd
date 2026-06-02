@@ -1,12 +1,20 @@
-use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
 use crate::adapters::TargetScannerAdapter;
+use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct TargetNoun;
-impl TargetNoun { pub fn new() -> Self { Self } }
+impl TargetNoun {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 impl NounCommand for TargetNoun {
-    fn name(&self) -> &'static str { "target" }
-    fn about(&self) -> &'static str { "Manage target directory" }
+    fn name(&self) -> &'static str {
+        "target"
+    }
+    fn about(&self) -> &'static str {
+        "Manage target directory"
+    }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
         vec![Box::new(TargetShowVerb), Box::new(TargetPruneVerb)]
     }
@@ -14,8 +22,12 @@ impl NounCommand for TargetNoun {
 
 pub struct TargetShowVerb;
 impl VerbCommand for TargetShowVerb {
-    fn name(&self) -> &'static str { "show" }
-    fn about(&self) -> &'static str { "Show target directory size and state" }
+    fn name(&self) -> &'static str {
+        "show"
+    }
+    fn about(&self) -> &'static str {
+        "Show target directory size and state"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let target_dir = "target";
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
@@ -34,8 +46,12 @@ impl VerbCommand for TargetShowVerb {
 
 pub struct TargetPruneVerb;
 impl VerbCommand for TargetPruneVerb {
-    fn name(&self) -> &'static str { "prune" }
-    fn about(&self) -> &'static str { "Plan target directory cleanup (safe by default)" }
+    fn name(&self) -> &'static str {
+        "prune"
+    }
+    fn about(&self) -> &'static str {
+        "Plan target directory cleanup (safe by default)"
+    }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let target_dir = "target";
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);

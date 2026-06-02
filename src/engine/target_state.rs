@@ -12,10 +12,19 @@ pub struct TargetState {
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum TargetVerdict { #[default] Pass, Warn, Fail }
+pub enum TargetVerdict {
+    #[default]
+    Pass,
+    Warn,
+    Fail,
+}
 
 impl std::fmt::Display for TargetVerdict {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self { Self::Pass => write!(f, "pass"), Self::Warn => write!(f, "warn"), Self::Fail => write!(f, "fail") }
+        match self {
+            Self::Pass => write!(f, "pass"),
+            Self::Warn => write!(f, "warn"),
+            Self::Fail => write!(f, "fail"),
+        }
     }
 }

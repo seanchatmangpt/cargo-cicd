@@ -53,7 +53,11 @@ pub fn read_workspace() -> Result<WorkspaceInfo> {
                 .unwrap_or_else(|| "workspace".into())
         });
 
-    Ok(WorkspaceInfo { name, root, target_dir })
+    Ok(WorkspaceInfo {
+        name,
+        root,
+        target_dir,
+    })
 }
 
 /// Read toolchain state from the workspace root.
@@ -93,5 +97,9 @@ fn detect_toolchain_version(root: &Path) -> Option<String> {
         .output()
         .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if s.is_empty() { None } else { Some(s) }
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }

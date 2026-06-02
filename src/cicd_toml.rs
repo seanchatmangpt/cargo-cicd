@@ -41,9 +41,11 @@ fn detect_workspace_name() -> String {
     std::fs::read_to_string("Cargo.toml")
         .ok()
         .and_then(|s| {
-            s.lines()
-                .find(|l| l.starts_with("name = "))
-                .map(|l| l.trim_start_matches("name = ").trim_matches('"').to_string())
+            s.lines().find(|l| l.starts_with("name = ")).map(|l| {
+                l.trim_start_matches("name = ")
+                    .trim_matches('"')
+                    .to_string()
+            })
         })
         .unwrap_or_else(|| {
             std::env::current_dir()
@@ -85,7 +87,10 @@ pub struct TargetSection {
 
 impl Default for TargetSection {
     fn default() -> Self {
-        Self { max_size_gb: 20, prune_after_days: 14 }
+        Self {
+            max_size_gb: 20,
+            prune_after_days: 14,
+        }
     }
 }
 
@@ -102,7 +107,10 @@ pub struct TestChangedSection {
 
 impl Default for TestChangedSection {
     fn default() -> Self {
-        Self { enabled: true, base: "origin/main".into() }
+        Self {
+            enabled: true,
+            base: "origin/main".into(),
+        }
     }
 }
 
@@ -119,7 +127,10 @@ pub struct TrybuildChangedSection {
 
 impl Default for TrybuildChangedSection {
     fn default() -> Self {
-        Self { enabled: true, snapshot_mode: "changed-only".into() }
+        Self {
+            enabled: true,
+            snapshot_mode: "changed-only".into(),
+        }
     }
 }
 
@@ -136,7 +147,10 @@ pub struct GitPhaseSection {
 
 impl Default for GitPhaseSection {
     fn default() -> Self {
-        Self { require_clean_tree: true, commit_after_phase: false }
+        Self {
+            require_clean_tree: true,
+            commit_after_phase: false,
+        }
     }
 }
 
@@ -148,7 +162,10 @@ pub struct AutonomicSection {
 
 impl Default for AutonomicSection {
     fn default() -> Self {
-        Self { enabled: true, mode: "suggest".into() }
+        Self {
+            enabled: true,
+            mode: "suggest".into(),
+        }
     }
 }
 
@@ -164,7 +181,12 @@ pub struct EventRecord {
 
 impl EventRecord {
     pub fn status_pass() -> Self {
-        Self { kind: "status".into(), verdict: "pass".into(), details: None, timestamp: None }
+        Self {
+            kind: "status".into(),
+            verdict: "pass".into(),
+            details: None,
+            timestamp: None,
+        }
     }
 }
 
