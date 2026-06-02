@@ -50,13 +50,20 @@ fn invariant_help_text_public_safe() {
 fn invariant_no_false_close_on_dirty_tree() {
     use tempfile::TempDir;
     let tmp = TempDir::new().unwrap();
+    // Initialize a real git repo so `git status --porcelain` can detect untracked files.
+    // Without git init, `git status --porcelain` exits 128 (non-git dir) but still
+    // runs — stdout is empty, so GitStatusAdapter sees no dirty files and closes cleanly.
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(tmp.path())
+        .output()
+        .expect("git init failed");
     // Create an untracked file — dirty workspace
     std::fs::write(tmp.path().join("untracked.rs"), "// untracked").unwrap();
-    // git close should fail (non-zero) when tree is dirty with no git repo
-    // In a non-git dir it will fail due to git errors — which is the correct refusal
+    // git close must refuse when tree has untracked files
     let result = Command::cargo_bin("cargo-cicd").unwrap()
         .args(["git", "close"]).current_dir(tmp.path()).output().unwrap();
-    // Should not claim "phase closed" on a dirty or non-git tree
+    // Should not claim "phase closed" on a dirty tree
     let stdout = String::from_utf8_lossy(&result.stdout);
     assert!(!stdout.contains("phase already closed") || !result.status.success(),
         "git close claimed closed on dirty/no-git tree: {}", stdout);

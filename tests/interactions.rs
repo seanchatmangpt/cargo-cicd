@@ -66,14 +66,22 @@ fn pairwise_prune_without_apply_is_safe() {
 #[test]
 fn three_wise_dirty_fixture_close_refuses() {
     let tmp = TempDir::new().unwrap();
+    // Initialize a real git repo so git status can detect untracked files.
+    // Without git init, `git status --porcelain` returns exit 128 (non-git dir)
+    // but still runs — stdout is empty, so the adapter sees no dirty files.
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(tmp.path())
+        .output()
+        .expect("git init failed");
     // Create fixture file (simulating changed trybuild)
     std::fs::create_dir_all(tmp.path().join("tests/compile_fail")).unwrap();
     std::fs::write(tmp.path().join("tests/compile_fail/new.rs"), "// new fixture").unwrap();
-    // git close on non-git or dirty dir must refuse
+    // git close on a dirty git repo must refuse
     let output = Command::cargo_bin("cargo-cicd").unwrap()
         .args(["git", "close"]).current_dir(tmp.path()).output().unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // Must not claim phase closed when tree is dirty or has no git
+    // Must not claim phase closed when tree has untracked files
     assert!(!stdout.contains("phase already closed") || !output.status.success(),
         "git close falsely claimed closed: {}", stdout);
 }
