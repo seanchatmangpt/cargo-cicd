@@ -1,0 +1,59 @@
+// @generated — do not edit by hand.
+// Source: ontology/cargo-cicd.ttl  |  template: templates/noun.rs.tera
+// Noun: {{ noun_name }}  —  {{ description | default(value="(no description)") }}
+
+use clap::Subcommand;
+
+/// `{{ noun_name }}` sub-commands.
+///
+/// {{ description | default(value="") }}
+#[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
+pub enum {{ noun_name | capitalize }}Verb {
+{% for verb in verbs | default(value=[]) %}
+    /// `{{ noun_name }} {{ verb.name }}` — {{ verb.description | default(value="") }}
+    {{ verb.name | capitalize }},
+{% endfor %}
+}
+
+impl {{ noun_name | capitalize }}Verb {
+    /// Return the canonical string name of this verb as it appears on the CLI.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+{% for verb in verbs | default(value=[]) %}
+            Self::{{ verb.name | capitalize }} => "{{ verb.name }}",
+{% endfor %}
+        }
+    }
+
+    /// Return the human-readable description for this verb.
+    pub fn description(&self) -> &'static str {
+        match self {
+{% for verb in verbs | default(value=[]) %}
+            Self::{{ verb.name | capitalize }} => "{{ verb.description | default(value="") }}",
+{% endfor %}
+        }
+    }
+}
+
+impl std::fmt::Display for {{ noun_name | capitalize }}Verb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_verbs_have_non_empty_str() {
+        let verbs: &[{{ noun_name | capitalize }}Verb] = &[
+{% for verb in verbs | default(value=[]) %}
+            {{ noun_name | capitalize }}Verb::{{ verb.name | capitalize }},
+{% endfor %}
+        ];
+        for v in verbs {
+            assert!(!v.as_str().is_empty(), "verb as_str must not be empty: {:?}", v);
+        }
+    }
+}

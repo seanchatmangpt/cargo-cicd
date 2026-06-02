@@ -1,0 +1,55 @@
+[project]
+name = 'cargo-cicd'
+version = '26.6.2'
+
+[ontology]
+source = 'ontology/cargo-cicd.ttl'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Generation passes
+# Each [[generate]] block is one manufacturing pass.
+# template   — Tera template path relative to this file
+# output_dir — directory where generated files are written (one file per row)
+# query      — SPARQL SELECT query used to populate template variables
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[generate]]
+template   = 'templates/noun.rs.tera'
+output_dir = 'src/nouns/'
+query      = 'queries/commands.rq'
+# Variables injected per noun row:
+#   noun_name   — the nounName literal (e.g. "status")
+#   verbs       — list of { name, description } for all verbs of that noun
+#   description — rdfs:comment of the noun individual
+groupby = 'nounName'
+
+[[generate]]
+template   = 'templates/command_doc.md.tera'
+output_dir = 'docs/commands/'
+query      = 'queries/commands.rq'
+# Variables injected per (noun, verb) row:
+#   noun_name   — nounName literal
+#   verb_name   — verbName literal
+#   description — rdfs:comment of the verb individual
+output_filename = '{{ noun_name }}/{{ verb_name }}.md'
+
+[[generate]]
+template   = 'templates/cli_test.rs.tera'
+output_dir = 'tests/cli/'
+query      = 'queries/commands.rq'
+# Variables injected per (noun, verb) row:
+#   noun_name   — nounName literal
+#   verb_name   — verbName literal
+#   description — rdfs:comment of the verb individual
+output_filename = '{{ noun_name }}_{{ verb_name }}_test.rs'
+
+[[generate]]
+template   = 'templates/cicd_toml_schema.rs.tera'
+output_dir = 'src/'
+query      = 'queries/commands.rq'
+# Single output file aggregating all nouns.
+output_filename = 'cicd_toml_schema.rs'
+groupby    = 'all'
+# Extra variables:
+#   project_version — from [project].version above
+#   nouns           — list of { name, config_fields } for all noun individuals

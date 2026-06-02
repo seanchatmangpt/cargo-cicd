@@ -1,0 +1,58 @@
+# `cargo cicd {{ noun_name }} {{ verb_name }}`
+
+{{ description | default(value="*(no description)*") }}
+
+## Synopsis
+
+```
+cargo cicd {{ noun_name }} {{ verb_name }} [OPTIONS]
+```
+
+## Description
+
+{{ long_description | default(value=description) | default(value="") }}
+
+## Options
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+{% for opt in options | default(value=[]) %}
+| `--{{ opt.name }}` | `{{ opt.type | default(value="string") }}` | `{{ opt.default | default(value="—") }}` | {{ opt.description | default(value="") }} |
+{% endfor %}
+{% if options | default(value=[]) | length == 0 %}
+| *(none)* | | | |
+{% endif %}
+
+## Examples
+
+```bash
+# Basic usage
+cargo cicd {{ noun_name }} {{ verb_name }}
+```
+
+{% for example in examples | default(value=[]) %}
+```bash
+# {{ example.label | default(value="Example") }}
+{{ example.command }}
+```
+
+{% endfor %}
+
+## Process Events
+
+This command emits the following OCEL-compatible process events:
+
+| Event | Object Type | Description |
+|-------|-------------|-------------|
+| `{{ noun_name }}.{{ verb_name }}.started` | `Command` | Emitted when the command begins execution. |
+| `{{ noun_name }}.{{ verb_name }}.completed` | `Command` | Emitted on successful completion with artifact reference. |
+| `{{ noun_name }}.{{ verb_name }}.failed` | `Command` | Emitted on failure with named refusal law. |
+
+## See Also
+
+{% for related in related_commands | default(value=[]) %}
+- [`cargo cicd {{ related.noun }} {{ related.verb }}`](../{{ related.noun }}/{{ related.verb }}.md) — {{ related.description | default(value="") }}
+{% endfor %}
+{% if related_commands | default(value=[]) | length == 0 %}
+*(no related commands)*
+{% endif %}

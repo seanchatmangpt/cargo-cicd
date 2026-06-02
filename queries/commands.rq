@@ -1,0 +1,17 @@
+PREFIX cicd: <https://cargo-cicd.rs/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+# Enumerate all noun/verb pairs from the cargo-cicd command vocabulary ontology.
+# Returns one row per (noun, verb) pair with the verb's rdfs:comment as description.
+# Ordered by noun name then verb name for stable output.
+
+SELECT ?noun ?nounName ?verb ?verbName ?description
+WHERE {
+    ?noun     a           cicd:Noun     .
+    ?noun     cicd:nounName  ?nounName  .
+    ?noun     cicd:hasVerb   ?verb      .
+    ?verb     a           cicd:Verb     .
+    ?verb     cicd:verbName  ?verbName  .
+    OPTIONAL { ?verb rdfs:comment ?description . }
+}
+ORDER BY ?nounName ?verbName
