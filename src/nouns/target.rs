@@ -50,11 +50,15 @@ impl VerbCommand for TargetShowVerb {
         }
 
         // Count top-level artifacts in the target directory
-        let artifact_count = std::fs::read_dir(target_dir)
+        let _artifact_count = std::fs::read_dir(target_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
         let duration_ms = start.elapsed().as_millis() as u64;
-        let ev_verdict = if verdict_str == "pass" { "PASS" } else { "WARN" };
+        let ev_verdict = if verdict_str == "pass" {
+            "PASS"
+        } else {
+            "WARN"
+        };
         let event = ProcessEvent::new("target show", ev_verdict);
         let evidence_path = crate::evidence::evidence_dir().join("events.xes");
         if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {

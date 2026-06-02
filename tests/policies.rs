@@ -23,8 +23,11 @@ fn policy_all_policies_default_to_suggest() {
     ];
     for policy in policies {
         let result = policy.evaluate();
-        assert_eq!(result.mode, "suggest",
-            "policy {} is not in suggest mode — apply forbidden by default", result.name);
+        assert_eq!(
+            result.mode, "suggest",
+            "policy {} is not in suggest mode — apply forbidden by default",
+            result.name
+        );
     }
 }
 
@@ -34,5 +37,8 @@ fn policy_result_has_required_fields() {
     let result = TargetPressurePolicy::default().evaluate();
     assert!(!result.name.is_empty(), "policy result has empty name");
     assert!(!result.mode.is_empty(), "policy result has empty mode");
-    assert!(!result.verdict.is_empty(), "policy result has empty verdict");
+    assert!(
+        !result.verdict.is_empty(),
+        "policy result has empty verdict"
+    );
 }

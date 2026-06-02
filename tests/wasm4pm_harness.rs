@@ -60,8 +60,8 @@ impl FixtureWorkspace {
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
                 // Fallback: look in target/debug relative to CARGO_MANIFEST_DIR.
-                let manifest = std::env::var("CARGO_MANIFEST_DIR")
-                    .unwrap_or_else(|_| ".".to_string());
+                let manifest =
+                    std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
                 PathBuf::from(manifest)
                     .join("target")
                     .join("debug")
@@ -183,17 +183,23 @@ impl WpmOracle {
     pub fn discover() -> Option<Self> {
         if let Ok(p) = std::env::var("WPM_PATH") {
             if Path::new(&p).exists() {
-                return Some(Self { binary: PathBuf::from(p) });
+                return Some(Self {
+                    binary: PathBuf::from(p),
+                });
             }
         }
         if Path::new(WPM_KNOWN_PATH).exists() {
-            return Some(Self { binary: PathBuf::from(WPM_KNOWN_PATH) });
+            return Some(Self {
+                binary: PathBuf::from(WPM_KNOWN_PATH),
+            });
         }
         if let Ok(out) = Command::new("which").arg("wpm").output() {
             if out.status.success() {
                 let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
                 if !p.is_empty() {
-                    return Some(Self { binary: PathBuf::from(p) });
+                    return Some(Self {
+                        binary: PathBuf::from(p),
+                    });
                 }
             }
         }

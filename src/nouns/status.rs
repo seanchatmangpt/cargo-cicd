@@ -55,7 +55,12 @@ impl StatusShowVerb {
 
         let duration_ms = start.elapsed().as_millis() as u64;
         let ev_verdict = if dirty { "WARN" } else { "PASS" };
-        let changed_files: Vec<&str> = git.dirty_files.iter().map(String::as_str).chain(git.untracked_files.iter().map(String::as_str)).collect();
+        let _changed_files: Vec<&str> = git
+            .dirty_files
+            .iter()
+            .map(String::as_str)
+            .chain(git.untracked_files.iter().map(String::as_str))
+            .collect();
         let event = ProcessEvent::new("status show", ev_verdict);
         let evidence_path = crate::evidence::evidence_dir().join("events.xes");
         if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {

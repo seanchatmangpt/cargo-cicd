@@ -116,7 +116,10 @@ pub fn corrupt_xes_missing_trace(path: &Path) {
     let content = std::fs::read_to_string(path).unwrap_or_default();
     // Strip everything between <trace> and </trace> including the tags
     let start = content.find("<trace>").unwrap_or(content.len());
-    let end = content.find("</trace>").map(|i| i + "</trace>".len()).unwrap_or(content.len());
+    let end = content
+        .find("</trace>")
+        .map(|i| i + "</trace>".len())
+        .unwrap_or(content.len());
     let mutated = format!("{}{}", &content[..start], &content[end..]);
     std::fs::write(path, mutated).unwrap();
 }
@@ -168,7 +171,10 @@ pub fn corrupt_xes_wrong_encoding_declaration(path: &Path) {
     );
     // If the declaration was absent, prepend a conflicting one
     let mutated = if mutated == content {
-        format!("<?xml version=\"1.0\" encoding=\"EBCDIC-US\"?>\n{}", content)
+        format!(
+            "<?xml version=\"1.0\" encoding=\"EBCDIC-US\"?>\n{}",
+            content
+        )
     } else {
         mutated
     };

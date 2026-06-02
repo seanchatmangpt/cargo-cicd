@@ -8,6 +8,7 @@ use tempfile::TempDir;
 /// state. The `TempDir` is kept alive by `dir`; drop it to clean up.
 pub struct FixtureWorkspace {
     /// The backing temporary directory. Kept alive for the lifetime of the fixture.
+    #[allow(dead_code)]
     pub dir: TempDir,
     /// Absolute path to the workspace root (same as `dir.path()`).
     pub root: PathBuf,
@@ -43,8 +44,7 @@ impl FixtureWorkspace {
     pub fn dirty() -> Self {
         let fixture = Self::clean();
 
-        fs::write(fixture.root.join("untracked.txt"), "dirty\n")
-            .expect("write untracked file");
+        fs::write(fixture.root.join("untracked.txt"), "dirty\n").expect("write untracked file");
 
         fixture
     }
@@ -92,8 +92,7 @@ impl FixtureWorkspace {
         // Write a 1 MB placeholder — enough to trigger size-limit warnings in
         // tests that set a low threshold; not so large as to slow CI.
         let one_mb = vec![0u8; 1_048_576];
-        fs::write(target.join("placeholder.bin"), &one_mb)
-            .expect("write placeholder binary");
+        fs::write(target.join("placeholder.bin"), &one_mb).expect("write placeholder binary");
 
         fixture
     }
@@ -104,11 +103,8 @@ impl FixtureWorkspace {
     pub fn with_corrupted_cicd_toml() -> Self {
         let fixture = Self::clean();
 
-        fs::write(
-            fixture.root.join("cicd.toml"),
-            "not valid toml [[[\n",
-        )
-        .expect("write corrupted cicd.toml");
+        fs::write(fixture.root.join("cicd.toml"), "not valid toml [[[\n")
+            .expect("write corrupted cicd.toml");
 
         fixture
     }
@@ -121,15 +117,11 @@ impl FixtureWorkspace {
         let fixture = Self::clean();
 
         // Write a plausible-but-stale cicd.toml.
-        fs::write(
-            fixture.root.join("cicd.toml"),
-            "[state]\ndirty = false\n",
-        )
-        .expect("write stale cicd.toml");
+        fs::write(fixture.root.join("cicd.toml"), "[state]\ndirty = false\n")
+            .expect("write stale cicd.toml");
 
         // Now make the workspace dirty so the cached state is wrong.
-        fs::write(fixture.root.join("untracked.txt"), "dirty\n")
-            .expect("write untracked file");
+        fs::write(fixture.root.join("untracked.txt"), "dirty\n").expect("write untracked file");
 
         fixture
     }

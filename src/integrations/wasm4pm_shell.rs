@@ -62,8 +62,13 @@ pub struct WpmResult {
 
 impl std::fmt::Display for WpmResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {} — {}", self.verdict, self.command,
-            if self.success { "ok" } else { "fail" })
+        write!(
+            f,
+            "[{}] {} — {}",
+            self.verdict,
+            self.command,
+            if self.success { "ok" } else { "fail" }
+        )
     }
 }
 
@@ -101,7 +106,9 @@ impl Wasm4pmShell {
         }
         // Known path from capability scan
         if Path::new(WPM_KNOWN_PATH).exists() {
-            return Some(Self { binary: WPM_KNOWN_PATH.to_string() });
+            return Some(Self {
+                binary: WPM_KNOWN_PATH.to_string(),
+            });
         }
         // PATH lookup
         if let Ok(output) = Command::new("which").arg("wpm").output() {
@@ -176,12 +183,8 @@ fn infer_verdict(stdout: &str, _stderr: &str, exit_ok: bool) -> WpmVerdict {
         return WpmVerdict::Fail;
     }
     let lower = stdout.to_lowercase();
-    if lower.contains("fail") || lower.contains("error") {
+    if lower.contains("fail") || lower.contains("error") || lower.contains("warn") {
         WpmVerdict::Warn
-    } else if lower.contains("warn") {
-        WpmVerdict::Warn
-    } else if lower.contains("pass") || lower.contains("ok") || lower.contains("healthy") {
-        WpmVerdict::Pass
     } else {
         WpmVerdict::Pass // exit 0 with neutral output = pass
     }

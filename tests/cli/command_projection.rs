@@ -38,7 +38,10 @@ fn test_target_prune_dry_run_does_not_delete() {
         .args(["target", "prune"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "target prune must exit 0 in plan mode");
+    assert!(
+        output.status.success(),
+        "target prune must exit 0 in plan mode"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     // INVARIANT: plan mode must succeed and must advertise --apply as the
     // execution gate.  No files are deleted without an explicit --apply flag.
@@ -105,8 +108,7 @@ fn test_publish_emits_cicd_toml() {
     let mut cmd = Command::cargo_bin("cargo-cicd").unwrap();
     cmd.args(["publish", "run"]);
     cmd.current_dir(dir.path());
-    cmd.assert()
-        .code(predicate::in_iter(vec![0i32, 1]));
+    cmd.assert().code(predicate::in_iter(vec![0i32, 1]));
     // When the command succeeds, cicd.toml must exist.
     let output = cmd.output().unwrap();
     if output.status.success() {

@@ -37,11 +37,23 @@ fn shell_adapter_lean_no_panic_when_available() {
 #[test]
 fn shell_adapter_capability_summary_is_public_safe() {
     let summary = cargo_cicd::integrations::wasm4pm_shell::capability_summary();
-    let forbidden = ["ALIVE", "Inspection Gate", "Nehemiah", "Field8",
-        "Instinct8", "Cargo Court", "Truex", "CONSTRUCT8"];
+    let forbidden = [
+        "ALIVE",
+        "Inspection Gate",
+        "Nehemiah",
+        "Field8",
+        "Instinct8",
+        "Cargo Court",
+        "Truex",
+        "CONSTRUCT8",
+    ];
     for term in forbidden {
-        assert!(!summary.contains(term),
-            "capability_summary contains forbidden term {:?}: {}", term, summary);
+        assert!(
+            !summary.contains(term),
+            "capability_summary contains forbidden term {:?}: {}",
+            term,
+            summary
+        );
     }
 }
 
@@ -61,6 +73,10 @@ fn shell_adapter_audit_refuses_missing_xes() {
         let result = wpm.audit("/nonexistent/path/events.xes");
         assert!(result.is_err(), "audit must fail when XES file is missing");
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("XES file not found"), "error must explain missing file: {}", msg);
+        assert!(
+            msg.contains("XES file not found"),
+            "error must explain missing file: {}",
+            msg
+        );
     }
 }

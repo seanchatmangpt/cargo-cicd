@@ -62,7 +62,10 @@ impl Wasm4pmIntegrationSeam {
     ///
     /// v26.6.2: writes to `target/cargo-cicd/process/events.jsonl` only.
     /// v26.6.3+: this method will forward to wasm4pm via FILE_EXCHANGE.
-    pub fn emit_process_events(events_json: &str, output_path: &std::path::Path) -> anyhow::Result<()> {
+    pub fn emit_process_events(
+        events_json: &str,
+        output_path: &std::path::Path,
+    ) -> anyhow::Result<()> {
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)?;
         }

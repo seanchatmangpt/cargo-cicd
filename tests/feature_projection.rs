@@ -96,7 +96,10 @@ fn test_publish_emits_all_required_sections() {
     let toml_path = dir.path().join("cicd.toml");
     if toml_path.exists() {
         let content = std::fs::read_to_string(&toml_path).unwrap();
-        assert!(content.contains("[workspace]"), "missing [workspace] section");
+        assert!(
+            content.contains("[workspace]"),
+            "missing [workspace] section"
+        );
         assert!(content.contains("[state]"), "missing [state] section");
         assert!(content.contains("[target]"), "missing [target] section");
     }

@@ -3,8 +3,7 @@
 //! Invariant tests E1-E3 prove structural properties of the evidence API.
 
 use cargo_cicd::evidence::{
-    assert_wpm_verdict, emit_xes,
-    ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
+    assert_wpm_verdict, emit_xes, ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
 };
 use tempfile::TempDir;
 
@@ -72,7 +71,7 @@ fn refusal_no_events_trace_behaviour() {
     match result {
         ExpectedWpmVerdict::Blocked => {} // oracle unavailable — acceptable
         ExpectedWpmVerdict::Refuse => {}  // oracle refused — also acceptable
-        ExpectedWpmVerdict::Accept => {} // oracle accepted well-formed XES — documented behaviour
+        ExpectedWpmVerdict::Accept => {}  // oracle accepted well-formed XES — documented behaviour
     }
     // Structural assertion: the oracle returns a verdict without panicking
     // No verdict is explicitly required here — behaviour is documented, not asserted
@@ -108,7 +107,10 @@ fn evidence_invariant_e2_evidence_required_before_adjudication() {
     let dir = TempDir::new().unwrap();
     let xes_path = dir.path().join("e2_evidence.xes");
     // Before emission: file does not exist
-    assert!(!xes_path.exists(), "XES file must not exist before emission");
+    assert!(
+        !xes_path.exists(),
+        "XES file must not exist before emission"
+    );
     // Emit evidence
     let events = vec![ProcessEvent::new("target show", "PASS")];
     emit_xes(&events, &xes_path).expect("emission must succeed");

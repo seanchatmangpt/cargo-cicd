@@ -67,7 +67,11 @@ impl VerbCommand for GitStatusVerb {
         };
         println!("next: {}", next);
         let duration_ms = start.elapsed().as_millis() as u64;
-        let ev_verdict = if status.dirty_files.is_empty() && status.untracked_files.is_empty() { "PASS" } else { "WARN" };
+        let ev_verdict = if status.dirty_files.is_empty() && status.untracked_files.is_empty() {
+            "PASS"
+        } else {
+            "WARN"
+        };
         let event = ProcessEvent::new("git status", ev_verdict);
         let evidence_path = crate::evidence::evidence_dir().join("events.xes");
         let _ = crate::evidence::emit_xes(&[event], &evidence_path);

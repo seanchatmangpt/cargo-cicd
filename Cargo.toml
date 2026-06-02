@@ -70,6 +70,10 @@ name = "wasm4pm_evidence_mutation"
 path = "tests/wasm4pm_evidence_mutation.rs"
 harness = true
 
+[[test]]
+name = "wasm4pm_refusal_cases"
+path = "tests/wasm4pm_refusal_cases.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"

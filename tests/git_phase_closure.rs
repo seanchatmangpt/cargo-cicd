@@ -3,7 +3,11 @@ use std::process::Command as StdCmd;
 use tempfile::TempDir;
 
 fn init_git_repo(dir: &std::path::Path) {
-    StdCmd::new("git").args(["init", "-b", "main"]).current_dir(dir).output().ok();
+    StdCmd::new("git")
+        .args(["init", "-b", "main"])
+        .current_dir(dir)
+        .output()
+        .ok();
     StdCmd::new("git")
         .args(["config", "user.email", "test@test.com"])
         .current_dir(dir)
@@ -28,7 +32,10 @@ fn test_git_status_shows_clean_tree() {
         .output()
         .unwrap();
     // Should succeed and mention branch or status
-    assert!(output.status.success() || true, "git status should not panic");
+    assert!(
+        output.status.success(),
+        "git status should not panic"
+    );
 }
 
 #[test]
@@ -98,5 +105,8 @@ fn test_no_false_close_invariant_dirty_unrelated() {
     );
 
     // Command must exit gracefully (with a process exit code, not a panic/signal).
-    assert!(output.status.code().is_some(), "command should exit gracefully");
+    assert!(
+        output.status.code().is_some(),
+        "command should exit gracefully"
+    );
 }

@@ -1,314 +1,240 @@
-//! Process evidence emission layer for cargo-cicd.
+//! Evidence Gate Architecture — cargo-cicd emits; wasm4pm adjudicates.
 //!
-//! This module **emits** structured process events to
-//! `target/cargo-cicd/evidence/events.jsonl`. It does not adjudicate verdicts.
-//! Adjudication belongs exclusively to wasm4pm. Tests must assert only the
-//! wasm4pm verdict, never the raw event content.
+//! ## Invariants
 //!
-//! ## Law
-//!
-//! cargo-cicd emits. wasm4pm adjudicates. Tests assert only the wasm4pm verdict.
+//! - **E1**: cargo-cicd NEVER adjudicates its own process conformance.
+//!   All verdicts are issued by the external wasm4pm oracle.
+//! - **E2**: Evidence is emitted before adjudication. The XES file must exist
+//!   on disk before `audit_xes` is called.
+//! - **E3**: If the oracle is unavailable and the expected verdict is not
+//!   `Blocked`, the evidence gate panics. Certification requires the oracle.
+//! - **E4**: Tests assert only wasm4pm verdict, never internal cargo-cicd state.
+//!   cargo-cicd state assertions belong in unit tests; process conformance
+//!   assertions belong in evidence-gate tests.
+//! - **E5**: XES emission is append-safe. Each call to `emit_xes` produces a
+//!   complete, self-contained log for the event slice passed.
+//! - **E6**: JSONL emission mirrors XES — same event set, machine-readable
+//!   companion format for downstream tooling.
+//! - **E7**: `ExpectedWpmVerdict::Blocked` is a first-class expectation, not
+//!   an error state. Tests that run without wpm installed MUST declare
+//!   `Blocked` as their expected verdict.
 
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-use std::fs::{self, OpenOptions};
-use std::io::Write;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use anyhow::Result;
+use std::path::{Path, PathBuf};
 
-/// Monotonic counter for event index within a process lifetime.
-static EVENT_INDEX: AtomicU64 = AtomicU64::new(0);
+use crate::integrations::{Wasm4pmShell, WpmVerdict};
 
-/// A single process event emitted by cargo-cicd.
-///
-/// This is a structural record only — no engine logic, no discovery, no
-/// conformance checking. Those operations graduate to wasm4pm.
-///
-/// ## Identity
-///
-/// `event_id` is `evt_{timestamp_ns}_{index}` where `index` is monotonically
-/// increasing within the process. This is not a UUID but is unique within a
-/// single cargo-cicd invocation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/// A single process event emitted by cargo-cicd for wasm4pm adjudication.
 pub struct ProcessEvent {
-    /// Unique event identifier: `evt_{timestamp_ns}_{index}`.
     pub event_id: String,
-    /// ISO-8601 timestamp of event creation (UTC, second precision).
     pub timestamp_iso: String,
-    /// Workspace identifier derived from `Cargo.toml` name and root path hash.
     pub workspace_id: String,
-    /// Absolute path to the repository root.
     pub repo_path: String,
-    /// The cargo-cicd command that produced this event (e.g. `"status show"`).
     pub command: String,
-    /// Structured inputs passed to the command.
-    pub inputs: serde_json::Value,
-    /// Structured outputs produced by the command.
-    pub outputs: serde_json::Value,
-    /// The verdict claimed by cargo-cicd: `"PASS"`, `"WARN"`, `"FAIL"`, or `"PARTIAL"`.
-    /// wasm4pm may override this verdict during adjudication.
-    pub verdict_claimed: String,
-    /// Wall-clock duration of the command in milliseconds.
+    pub verdict_claimed_by_cargo_cicd: String,
     pub duration_ms: u64,
-    /// Paths of files emitted as artifacts by this command.
-    pub artifacts: Vec<String>,
 }
 
 impl ProcessEvent {
-    /// Construct a new `ProcessEvent` with a generated `event_id` and current timestamp.
+    /// Construct a new `ProcessEvent` with canonical defaults.
     ///
-    /// ```ignore
-    /// // Requires a running process context; see EvidenceEmitter for the standard path.
-    /// let evt = ProcessEvent::new("status show", serde_json::json!({}), serde_json::json!({}), "PASS", 42);
-    /// ```
-    pub fn new(
-        command: impl Into<String>,
-        inputs: serde_json::Value,
-        outputs: serde_json::Value,
-        verdict_claimed: impl Into<String>,
-        duration_ms: u64,
-    ) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let timestamp_ns = now.as_nanos() as u64;
-        let index = EVENT_INDEX.fetch_add(1, Ordering::Relaxed);
-        let event_id = format!("evt_{}_{}", timestamp_ns, index);
-        let timestamp_iso = format_timestamp_iso(now.as_secs());
-        let repo_path = std::env::current_dir()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-
+    /// - `event_id` is `"evt-{command}"` with spaces replaced by dashes.
+    /// - `timestamp_iso` is fixed to `"2026-06-02T00:00:00.000Z"`.
+    /// - `workspace_id` is `"cargo-cicd-workspace"`.
+    /// - `repo_path` is `"."`.
+    /// - `duration_ms` is `0`.
+    pub fn new(command: &str, verdict: &str) -> Self {
         Self {
-            event_id,
-            timestamp_iso,
-            workspace_id: workspace_id(),
-            repo_path,
-            command: command.into(),
-            inputs,
-            outputs,
-            verdict_claimed: verdict_claimed.into(),
-            duration_ms,
-            artifacts: Vec::new(),
+            event_id: format!("evt-{}", command.replace(' ', "-")),
+            timestamp_iso: "2026-06-02T00:00:00.000Z".to_string(),
+            workspace_id: "cargo-cicd-workspace".to_string(),
+            repo_path: ".".to_string(),
+            command: command.to_string(),
+            verdict_claimed_by_cargo_cicd: verdict.to_string(),
+            duration_ms: 0,
         }
     }
-
-    /// Attach artifact paths to this event.
-    ///
-    /// ```ignore
-    /// let evt = ProcessEvent::new("publish run", serde_json::json!({}), serde_json::json!({}), "PASS", 0)
-    ///     .with_artifacts(vec!["target/cargo-cicd/evidence/events.jsonl".to_string()]);
-    /// ```
-    pub fn with_artifacts(mut self, artifacts: Vec<String>) -> Self {
-        self.artifacts = artifacts;
-        self
-    }
 }
 
-/// Emits [`ProcessEvent`] records to `target/cargo-cicd/evidence/events.jsonl`.
-///
-/// Creates the evidence directory on first use. Each call to [`emit`][Self::emit]
-/// appends one JSON line to `events.jsonl`. The emitter is stateless across
-/// invocations — it does not buffer events in memory.
-///
-/// ## Directory layout
-///
-/// ```text
-/// target/cargo-cicd/evidence/
-///   events.jsonl      ← append-only JSONL event stream
-///   receipts/         ← per-command receipt files (from emit_receipt)
-/// ```
-pub struct EvidenceEmitter {
-    /// Absolute path to the evidence directory.
-    pub dir: PathBuf,
+/// The verdict the test expects from wasm4pm for a given evidence file.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpectedWpmVerdict {
+    /// wasm4pm accepted the event log as conformant.
+    Accept,
+    /// wasm4pm rejected the event log (Fail verdict).
+    Refuse,
+    /// wasm4pm binary is unavailable; the gate is blocked.
+    Blocked,
 }
 
-impl EvidenceEmitter {
-    /// Construct an `EvidenceEmitter` rooted at the standard evidence directory.
-    ///
-    /// ```ignore
-    /// let emitter = EvidenceEmitter::new();
-    /// ```
-    pub fn new() -> Self {
-        Self { dir: evidence_dir() }
-    }
-
-    /// Construct an `EvidenceEmitter` rooted at a custom directory.
-    ///
-    /// Useful in tests to redirect output to a temporary directory.
-    ///
-    /// ```ignore
-    /// let emitter = EvidenceEmitter::with_dir(tempdir.path().to_path_buf());
-    /// ```
-    pub fn with_dir(dir: PathBuf) -> Self {
-        Self { dir }
-    }
-
-    /// Append `event` as one JSON line to `events.jsonl`.
-    ///
-    /// Creates the evidence directory if it does not yet exist.
-    /// Returns the path of `events.jsonl`.
-    ///
-    /// ```ignore
-    /// let emitter = EvidenceEmitter::new();
-    /// let evt = ProcessEvent::new("status show", serde_json::json!({}), serde_json::json!({}), "PASS", 10);
-    /// let path = emitter.emit(evt)?;
-    /// ```
-    pub fn emit(&self, event: ProcessEvent) -> Result<PathBuf> {
-        self.ensure_dir()?;
-        let events_path = self.dir.join("events.jsonl");
-        let line = serde_json::to_string(&event)
-            .context("failed to serialize ProcessEvent to JSON")?;
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&events_path)
-            .with_context(|| format!("failed to open events.jsonl at {}", events_path.display()))?;
-        writeln!(file, "{}", line)
-            .with_context(|| format!("failed to write event to {}", events_path.display()))?;
-        Ok(events_path)
-    }
-
-    /// Emit a lightweight receipt file for `command` with a `verdict` and free-form `details`.
-    ///
-    /// Receipt files are written to `receipts/{command_slug}_{timestamp_ns}.json`
-    /// within the evidence directory. The `command_slug` is the command string
-    /// with spaces replaced by underscores.
-    ///
-    /// Returns the path of the written receipt file.
-    ///
-    /// ```ignore
-    /// let emitter = EvidenceEmitter::new();
-    /// emitter.emit_receipt("status show", "PASS", "all checks green")?;
-    /// ```
-    pub fn emit_receipt(&self, command: &str, verdict: &str, details: &str) -> Result<PathBuf> {
-        self.ensure_dir()?;
-        let receipts_dir = self.dir.join("receipts");
-        fs::create_dir_all(&receipts_dir)
-            .with_context(|| format!("failed to create receipts dir at {}", receipts_dir.display()))?;
-
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let timestamp_ns = now.as_nanos() as u64;
-        let slug = command.replace(' ', "_");
-        let filename = format!("{}_{}.json", slug, timestamp_ns);
-        let receipt_path = receipts_dir.join(&filename);
-
-        let receipt = serde_json::json!({
-            "command": command,
-            "verdict": verdict,
-            "details": details,
-            "timestamp_iso": format_timestamp_iso(now.as_secs()),
-            "workspace_id": workspace_id(),
-        });
-        let content = serde_json::to_string_pretty(&receipt)
-            .context("failed to serialize receipt")?;
-        fs::write(&receipt_path, content)
-            .with_context(|| format!("failed to write receipt to {}", receipt_path.display()))?;
-        Ok(receipt_path)
-    }
-
-    fn ensure_dir(&self) -> Result<()> {
-        fs::create_dir_all(&self.dir)
-            .with_context(|| format!("failed to create evidence dir at {}", self.dir.display()))
-    }
+/// Runtime oracle that shells out to `wpm` for XES adjudication.
+pub struct WpmEvidenceOracle {
+    shell: Option<Wasm4pmShell>,
 }
 
-impl Default for EvidenceEmitter {
+impl Default for WpmEvidenceOracle {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Returns the standard evidence directory: `{cwd}/target/cargo-cicd/evidence/`.
-///
-/// ```ignore
-/// let dir = evidence_dir();
-/// assert!(dir.ends_with("target/cargo-cicd/evidence"));
-/// ```
-pub fn evidence_dir() -> PathBuf {
-    std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("target")
-        .join("cargo-cicd")
-        .join("evidence")
-}
-
-/// Returns a workspace identifier derived from the `Cargo.toml` `[package] name`
-/// field and a hash of the current working directory path.
-///
-/// Falls back to `"unknown"` if `Cargo.toml` cannot be read or parsed.
-///
-/// ```ignore
-/// let id = workspace_id();
-/// assert!(!id.is_empty());
-/// ```
-pub fn workspace_id() -> String {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let name = read_cargo_toml_name(&cwd).unwrap_or_else(|| "unknown".to_string());
-    let path_hash = simple_hash(cwd.to_string_lossy().as_bytes());
-    format!("{}_{:08x}", name, path_hash)
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-fn read_cargo_toml_name(root: &std::path::Path) -> Option<String> {
-    let cargo_toml = root.join("Cargo.toml");
-    let content = std::fs::read_to_string(cargo_toml).ok()?;
-    // Minimal extraction: look for `name = "..."` in [package] section.
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("name") {
-            let rest = rest.trim_start().strip_prefix('=')?.trim();
-            let name = rest.trim_matches('"').trim_matches('\'');
-            if !name.is_empty() {
-                return Some(name.to_string());
-            }
+impl WpmEvidenceOracle {
+    /// Create a new oracle, auto-detecting the wpm binary.
+    pub fn new() -> Self {
+        Self {
+            shell: Wasm4pmShell::detect(),
         }
     }
-    None
-}
 
-/// A simple djb2-style hash for path strings. Not cryptographic.
-fn simple_hash(bytes: &[u8]) -> u32 {
-    let mut h: u32 = 5381;
-    for &b in bytes {
-        h = h.wrapping_mul(33).wrapping_add(b as u32);
+    /// Returns `true` if the wpm binary was detected and is available.
+    pub fn is_available(&self) -> bool {
+        self.shell.is_some()
     }
-    h
+
+    /// Audit an XES file and map the wpm verdict to `ExpectedWpmVerdict`.
+    ///
+    /// - Binary absent → `Blocked`
+    /// - Invocation error → `Refuse`
+    /// - `Pass | Warn | Partial` → `Accept`
+    /// - `Fail` → `Refuse`
+    /// - `NotAvailable` → `Blocked`
+    pub fn audit_xes(&self, xes_path: &Path) -> ExpectedWpmVerdict {
+        match &self.shell {
+            None => ExpectedWpmVerdict::Blocked,
+            Some(wpm) => match wpm.audit(xes_path.to_str().unwrap_or("")) {
+                Err(_) => ExpectedWpmVerdict::Refuse,
+                Ok(result) => match result.verdict {
+                    WpmVerdict::Pass | WpmVerdict::Warn | WpmVerdict::Partial => {
+                        ExpectedWpmVerdict::Accept
+                    }
+                    WpmVerdict::Fail => ExpectedWpmVerdict::Refuse,
+                    WpmVerdict::NotAvailable => ExpectedWpmVerdict::Blocked,
+                },
+            },
+        }
+    }
 }
 
-/// Format a Unix timestamp (seconds) as ISO-8601 UTC without external crates.
+// ── Emission ──────────────────────────────────────────────────────────────────
+
+/// Emit a minimal valid XES event log to `path`.
 ///
-/// Output format: `YYYY-MM-DDTHH:MM:SSZ`
-fn format_timestamp_iso(secs: u64) -> String {
-    // Days since Unix epoch → calendar date via the proleptic Gregorian calendar.
-    let s = secs % 86400;
-    let days = secs / 86400;
+/// The file is created (with parent directories) and overwritten if it exists.
+/// Each `ProcessEvent` becomes one `<event>` inside a single `<trace>`.
+pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
 
-    let hh = s / 3600;
-    let mm = (s % 3600) / 60;
-    let ss = s % 60;
+    let mut xml = String::new();
+    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<log xes.version=\"1.0\" xes.features=\"\">\n");
+    xml.push_str("  <extension name=\"Concept\" prefix=\"concept\" uri=\"http://www.xes-standard.org/concept.xesext\"/>\n");
+    xml.push_str("  <extension name=\"Time\" prefix=\"time\" uri=\"http://www.xes-standard.org/time.xesext\"/>\n");
+    xml.push_str("  <trace>\n");
+    xml.push_str("    <string key=\"concept:name\" value=\"cargo-cicd-run\"/>\n");
 
-    // Algorithm from https://howardhinnant.github.io/date_algorithms.html
-    let z: i64 = days as i64 + 719468;
-    let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
+    for event in events {
+        xml.push_str("    <event>\n");
+        xml.push_str(&format!(
+            "      <string key=\"concept:name\" value=\"{}\"/>\n",
+            escape_xml(&event.command)
+        ));
+        xml.push_str(&format!(
+            "      <string key=\"cargo_cicd:verdict\" value=\"{}\"/>\n",
+            escape_xml(&event.verdict_claimed_by_cargo_cicd)
+        ));
+        xml.push_str(&format!(
+            "      <date key=\"time:timestamp\" value=\"{}\"/>\n",
+            escape_xml(&event.timestamp_iso)
+        ));
+        xml.push_str("      <string key=\"lifecycle:transition\" value=\"complete\"/>\n");
+        xml.push_str("    </event>\n");
+    }
 
+    xml.push_str("  </trace>\n");
+    xml.push_str("</log>\n");
+
+    std::fs::write(path, xml)?;
+    Ok(())
+}
+
+/// Emit events as newline-delimited JSON to `path`.
+///
+/// Each line is a JSON object with `event_id`, `command`, and
+/// `verdict_claimed_by_cargo_cicd` fields.
+pub fn emit_events_jsonl(events: &[ProcessEvent], path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut lines = String::new();
+    for event in events {
+        lines.push_str(&format!(
+            "{{\"event_id\":{},\"command\":{},\"verdict_claimed_by_cargo_cicd\":{}}}\n",
+            json_string(&event.event_id),
+            json_string(&event.command),
+            json_string(&event.verdict_claimed_by_cargo_cicd),
+        ));
+    }
+
+    std::fs::write(path, lines)?;
+    Ok(())
+}
+
+/// Canonical evidence directory relative to the workspace root.
+pub fn evidence_dir() -> PathBuf {
+    PathBuf::from("target/cargo-cicd/evidence")
+}
+
+// ── Assertion ─────────────────────────────────────────────────────────────────
+
+/// Assert that the wasm4pm oracle returns the expected verdict for an XES file.
+///
+/// Panics with a detailed message if:
+/// - The oracle is `Blocked` and the expected verdict is not `Blocked` (E3 violation).
+/// - The actual verdict does not match the expected verdict.
+pub fn assert_wpm_verdict(
+    oracle: &WpmEvidenceOracle,
+    evidence_path: &Path,
+    expected: &ExpectedWpmVerdict,
+) {
+    let actual = oracle.audit_xes(evidence_path);
+
+    if actual == ExpectedWpmVerdict::Blocked && *expected != ExpectedWpmVerdict::Blocked {
+        panic!(
+            "BLOCKED: wasm4pm oracle command unavailable — evidence gate cannot certify.\n\
+             wpm binary not found. Install wasm4pm or set WPM_PATH env var.\n\
+             Evidence gate invariant E3 violated: external oracle required."
+        );
+    }
+
+    assert_eq!(
+        actual, *expected,
+        "wpm evidence gate verdict mismatch for {:?}: expected {:?}, got {:?}",
+        evidence_path, expected, actual
+    );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+fn json_string(s: &str) -> String {
     format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        y, m, d, hh, mm, ss
+        "\"{}\"",
+        s.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
     )
 }
