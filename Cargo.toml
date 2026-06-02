@@ -15,6 +15,7 @@ default = []
 process-data = []
 autonomic = ["process-data"]
 contrib = ["process-data"]
+wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -34,7 +35,24 @@ name = "cli"
 harness = true
 path = "tests/cli/command_projection.rs"
 
+[[test]]
+name = "cicd_toml_truth"
+path = "tests/cicd_toml_truth.rs"
+
+[[test]]
+name = "autonomic_policies"
+path = "tests/autonomic_policies.rs"
+
+[[test]]
+name = "changed_tests"
+path = "tests/changed_tests.rs"
+
+[[test]]
+name = "git_phase_closure"
+path = "tests/git_phase_closure.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
 predicates = "3"
+toml = "0.8"
