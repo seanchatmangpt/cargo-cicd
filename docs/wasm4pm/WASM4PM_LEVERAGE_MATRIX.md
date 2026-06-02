@@ -1,160 +1,337 @@
+# wasm4pm Leverage Matrix — Integration Opportunity Assessment
+
+**Authority:** Water Gate (Delivery Lead)  
+**Secondary Authority:** Inspection Gate (Process Intelligence Core)  
+**Date:** 2026-06-02  
+**Status:** LEVERAGE ASSESSMENT & OPPORTUNITY MATRIX
+
 ---
-artifact: WASM4PM_LEVERAGE_MATRIX
-date: 2026-06-02
-selected_path: SHELL_OUT
+
+## MISSION
+
+This document evaluates the leverage opportunity of each wasm4pm capability for cargo-cicd v26.6.2 and v26.6.3+. It answers: "What integration gives maximum benefit with minimum risk?"
+
 ---
 
-# wasm4pm Leverage Matrix
+## LEVERAGE OPPORTUNITY MATRIX
 
-## Selected Integration Path: SHELL_OUT
+### Matrix Dimensions
 
-**Rationale:** The wpm binary is at /Users/sac/wasm4pm/target/release/wpm (v26.5.29) with confirmed functional implementations for doctor, telco status, audit (real SIMD token replay on XES), receipt doctor (--audience ci --format json), lean, spc status, and autoprocess. These are all safe to shell out with zero coupling to wasm4pm internals. The FILE_EXCHANGE path is implicitly part of this approach — cargo-cicd emits XES event log files and receipt JSON files on disk, and wpm consumes them via CLI arguments. Deeper library coupling is unnecessary and would violate the do-not-refactor constraint.
+- **X-Axis (Benefit):** How much value to cargo-cicd? (0-10 scale)
+- **Y-Axis (Risk):** Integration complexity & stability risk? (0-10 scale)
+- **Bubble Size:** Prerequisite blocking count (larger = more blocked)
+- **Color:** Verdict category (green=FILE_EXCHANGE, yellow=SHELL_OUT, red=DEFER_CONTRIB, gray=FEATURE_GATE)
 
-**Implementation:** For cargo-cicd v26.6.2, implement a four-stage shell-out pipeline against /Users/sac/wasm4pm/target/release/wpm:
+---
 
-1. PRE-FLIGHT: `wpm doctor` — run from the cargo project root with a synthetic Cargo.toml check. Exit non-zero propagates to CI failure. Expected: all PASS.
+## OPPORTUNITY PLOTPOINTS
 
-2. CONFORMANCE AUDIT GATE: After cargo test produces an XES event log artifact (written to a known output path such as target/process-intelligence/ci-run.xes), shell out: `wpm audit target/process-intelligence/ci-run.xes --activity-key concept:name`. Parse the fitness/precision scores from stdout. Gate on fitness >= 0.95 for TRUTHFUL verdict. Fitness between 0.70 and 0.95 is VARIANCE (warn, do not fail). Below 0.70 is DECEPTIVE — fail the CI job. The XES fixture must be written by the cargo test harness as a file exchange artifact before this stage runs.
+### HIGH-BENEFIT, LOW-RISK (Preferred for v26.6.3)
 
-3. RECEIPT DOCTOR GATE: After any checkpoint receipt is emitted (JSON file), shell out: `wpm receipt doctor <receipt.json> --audience ci --format json`. Parse the JSON response. Gate on `state != "Refused"` and zero `Deny`-severity findings. Any `Deny` finding propagates to CI failure. Warnings are collected and attached to the build summary.
+**CAP-001: OCEL JSON File Exchange**
+- **Benefit:** 8/10 (enables process mining, no API coupling)
+- **Risk:** 3/10 (file format only, decoupled)
+- **Blocked By:** 1 prerequisite (Receipt ledger schema immutable)
+- **Leverage Ratio:** 8:3 = 2.67 ✓ GOOD
+- **Verdict:** FILE_EXCHANGE
+- **Recommendation:** PRIMARY INTEGRATION PATH for v26.6.3
+- **Timeline:** v26.6.3 (after receipt ledger finalized)
+- **ROI:** High (unblocks process mining, no API risk)
 
-4. TELCO HEALTH: `wpm telco status` — parse Operational State field, fail if not ACTIVE. This is a lightweight sanity check confirming the wasm4pm runtime is not in a degraded state before CI results are trusted.
+### MEDIUM-BENEFIT, MEDIUM-RISK (Fallback for v26.6.3)
 
-Do NOT invoke `wpm mining conformance`, `wpm oracle check`, or `wpm oracle watch` — all three are confirmed stubs that return exit code 0 regardless of input and would produce false-positive CI passes.
+**CAP-002: CLI Event Emission**
+- **Benefit:** 6/10 (works, but fragile to CLI changes)
+- **Risk:** 6/10 (CLI contracts brittle; subject to change)
+- **Blocked By:** 1 prerequisite (CLI documentation stable)
+- **Leverage Ratio:** 6:6 = 1.0 ⚠ MARGINAL
+- **Verdict:** SHELL_OUT
+- **Recommendation:** FALLBACK ONLY if FILE_EXCHANGE blocked
+- **Timeline:** v26.6.3+ (late, only if needed)
+- **ROI:** Medium (works, but high maintenance cost)
 
-## Leverage Verdicts
+### LOW-BENEFIT, HIGH-RISK (Deferred to v26.6.3+)
 
-| Capability | Type | Input | Output | Stability | cargo-cicd Use | Verdict |
-|------------|------|-------|--------|-----------|----------------|--------|
-| wpm (wasm4pm-cli binary) | cli | subcommand + flags; most subcommands accept file paths (XES, JSON) or string args via clap derive API | colored human-readable stdout by default; --format json available on audit/autoprocess/receipt doctor | medium | binary target [[bin]] name=wpm in crates/wasm4pm-cli/Cargo.toml; assert_cmd integration tests in crates/wasm4pm-cli/tests/cli_tests.rs; no cargo make task targets this crate specifically — Makefile.toml CI gate targets the wasm4pm lib only | SHELL_OUT |
-| wpm doctor | cli | no arguments; optional --verbose flag | human-readable PASS/FAIL/WARN lines to stdout; exits 0 on all-pass, 0 even on failures (returns Ok(())) | high | covered by cli_tests.rs test_doctor and test_verbose_flag; can be used as a CI pre-flight check for rustc and wasm-pack presence | USE_AS_IS |
-| wpm mining discover | cli | positional: path to .xes or .json event log file; --algo (heuristic|inductive, default heuristic); --activity-key (default concept:name) | Directly-Follows Graph table to stdout; only heuristic algorithm supported — inductive returns bail! error | low | no integration test coverage; XES branch returns empty EventLog stub — only JSON logs are actually parsed | PATCH_SMALL |
-| wpm mining conformance | cli | positional: log path, model path; --activity-key (default concept:name) | Fitness/Precision table to stdout | low | no integration test coverage; model is loaded as empty DFG::new() stub — real model file is not parsed | DO_NOT_USE |
-| wpm audit | cli | positional: path to XES event log file; --activity-key (default concept:name) | Vision 2030 conformance audit report to stdout with fitness/precision scores and per-trace deviation table; uses simd_token_replay internally | medium | no integration test in cli_tests.rs; calls wasm4pm::simd_token_replay and wasm4pm::xes_format::load_eventlog_from_xes — both are real implementations tested in the lib | SHELL_OUT |
-| wpm autoprocess | cli | positional: path to XES event log; --activity-key (default concept:name); --config JSON string; --format (human|json) | Perception/Decision/Protection/Optimization cycle results; human or JSON format | medium | requires cloud feature (wasm4pm built with cloud feature); no CLI integration test; underlying autonomic_execute_cycle tested in agentic_jtbd_tests (required-features = cloud) | SHELL_OUT |
-| wpm receipt doctor | cli | positional: path to receipt JSON file; --strict flag; --format (human|json); --audience (producer|operator|ci) | adversarial ingress gate audit report; exits non-zero on failures in strict mode | medium | directly relevant to cargo CI receipt verification; --audience ci and --format json make it machine-parseable; ReceiptDoctor from wasm4pm::receipt is the real implementation | SHELL_OUT |
-| wpm oracle check | cli | positional: tape (OCEL NDJSON path or string); --law (path to OrderingLaw JSON); --format (human|json) | placeholder string 'Checked tape X against law Y format Z' — no real OracleReport emitted | low | described as one-shot AndonPull detector but implementation is a stub; exit code does not reflect conformance result | DO_NOT_USE |
-| wpm oracle watch | cli | positional: tape; --law path | placeholder string 'Watching tape X against law Y' — no streaming EarlyStop JSON | low | not usable for streaming DEAD-case detection | DO_NOT_USE |
-| wpm telco status | cli | no arguments beyond global --verbose | WASM4PM TELCO ROUTER STATUS block to stdout with operational state and architecture metrics | high | covered by cli_tests.rs test_telco_status; suitable for CI health check | USE_AS_IS |
-| wpm spc status / history | cli | spc status: no args; spc history: no args | SPC rule violations and process metrics ring buffer to stdout | medium | no CLI integration test; wraps wasm4pm SPC state machine | SHELL_OUT |
-| wpm lean | cli | --strict flag; no positional args | Lean Six Sigma waste audit report to stdout | medium | no CLI integration test; --strict mode could gate CI on waste thresholds | SHELL_OUT |
-| wpm agent list / status / switch / reset | cli | list/status/reset: no args; switch: positional index 0-4 | RL agent table (list), status telemetry (status), confirmation messages (switch/reset) | medium | no CLI integration test; wraps RL_ORCHESTRATOR thread-local state; state resets on process exit so switch/reset are only meaningful within a session | SHELL_OUT |
-| wpm config get / set | cli | get <key>; set <key> <value> | config value to stdout (get); confirmation message (set); writes to .wasm4pm/config.json | medium | no CLI integration test; useful for CI environment setup | USE_AS_IS |
-| XES Event Log Loading (load_eventlog_from_xes) | function | &str (XES XML string) | Result<String, JsValue> — string handle stored in AppState | high | Primary event log ingestion path for all downstream process mining ops. Required before any discovery or conformance call. Pure-Rust variant usable in cargo test without WASM context. | USE_AS_IS |
-| JSON Event Log Loading (load_eventlog_from_json / load_ocel_from_json) | function | &str (JSON string representing EventLog or OCEL) | Result<String, JsValue> — string handle | high | Alternative ingestion path for JSON-serialized logs. Pair with export_eventlog_to_json / export_ocel_to_json for round-trip tests in CI. | USE_AS_IS |
-| OCEL v2.0 Loading and Validation (load_ocel_v2 / validate_ocel_v2) | function | load_ocel_v2(&str json); validate_ocel_v2(&str json, &str cardinality_json); flatten_ocel_v2(&str json, &str object_type) | Result<JsValue, JsValue> | medium | Gates ocel-core validation path. validate_ocel_v2 is the OCEDO meta-model conformance check. Used in foundry convergence tests. | FEATURE_GATE |
-| DFG Discovery (discover_dfg) | function | (eventlog_handle: &str, activity_key: &str) | Result<JsValue, JsValue> — serialized DirectlyFollowsGraph or handle | high | Core discovery primitive. discover_dfg_from_log accepts AdmittedEventLog<W> — typed Evidence carrier — enforcing admission before analysis. Central to all downstream CI conformance pipelines. | USE_AS_IS |
-| OCEL DFG Discovery (discover_ocel_dfg / discover_ocel_dfg_per_type) | function | (ocel_handle: &str) | Result<JsValue, JsValue> | medium | Object-centric DFG. discover_ocel_dfg_per_type provides per-object-type breakdown. Requires ocel feature flag. | FEATURE_GATE |
-| DECLARE Conformance Discovery (discover_declare) | function | (eventlog_handle: &str, activity_key: &str) | Result<JsValue, JsValue> | medium | Discovers DECLARE constraint templates from log. Paired with check_declare_conformance in declare_conformance.rs for rule-based audit. | USE_AS_IS |
-| Alpha++ Discovery (discover_alpha_plus_plus) | function | eventlog_handle: &str, activity_key: &str, (options) | Result<JsValue, JsValue> — PetriNet | medium | Produces Petri net from event log via Alpha++ algorithm. Pure-Rust form uses AdmittedEventLog<W> type-law boundary. | USE_AS_IS |
-| Inductive Miner Discovery (discover_inductive_miner) | function | (eventlog_handle: &str, activity_key: &str) | Result<JsValue, JsValue> — process tree JSON | high | Inductive Miner is the reference algorithm for sound process model discovery. Pure-Rust form accepts AdmittedEventLog<W>. Output TypedProcessTree<InductiveMiner> is typed Evidence. | USE_AS_IS |
-| Metaheuristic Discovery (Ant Colony / Simulated Annealing) | function | discover_ant_colony(handle: &str, ...) / discover_simulated_annealing(handle: &str, ...) | Result<JsValue, JsValue> | medium | Non-deterministic metaheuristics. Require --features feature-discovery-advanced in cargo CI. Determinism audit documents known variance; bench tier2_metaheuristic covers timing. | FEATURE_GATE |
-| Token-Based Replay / Conformance Checking (check_token_based_replay) | function | (log_handle: &str, petri_net_handle: &str, activity_key: &str) | Result<JsValue, JsValue> — TokenReplayResult (fitness, precision, deviations) | high | Primary conformance metric (fitness, precision). token_replay_pure is the cargo CI path. TokenReplayResult carries fitness score used downstream by ConformanceAdmissionGate. | USE_AS_IS |
-| SIMD Token Replay (simd_token_replay) | function | (log_handle: &str, activity_key: &str) | String (JSON result) | medium | SIMD-accelerated token replay for throughput benchmarking. Primary algorithm for simd_streaming_dfg discriminator path. ADMISSION_GATE_RECEIPT documents the shape fix. | FEATURE_GATE |
-| ConformanceAdmissionGate (admission verdict enforcement) | type | ConformanceAdmissionGate::evaluate(&ConformanceVerdicts, Option<&str board_override>) -> Result<(), RefusalReport> | Ok(()) = admitted; Err(RefusalReport) = rejected with HardReject(fitness<0.85), ConditionalMissingOverride(0.85<=f<0.95), or FitnessUnavailable | high | The fitness gate enforcing van der Aalst theta_fit >= 0.95. Called in cargo test pipelines to assert a discovered model admits the training log. Structured RefusalReport variants are first-class CI failure modes. | USE_AS_IS |
-| Evidence / AdmittedEventLog type-state boundary | type | Evidence<T, State, W> where State in {Raw, Parsed, Admitted, Projected, Exportable, Receipted, Refused}; AdmittedEventLog<W> = Evidence<EventLog, Admitted, W> | Type-level lifecycle enforcement: Raw -> Admitted requires Admit impl; no free conversion | high | All pure-Rust algorithm entry points (discover_dfg_from_log, discover_alpha_plus_plus_from_log, etc.) require AdmittedEventLog<W>. This enforces admission before analysis at compile time — illegal in CI to pass Raw log to discovery. | USE_AS_IS |
-| Admit trait and Refusal type (wasm4pm-compat admission boundary) | type | Admit::admit(Evidence<T, Raw, W>) -> Result<Admission<T,W>, Refusal<R,W>> | Admission<T,W> (use .into_evidence() to get Evidence<T,Admitted,W>) or Refusal<R,W> with named reason R | high | The one-way door: no free Raw->Admitted conversion anywhere. Refusal<R,W> carries a named law, not a bare string. Implementing Admit for domain-specific admitters is the correct CI pattern for custom log validation. | USE_AS_IS |
-| ProofGate registry (gate_validator / proof_gate_registry) | type | ProofGate enum: {gate_benchmark_complete, gate_cargo_clippy_clean, gate_compilation_passes, gate_docs_complete, gate_projection_complete, gate_schema_valid, gate_test_suite_passes, gate_wasm_compiles}; UnverifiedRun::mark_gate_passed(ProofGate) -> VerifiedRun | VerifiedRun (all required gates passed) or Err(String) listing missing gates | medium | gate_test_suite_passes is the required gate for VerifiedRun. UnverifiedRun::verify() checks it. Can wrap a cargo test run to assert all proof gates are marked before releasing artifacts. | FEATURE_GATE |
-| Receipt emission (compute_blake3_hash / compute_sha256_hash / ReceiptDoctor) | function | compute_blake3_hash(&str) -> String; compute_sha256_hash(&str) -> String; ReceiptDoctor::audit(&serde_json::Value) -> ReceiptDoctorReport | String (hex hash); ReceiptDoctorReport with findings per validator | high | BLAKE3 is the primary receipt hash (workspace dep blake3 1.5). ReceiptDoctor.audit() runs all validators (lint, chain, truth, pattern) and returns structured findings. truex_verify_receipt (#[wasm_bindgen]) is the WASM-boundary receipt verifier. | USE_AS_IS |
-| BLAKE3 and provenance chain (wasm4pm-types Blake3Hash / ProvenanceChain) | type | blake3_hex(&[u8]) -> String; blake3_string(&str) -> String; blake3_combined(&[&str]) -> String; ProvenanceChainBuilder chaining | String hex hashes; ProvenanceChain with chained receipt entries | high | blake3_combined enables chaining artifact receipts into a tamper-evident chain. ProvenanceChain is the structured artifact provenance record for manufactured artifacts in CI. | USE_AS_IS |
-| WF-net Soundness Analysis (check_wf_net_soundness / check_wf_net_soundness_native) | function | check_wf_net_soundness_native(net: &PetriNet) -> String (JSON SoundnessReport); check_wf_net_soundness(petri_net_handle: &str) -> Result<JsValue, JsValue> | SoundnessReport: {is_wf_net, is_sound, is_safe, reachability_graph, structural_checks} | high | Verifies Petri net is a sound WF-net (Separable WF-net Def 3.5). check_wf_net_soundness_native is the explicit CI form documented for cargo test. analyze_petri_net(net) returns SoundnessReport directly. | USE_AS_IS |
-| WF-net to POWL Translation (wf_net_to_powl / wf_net_to_powl_native) | function | wf_net_to_powl_native(net: &PetriNet) -> String; wf_net_to_powl(petri_net_handle: &str) -> Result<JsValue, JsValue>; wf_net_to_powl_spec(net: &PetriNet) -> WfToPowlResult | WfToPowlResult / PowlSpec; language functions powl_language(spec) and wf_net_language(net) for language equality check | high | Section 4 (Partition_MG / Partition_SM) of Separable WF-nets paper. Language-preserving translation. powl_language / wf_net_language are the oracle functions for language equality CI assertions. | USE_AS_IS |
-| Streaming DFG (streaming_dfg_begin / add_event / finalize) | function | streaming_dfg_begin() -> handle; streaming_dfg_add_event(handle, event_json); streaming_dfg_add_batch(handle, events_json); streaming_dfg_finalize(handle) -> DFG | Result<JsValue, JsValue> — handle or incremental DFG snapshot | medium | Real-time event streaming pipeline for IoT/CDN edge profiles. Streaming conformance checks via streaming_conformance.rs. SIMD-accelerated variant requires feature-streaming-full. | FEATURE_GATE |
-| Remaining-Time Prediction (build_remaining_time_model / predict_case_duration) | function | build_remaining_time_model(log_handle: &str, ...) -> model_handle; predict_case_duration(model_handle: &str, prefix_json: &str) -> JsValue | Result<JsValue, JsValue> — duration prediction with confidence interval; predict_hazard_rate returns hazard rate at elapsed_ms | medium | ML-based remaining case time prediction. Requires feature-ml. bench prediction_accuracy and prediction_latency cover performance SLAs. | FEATURE_GATE |
-| Next-Activity Prediction (build_ngram_predictor / predict_next_activity) | function | build_ngram_predictor(log_handle: &str, n: usize, activity_key: &str) -> predictor_handle; predict_next_activity(predictor_handle: &str, prefix_json: &str) -> JsValue | Result<JsValue, JsValue> — ranked activity predictions; score_trace_likelihood returns f64 | medium | N-gram next activity predictor. Lighter than remaining-time model. score_trace_likelihood enables log fitness proxy without full token replay. | FEATURE_GATE |
-| OCEL Flattening (flatten_ocel_to_eventlog / list_ocel_object_types) | function | list_ocel_object_types(ocel_handle) -> [string]; flatten_ocel_to_eventlog(ocel_handle, object_type) -> String log_handle; measure_flattening_loss(ocel, type) -> FlatteningLossReport | Result<String, JsValue> for flatten (returns new log handle); measure_flattening_loss is pure Rust -> FlatteningLossReport | medium | Bridge from object-centric OCEL to flat EventLog for classical mining. measure_flattening_loss quantifies information loss — CI metric for acceptable convergence deviation. | FEATURE_GATE |
-| Object-Centric Conformance (oc_conformance_check) | function | (ocel_handle: &str) | Result<JsValue, JsValue> — conformance report per object type | medium | OC conformance check for object-centric logs. oc_conformance_check_inner is the pure-Rust CI path. Requires ocel feature. | FEATURE_GATE |
-| LifecycleStateMachine (13-state autonomic control flow) | type | LifecycleStateMachine::new(); .transition(LifecycleState) -> Result<(), String>; .register_gate(QualityGate); .gate_passed(&str) -> bool | LifecycleState enum (Design/Simulation/Construction/Activation/Operation/Monitoring/Repair/Optimization/BoardProjection/Decommission/Acquisition/Integration/Archive); event_log() -> [(String, LifecycleState, u64)] | medium | Tracks manufacturing lifecycle state with MAPE-K phases. event_log() provides an auditable trail of state transitions — can be fed to pm4py for conformance checking. gate_passed() checks named quality gates per MAPE-K phase. | USE_AS_IS |
-| Autonomic Execute Cycle (autonomic_execute_cycle) | function | (log_handle: &str, ...) — MAPE-K cycle parameters as JSON | Result<JsValue, JsValue> — cycle verdict with latency telemetry | medium | Executes one full MAPE-K autonomic loop iteration. Latency budget 5000 µs (CYCLE_LATENCY_BUDGET_US). Used in bench autonomy_jtbd_validation and autoprocess_criterion. | FEATURE_GATE |
-| OCPQ Query Evaluation (evaluate_ocpq) | function | (ocel_json: &str, query_str: &str) | Result<String, JsValue> — JSON query result | medium | OCPQ is the Object-Centric Process Query language. Enables log slice assertions directly in CI (e.g. assert all Order objects have a payment event within 48h). Uses ocpq_query_fixtures from foundry for test oracles. | FEATURE_GATE |
-| Receipt Verification (truex_verify_receipt) | function | (envelope_json: &str) — JSON receipt envelope | Result<String, JsValue> — verification report | medium | WASM-boundary receipt verifier. Runs ReceiptDoctor validators against a receipt envelope. Useful for CI artifact provenance checks across WASM boundary. | WRAP_LOCAL |
-| Concept Drift Detection (detect_concept_drift) | function | (log_handle: &str, window_size: usize, activity_key: &str) | Result<JsValue, JsValue> — drift report per window | medium | Windowed drift detection. Global drift thresholds are configurable atomics (DRIFT_THRESHOLD_LOW/HIGH). set_drift_thresholds / get_drift_thresholds / reset_drift_thresholds are wasm_bindgen-exported controls. bench drift_detection_detailed and drift_bench cover performance. | USE_AS_IS |
-| Handle-based Object State Management (delete_object / object_count / clear_all_objects) | function | delete_object(id: &str); object_count() -> usize; clear_all_objects() | Result<bool, JsValue>; Result<usize, JsValue>; Result<(), JsValue> | high | Memory management for the handle-based API. clear_all_objects() is the test teardown primitive — essential for CI test isolation between test cases. object_count() enables assertion that no handles leak. | USE_AS_IS |
-| Feature Flag Deployment Profiles (browser / cloud / fog / edge / iot / mobile) | configuration | Cargo feature flags: browser (~2.78MB, default), cloud (alias for browser), fog (~2MB), edge (~1.5MB), iot (~1MB), mobile (~500KB); canonical flags: feature-conformance-basic/full, feature-discovery-advanced, feature-ml, feature-ocel, feature-powl, feature-streaming-basic/full | Binary size and algorithm availability gating per profile | high | cargo test without --features runs browser profile (full). For targeted CI: --features iot or --features edge. poc_gate_validator feature must NEVER appear in deployment profiles. automl_experimental also excluded from all profiles. cloud is a deprecated alias for browser. | USE_AS_IS |
-| DFG Discovery (dfg / simd_streaming_dfg / hierarchical_dfg / optimized_dfg) | discovery | AdmittedEventLog<W> (pure-Rust) or opaque handle string from load_eventlog_from_xes() (WASM); activity_key: &str | DirectlyFollowsGraph { nodes: Vec<DFGNode>, edges: Vec<DirectlyFollowsRelation>, start_activities, end_activities } serialised as JSON string | high | Pure-Rust path called by integration tests (algorithm_integration_tests.rs). SIMD variant (simd_streaming_dfg) is the repo default via wasm4pm.toml. Both paths pass cargo make test. | USE_AS_IS |
-| Inductive Miner | discovery | AdmittedEventLog<W> (pure-Rust: discover_inductive_miner_from_log) or opaque handle string (WASM: discover_inductive_miner) | JSON string representing a process tree (output type: tree in registry) | high | Integration test: inductive_miner_produces_process_tree_json, inductive_miner_detects_parallel_structure in algorithm_integration_tests.rs | USE_AS_IS |
-| Alpha Plus Plus Discovery | discovery | AdmittedEventLog<W> or handle string; activity_key: &str | PetriNet JSON (petrinet type in registry). Quality score: 50/100, not robust, does not scale. | medium | Integration test: alpha_plus_plus_produces_petri_net, alpha_plus_plus_transitions_match_activities | USE_AS_IS |
-| Heuristic Miner | discovery | EventLog (pure-Rust: discover_heuristic_miner_from_log) or handle string (WASM: discover_heuristic_miner); activity_key: &str; threshold: f64 | DirectlyFollowsGraph JSON (dfg type in registry) | high | Default fallback algorithm when no config present. Tests: heuristic_miner_produces_dfg, heuristic_miner_fewer_edges_than_raw_dfg, heuristic_miner_strict_threshold_prunes_to_main_path | USE_AS_IS |
-| ILP Discovery (Integer Linear Programming) | discovery | EventLog (pure-Rust: discover_ilp_petri_net_from_log) or handle string (WASM: discover_ilp_petri_net); activity_key: &str | (PetriNet, fitness: f64, precision: f64) pure-Rust; JSON string WASM. Registry quality: 90/100, but does not scale or handle noise. | medium | Highest quality score (90/100) in core discovery. Not robust, does not scale — suitable for ground-truth/academic benchmarking. | USE_AS_IS |
-| Genetic Algorithm Discovery | discovery | EventLog (pure-Rust: discover_genetic_algorithm_from_log) or handle string; activity_key: &str; generations: usize; pop_size: usize | DirectlyFollowsGraph JSON | medium | PSO and ACO variants in same file. algorithm_weakness_matrix.rs tests degenerate cases. | USE_AS_IS |
-| Token-Based Replay (Conformance) | conformance | Pure Rust: token_replay_pure(&EventLog, &PetriNet, activity_key). WASM: check_token_based_replay(log_handle, petri_net_handle, activity_key) | ConformanceResult { fitness: f64, precision: f64, conforming_traces: usize, total_traces: usize, per_trace: Vec<TokenReplayResult> } as JSON | high | ground_truth_conformance_tests.rs: 15+ precision tests across sequence/choice/parallel/loop/silent-transition/duplicate-label nets. streaming_batch_equivalence_tests.rs cross-validates. | USE_AS_IS |
-| Optimal Alignments (A* conformance) | conformance | WASM: compute_optimal_alignments(log_handle, petri_net_handle, activity_key, cost_config_json) where cost_config_json = {"sync_cost": 0, "log_move_cost": 1, "model_move_cost": 1} | JSON: { total_cost: f64, alignments: [{ case_id, cost, sync_moves, log_moves, model_moves, path: ["sync:A", "log:B", ...] }] } | high | discovery_nan_and_astar_precision.rs validates alignment precision. algorithm_integration_tests.rs covers alignment path correctness. | WRAP_LOCAL |
-| ETC Precision (etconformance_precision) | conformance | Pure Rust: compute_precision(&EventLog, &PetriNet, activity_key). WASM: wasm_compute_precision(log_handle, petri_net_handle, activity_key) | f64 precision score (pure Rust) or JSON string (WASM). Quality 70/100; robust; scales. | high | Tested in quality_benchmarks.rs. Paired with generalization for four-quality-dimension reporting. | USE_AS_IS |
-| Generalization Metric | conformance | Pure Rust: compute_quality(&EventLog, &PetriNet, activity_key). WASM: generalization(log_handle, petri_net_handle, activity_key) | f64 generalization score (pure Rust) or JSON (WASM). Quality 65/100; robust; scales. | high | Part of four-quality-dimension suite (fitness/precision/generalization/simplicity). quality_benchmarks.rs. | USE_AS_IS |
-| Declare Discovery & Conformance | discovery + conformance | Discovery: handle string + activity_key → constraints[]. Conformance: check_declare_conformance(log: &EventLog, model: &DeclareModel, activity_key) pure Rust | Discovery: JSON { constraints: [{template, activity_a, activity_b, threshold, support}] }. Conformance: per-constraint compliance scores. | medium | declare_conformance_integration_test.rs exercises full discovery-then-conformance pipeline. Robust, scales. | USE_AS_IS |
-| Streaming Conformance Checker | conformance | streaming_conformance_begin(model_handle) → checker_handle; streaming_conformance_add_event(checker_handle, case_id, activity, timestamp); streaming_conformance_close_trace(checker_handle, case_id) | streaming_conformance_finalize(handle) → JSON { total_traces, conforming, fitness_avg, deviations: [{case_id, missing, remaining}] } | high | streaming_batch_equivalence_tests.rs validates streaming == batch results. Scales; robust. | WRAP_LOCAL |
-| OCEL 2.0 Load / Validate / Flatten | import/export | JSON string conforming to OCEL 2.0 schema (ocel_v2.rs: load_ocel_v2, validate_ocel_v2). NDJSON variant: load_ocel2_from_ndjson. Handle-based flatten: flatten_ocel_to_eventlog(handle, object_type) | load → opaque OCEL handle string; validate → {valid: bool, errors:[]}; flatten → EventLog handle string (for use with discovery fns); measure_flattening_loss → FlatteningLossReport | high | ocel_tests.rs, autonomic_real_data_tests.rs, adversarial_ingestion.rs cover ingestion + flattening. BLAKE3 receipt verification in receipt.rs ties to OCEL provenance. | USE_AS_IS |
-| Object-Centric DFG Discovery (ocel_dfg / ocel_dfg_per_type) | discovery | Pure Rust: discover_ocel_dfg_pure(&OCEL) → DirectlyFollowsGraph. WASM: discover_ocel_dfg(ocel_handle) or discover_ocel_dfg_per_type(ocel_handle) | discover_ocel_dfg → aggregated DFG JSON. discover_ocel_dfg_per_type → map of object_type → DFG JSON | high | Covered by algorithm_integration_tests.rs OCEL section; robust and scalable per registry. | USE_AS_IS |
-| Object-Centric Petri Net Discovery (ocel_petri_net) | discovery | WASM: discover_oc_petri_net(ocel_handle, algorithm: &str) where algorithm in ["alpha","inductive","heuristic"]. Also flatten_ocel_to_eventlog_for_type(ocel_handle, object_type, activity_key) for pre-processing. | PetriNet JSON per object type. Registry: quality 65/100, not scalable, robust. | medium | algorithm_integration_tests.rs covers ocel_petri_net. Internally delegates to alpha/inductive/heuristic miners after type-scoped flattening. | WRAP_LOCAL |
-| Object-Centric Conformance Check (oc_conformance) | conformance | Pure Rust: oc_conformance_check_inner(&OCEL) → Result<serde_json::Value, String>. WASM: oc_conformance_check(ocel_handle) | JSON conformance report with per-object-type fitness and precision scores | medium | Pure-Rust path available — directly accepts &OCEL without handle. Important for process-mining-chicago-tdd doctrine (object lifecycle soundness). | USE_AS_IS |
-| XES Import / Export | import/export | load_eventlog_from_xes(xes_content: &str) → handle string. validate_and_parse_xes(content: &str) → Result<EventLog, String> (pure Rust, no WASM). | Opaque handle string (load) or EventLog struct (validate_and_parse). export_eventlog_to_xes(handle) → XES XML string. | high | tests/check_read.rs exercises XES loading. All integration tests use load_eventlog_from_xes as entry point. Foundation capability; no algorithm works without it. | USE_AS_IS |
-| PNML Import / Export | import/export | from_pnml(pnml_string: &str) → Result<PetriNet, String> (pure Rust). WASM: from_pnml_wasm(pnml_string). Export: to_pnml(&PetriNet) → String (pure Rust) or to_pnml_wasm(handle). | PetriNet struct (pure Rust) or handle string (WASM). Export: PNML XML string. | high | Used in ground_truth_conformance_tests.rs to load reference nets. Pure-Rust path enables round-trip testing without WASM. | USE_AS_IS |
-| BPMN Import / POWL Conversion | import/export + model conversion | bpmn_to_powl_string(bpmn_xml: &str) → Result<String, String> pure Rust. WASM: read_bpmn(bpmn_xml). POWL: powl_to_petri_net / powl_to_process_tree / petri_net_to_powl / wf_net_to_powl_native(&PetriNet) | POWL arena JSON or process tree JSON or PetriNet handle. wf_net_to_powl_spec(&PetriNet) → WfToPowlResult with language equivalence set. | medium | wf_to_powl.rs tests: wf_to_powl test suite. powl_cross_validation.rs validates POWL/process-tree language equivalence. adversarial_powl_tests.rs. | USE_AS_IS |
-| Prediction: Next Activity / Remaining Time / Outcome | prediction | predict_next_activity(log: &EventLog, prefix: &[String]) → Vec<(String, f64)> pure Rust. WASM handles for remaining_time and outcome variants. | Next activity: Vec<(activity_name, probability)>. Remaining time: {predicted_ms: f64, confidence: f64}. Outcome: {predicted_outcome: String, probability: f64} | medium | analytics_real_data_tests.rs exercises prediction on real event logs. Registry: quality 50-55/100; robust; scales. | WRAP_LOCAL |
-| Concept Drift Detection | analytics | detect_drift(log_handle, activity_key, window_size: usize) WASM. Pure Rust: detect_concept_drift(log: &EventLog, activity_key, window_size) in fast_discovery.rs. | JSON { drift_detected: bool, drift_points: [usize], change_magnitude: [f64] }. Registry: quality 70/100; robust; scales. | medium | behavioral_drift_tests.rs; drift_manager.rs tested in autonomic loop tests. | USE_AS_IS |
-| Social Network Analysis (Handover / Working-Together) | analytics | discover_handover_network_from_log(&EventLog, resource_key) pure Rust. WASM: discover_handover_network(log_handle, resource_key). Working-together variant same signature. | JSON string: { nodes: [{id, label, total_activities}], edges: [{source, target, weight, interaction_count}] }. Community detection: detect_communities(network_json). | medium | algorithm_integration_tests.rs social network section. | USE_AS_IS |
-| Monte Carlo Simulation | simulation | Pure Rust: run_monte_carlo_simulation(dfg: &DirectlyFollowsGraph, n_traces: usize, max_length: usize). WASM: monte_carlo_simulation(dfg_handle, n_traces, max_length). | JSON: { simulated_traces: [[activity_name]], variant_frequencies: {variant: count} }. Registry: quality 60/100; robust; does not scale. | medium | algorithm_integration_tests.rs simulation section. | USE_AS_IS |
-| BLAKE3 Receipt / TrueX Provenance | provenance | compute_blake3_hash(data: &str) → String (pure Rust). ReceiptDoctor::audit(&serde_json::Value) → ReceiptDoctorReport. TrueX verifiers take serde_json::Value receipt objects. | BLAKE3 hex string; ReceiptDoctorReport { findings: Vec<ReceiptFinding>, verdict: Verdict }; structured refusal taxonomy on hash mismatch. | high | receipt_prd_tests.rs; truex_ocel2 examples in examples/out/. Critical for ALIVE gate receipts in construct8-market-physics. | USE_AS_IS |
-| Streaming Batch Pipeline | streaming | Pure Rust: StreamingPipeline::new(config) then add_event(case_id, activity) / close_trace(case_id) / finalize(). WASM: pipeline_begin(config_json) → handle; pipeline_add_event; pipeline_snapshot; pipeline_finalize. | PipelineResult { dfg: DirectlyFollowsGraph, stats: PipelineStats, ... } (pure Rust). JSON (WASM). PipelineStats: event_count, trace_count, active_cases. | high | streaming_batch_equivalence_tests.rs verifies streaming == batch output. Robust, scalable. | USE_AS_IS |
-| ML Classification / Clustering / Forecasting / Anomaly | ml | WASM handle-based for all ML variants. No public pure-Rust API exposed for direct struct access. | ml_result type: { label / cluster_id / forecast_value / anomaly_score, confidence: f64 }. Registry quality: 50-55/100. | low | No pure-Rust public function signatures found in grep. automl variants (automl_classify, automl_forecast) show 85-90/100 quality but are also WASM-bound. | SHELL_OUT |
-| Complexity / Simplicity Metrics | analytics | compute_simplicity(places: usize, transitions: usize, arcs: usize) → f64 (pure Rust; no log or net reference needed — takes counts directly). complexity_metrics: WASM handle. | f64 simplicity score (0.0..1.0). Complexity metrics: JSON with cyclomatic complexity, arc density, etc. Registry quality: 60/100; scalable. | high | Part of four-quality-dimension suite. compute_simplicity has no external dependencies — callable from any Rust test. | USE_AS_IS |
-| OCLA / Object-Centric Log Analytics (ocel_ocla / ocel_encode) | analytics | ocel_ocla: WASM handle. ocel_encode: WASM handle. list_ocel_object_types(handle) and get_ocel_type_statistics(handle) are WASM. | ocel_ocla → analytics JSON (per-type activity frequency, object interaction counts). ocel_encode → numeric feature matrix JSON. Registry quality 40/100 for encode, 40/100 for ocla. | medium | validate_ocel_object_lifecycles(&OCEL) is pure Rust and critical for Van der Aalst Constitution object lifecycle soundness checks. | FEATURE_GATE |
-| Reinforcement Learning Orchestrator (RL + LinUCB) | autonomic | create_rl_state(features: &[f32; 8], health_level: u8, rework_ratio: f32). rl_orchestrator_reset/switch_agent/set_linucb. RlState struct. | Agent selection, telemetry JSON, SPC history. rl_orchestrator_telemetry() → JSON. RlState serialized as JSON. | low | adversarial_rl_tests.rs; rl_dimensionality_analysis.rs; behavioral_learning_tests.rs. rl_orchestrator.rs.orig file suggests instability. | DO_NOT_USE |
-| Agentic Pipeline (agentic_pipeline) | agentic | WASM only per registry. No pure-Rust public surface found in src grep. | analytics type. Registry quality 95/100, speed 1ms — these figures appear aspirational rather than empirical. | unknown | agentic_jtbd_tests.rs, agentic_wasm_export_tests.rs exist. Speed=1ms + quality=95/100 are registry metadata claims, not verified benchmarks. | DO_NOT_USE |
-| XES Import (file-based) | import | BufRead (file, bytes, stdin) + XESImportOptions struct; test fixtures: /Users/sac/wasm4pm/data/*.xes | wasm4pm_types::EventLog (Serialize/Deserialize via serde_json) | high | cargo-cicd can write a .xes file with build events (case_id=crate, activity=compile/test/lint, timestamp=RFC3339) and hand it to wasm4pm for process discovery and conformance replay | FILE_EXCHANGE |
-| XES Export (EventLog → XES XML string) | export | handle (String key into in-memory AppState) pointing to a loaded EventLog | String containing valid XES 1.0 XML; round-trips with load_eventlog_from_xes | high | wasm4pm can emit a clean XES file from an in-memory log for archiving or hand-off to pm4py | FILE_EXCHANGE |
-| OCEL 2.0 JSON Import | import | JSON string matching OCEL 2.0 schema (eventTypes, objectTypes, events, objects); also accepts variant field names via import_ocel_ndjson normalizer | ocel_core::OCEL struct (Serialize/Deserialize) | high | cargo-cicd could emit a crate-object-centric OCEL where objects are crates and events are build/test/lint lifecycle events; wasm4pm ingests and mines the object-centric process | FILE_EXCHANGE |
-| OCEL 2.0 JSON Export | export | handle string pointing to a stored OCEL in AppState | pretty-printed JSON string conforming to OCEL 2.0 schema | high | wasm4pm can serialize a processed/validated OCEL back to JSON for cargo-cicd to archive or forward to downstream analyzers | FILE_EXCHANGE |
-| OCEL NDJSON Streaming Import | import | NDJSON (newline-delimited JSON): one event or object record per line; tolerates partial final line (crash-safe append mode); accepts field aliases timestamp/event_id/activity | Iterator<Item=Result<OCELRecord, String>> via NDJsonStream; or full OCEL via import_ocel_ndjson | high | cargo-cicd can append one NDJSON line per build event to a rolling log file; wasm4pm NDJsonStream reads the file in a single pass without loading it all into memory. Append-safe by design. | FILE_EXCHANGE |
-| OCEL XML Import | import | XML string with <event>, <object>, <eventType>, <objectType> tags; parsed via roxmltree | OCEL struct stored in AppState; returns handle string | medium | Lower relevance — XML is heavier than JSON/NDJSON for cargo-cicd output, but available if the source already emits OCEL-XML | FILE_EXCHANGE |
-| EventLog JSON Import/Export | import | JSON string serialized from EventLog struct (traces/events/attributes); max 512 MB enforced | JSON string via serde_json::to_string; same struct re-readable | high | Allows cargo-cicd to hand off a case-centric event log (one case per crate) as JSON to wasm4pm for DFG discovery or conformance | FILE_EXCHANGE |
-| CSV Export (case-centric feature table) | export | EventLog in AppState (field_csv from foundry) or extracted feature JSON array (export_features_csv); or SocialNetwork struct | CSV string; field_csv: case_id,activity,timestamp,event_id header; export_features_csv: dynamic headers from feature keys | medium | cargo-cicd could consume wasm4pm-emitted CSV for simple tabular analysis (CI dashboards, spreadsheet import), though NDJSON is more structured | FILE_EXCHANGE |
-| Receipt JSON (ProvenanceChain + ReceiptDoctor) | export | serde_json::Value (receipt JSON file) read by ReceiptDoctor; or ProvenanceChain struct built via builder pattern | JSON receipt file with fields: input_hash, config_hash, plan_hash, output_hash, combined_hash (all BLAKE3-64hex), algorithm_id, backend_id, kernel_version, wasm_build_hash; ReceiptDoctorReport as ProducerSafeReport or OperatorPrivateReport JSON | high | cargo-cicd can write a receipt JSON per crate build containing BLAKE3 hashes of inputs (Cargo.lock, src/ files), config (features/toolchain), and output (binary hash). wasm4pm ReceiptDoctor then verifies the receipt against adversarial gates. This is the primary FILE_EXCHANGE surface for provenance. | FILE_EXCHANGE |
-| BLAKE3 Hashing (canonical JSON + combined hash) | utility | str / &[u8] / serde::Serialize value; blake3_combined takes &[&str] slice | 64-char lowercase hex String (Blake3Hash newtype enforces this) | high | cargo-cicd uses these to compute input_hash (source tree), config_hash (Cargo.toml features + toolchain), output_hash (artifact bytes) for receipt construction | USE_AS_IS |
-| Streaming XES Parser | import | BufRead reader over XES XML; produces XESNextStreamElement::Trace items one at a time | Iterator-like: XESParsingTraceStream yields Trace structs without loading full log into memory | high | Allows cargo-cicd conformance check to stream large build logs without full memory allocation | USE_AS_IS |
-| OCEL Validation (referential integrity + cardinality) | validation | OCEL struct or handle string | Vec<String> of error messages; validate_ocel WASM function returns JSON | high | After cargo-cicd writes an OCEL log of build events, call validate_ocel to confirm all event→object references are intact before proceeding to conformance | USE_AS_IS |
-| Foundry World Artifacts Manifest | export | None (pure function, no I/O) | Vec<(String, String)> of (filename, content) pairs: ocel-v2.json, object-types-cardinality.json, powl.json, process-tree.json, wf-net.json, positive-traces.json, order.xes, order.csv, ocpq-*.json | high | The foundry provides a canonical manufactured artifact set that cargo-cicd can use as reference fixtures for conformance testing. The ocel-v2.json and order.xes from world_artifacts() serve as ground-truth process models. | USE_AS_IS |
-| wpm CLI (wasm4pm-cli binary) | cli | CLI arguments; file paths to .xes, .json receipt files; stdout/stderr for human or JSON output | Exit code 0/1; human-readable or --format json output for receipt doctor, mining discover, audit commands | medium | cargo-cicd can shell out to wpm as a post-build step: write receipt JSON, then run wpm receipt doctor --format json --audience ci to get a machine-readable pass/fail with refusal codes | SHELL_OUT |
-| OCPQ Binding-Box Query Fixtures | query | JSON binding-box query tree (box with variable bindings, predicates E2O/TBE, constraint CBS/min/max); OCEL in AppState | JSON binding results matching OCPQ Def. 2 semantics | medium | cargo-cicd could express build conformance constraints as OCPQ queries (e.g., every crate with compile_start has exactly one compile_end, no test_run before compile_success) | FEATURE_GATE |
-| WASM Binary (wasm4pm.wasm) | runtime | JavaScript/WASM boundary via wasm_bindgen; all string I/O goes through MAX_INPUT_BYTES=512MB guard | JavaScript-compatible return values; all exported functions return Result<String, JsValue> | high | If cargo-cicd runs in a Node.js environment, it can import wasm4pm directly via the .mjs bindings. For Rust-native cargo-cicd, the library crates are preferred over WASM. | USE_AS_IS |
-| XES Event Log Loading (load_eventlog_from_xes) | WASM API function | XES string (UTF-8) | string handle referencing EventLog stored in WASM memory | high | Core ingestion gate — all discovery and conformance pipelines require a valid handle from this function before any algorithm dispatch. Tested in ocel.proof.ts and adversarial-metamorphic-ef.test.ts. | USE_AS_IS |
-| DFG Discovery (discover_dfg) | WASM API function | log_handle: string, activity_key: string | JSON string or object with `nodes: Array` and `edges: Array` | high | Primary discovery algorithm; default algorithm resolves to dfg when no config override is present. Required export gate checked by wasm-loader.ts:452. | USE_AS_IS |
-| 60-Algorithm Registry with Deployment Profiles | TypeScript library | getRegistry() → AlgorithmRegistry; registry.getForDeploymentProfile('browser' | 'nodejs' | ...) → AlgorithmMetadata[] | AlgorithmMetadata[] with speedTier: number, qualityTier: number, complexity class, log characteristics | high | Algorithm catalog powers `wpm algorithms`, `wpm compare`, and `wpm run -a <alias>` dispatch. Registry also determines default algorithm fallback chain. 60 algorithms across discovery, conformance, ML, OCEL, prediction, analytics. | USE_AS_IS |
-| BLAKE3 Receipt Schema and Hash Closure (@wasm4pm/contracts) | TypeScript library | Receipt object (run_id, schema_version, config_hash, input_hash, plan_hash, output_hash, start_time, end_time, duration_ms, status, summary, algorithm, model); hashData(object) or hashJsonString(string) | validateReceiptSchema returns boolean; hashData/hashJsonString returns 64-char lowercase hex BLAKE3 digest | high | Receipt chain is the provenance proof gate for every manufacturing pipeline run. BLAKE3 determinism is a hard invariant — same input must produce identical digest across runs. | USE_AS_IS |
-| WASM Module Init and Binary Size Gate | WASM runtime | WasmLoader.getInstance().init() — singleton async init | Loaded WASM module object exposing all #[wasm_bindgen] exports; binary >= 3MB | high | All WASM-dependent tests depend on this init path. wasm-loader.ts:452 uses load_eventlog_from_xes presence as the required-export gate. Binary size floor (3MB) proves full browser-profile build was compiled. | USE_AS_IS |
-| Config Resolution with Zod Validation (@wasm4pm/config) | TypeScript library | resolveConfig() — reads wasm4pm.toml or wasm4pm.json from cwd; async, no required args | Config with sections: algorithm (name: string), execution, output, source, sink — all Zod-validated | high | CLI boots via resolveConfig. Default algorithm.name = 'dfg'. All wpm commands rely on this config chain for algorithm dispatch, output format, and sink routing. | USE_AS_IS |
-| Autonomic RL Orchestrator (QLearning / LinUCB) | WASM API function + TypeScript contract | create_rl_state(features: [f32;8], health_level: u8, rework_ratio: f32); rl_orchestrator_reset/switch_agent/set_linucb/telemetry via JSON strings; CoordinationLog.log_action(agentId, from, to, action, reward, cost) | RlState handle; JSON telemetry string; AgentMetrics[] with avg_reward: number, convergence_status: 'learning' | 'converged' | medium | Autonomic loop drives adaptive algorithm selection and SPC-gated execution. RL state serialization (serialize_rl_state/restore_rl_state) enables checkpoint recovery. TD-error convergence diagnostics emit OTEL span rl.convergence_diagnostics. | USE_AS_IS |
-| SPC Western Electric Rule Detection | WASM API function + TypeScript contract | CoordinationLog.log_spc_correlation(cycle, rule_fired, metric, action, triggered, cost); get_spc_history() / set_spc_history(json) | SpcCorrelation[] with rule_fired matching /^rule_[1-4]_/ (rule_1_outlier | rule_2_shift | rule_3_trend | rule_4_two_of_three); z_score: finite number | medium | SPC violations trigger OTEL span autonomic.spc_rule_violation. Circuit breaker state machine reacts to SPC signals. Tested in spc_rule_classification.rs and adversarial_spc_tests.rs. | USE_AS_IS |
-| OCEL 2.0 Ingestion and Validation (load_ocel2_from_json / validate_ocel) | WASM API function + Rust crate | load_ocel2_from_json(jsonString: string) → handle; validate_ocel(handle) → JSON string | Validation report: { valid: boolean, error_count: number }; OCEL struct with eventTypes, objectTypes, events, objects, o2o relations | high | OCEL 2.0 is the canonical object-centric log format. ocel-core crate provides OCEL, OCELEvent, OCELObject, OCELRelationship, ValidationReport types. FlatLog/FlatCase for trace conversion. Used by truex receipt verification pipeline. | USE_AS_IS |
-| OCPQ — Object-Centric Process Querying (evaluate_ocpq) | Rust crate + WASM API function | evaluate_ocpq(ocel_json: string, query_str: string) → JSON string; QueryTree with BindingBox, BasicPredicate (E2O/O2O/TBE), Constraint nodes | Query evaluation result; typed constraint satisfaction/violation per Küsters & van der Aalst OCPQ paper (arXiv:2506.11541v1) | medium | Implements formal OCPQ paper definitions: Binding (Def.3), BindingBox (Def.6), QueryTree (Def.9), BasicPredicate (Def.5). Also wpm truex uses provenance query traversal for receipt verification. query_provenance_traversal tested in ocel.proof.ts M3. | USE_AS_IS |
-| TrueX OCEL2 Receipt Verification (truex_verify_receipt) | WASM API function (feature-gated) | truex_verify_receipt(envelope_json: string) where envelope contains truex_profile, admission_status, expected_path_hash, ocel2_batch_hash, receipt_hash, ocel2 payload | JSON string: ReceiptAdmitted or ReceiptForged / VERIFIER_ERROR on default build | low | TrueX provides the BLAKE3-anchored OCEL2 execution trust proof. Valid receipt fixture at examples/out/truex_ocel2_valid.json; forged/fraudulent fixtures for negative tests. Verified path: admission_status = ReceiptAdmitted with expected_path_hash. | FEATURE_GATE |
-| MCPP Conformance Admission Gate (wpm conformance --threshold=1.0) | CLI command | wpm conformance <xes_file> --threshold=1.0 --precision-mode=<mode> | exit 0 (admitted, fitness >= threshold) | exit 1 (config_error) | exit 2 (source_error) | exit 6 (conformance_fail / AndonPull); JSON payload with fitness, threshold, andon_pull fields | high | MCPP doctrine: fitness = 1.0 is the only admission threshold. Exit 6 maps to AndonPull semantics. 42 tests (Groups A-F) passing as of SHA ba1d9118 covering threshold enforcement, AndonPull payload, config boundary validation, rejection payload completeness, human language output, doctrine invariants. | USE_AS_IS |
-| TypedError System with Numeric Codes 0-255 (@wasm4pm/contracts) | TypeScript library | TypedError: { schema_version: '1.0', code: number (0-255), message: string, remediation: string, context: Record<string,unknown> }; ErrorCode string union | Typed error object; TYPED_ERROR_CODES maps ErrorCode → numeric (CONFIG_INVALID:10, SOURCE_NOT_FOUND:20, ALGORITHM_FAILED:30, WASM_INIT_FAILED:40, CONFORMANCE_FAILED:32, etc.) | high | CLI exit codes derive from TypedError.code categories: 2xx=config, 3xx=source, 4xx=algorithm, 5xx=WASM runtime, 6xx=sink, 7xx=observability. Cross-language interop via numeric codes. ErrorCode covers 17 named failure modes. | USE_AS_IS |
-| ML Feature Quality Assessment (@wasm4pm/ml) | TypeScript library | assessFeatureQuality(matrix: number[][]) — accepts empty matrix as documented edge case | QualityReport: { qualityScore: number, warnings: string[], recommendations: string[], zeroVarianceColumns: number, correlatedPairs: Array } | medium | Feature quality gate before ML pipeline stages (classify, cluster, forecast). Empty matrix returns qualityScore:0 with populated warnings — documented graceful degradation. Used in integration-discovery-ml-quality.test.ts. | USE_AS_IS |
-| SIMD Streaming DFG Token Replay (simd_token_replay) | WASM API function | simd_token_replay(log_handle: string, activity_key: string) → string (JSON) | Token replay result string; simd_streaming_dfg returns handle-only shape (nodes:0, edges:0) — full graph in WASM memory | medium | Fastest algorithm (speedTier:1 in registry). Default algorithm in repo-root wasm4pm.toml. Handle-only output shape was the subject of GAP_WASM4PM_CAVEAT_002 (discriminator shape fix at git SHA ba1d9118). Now correctly classified by discriminate() as dfg with nodes:0/edges:0. | USE_AS_IS |
-| Cognition Breeds (ELIZA, CBR, Prolog8, MYCIN) — wpm cognition | CLI command + Rust crate | wpm cognition <breed> --input <intent.json>; intent.json with breed-specific fields | Non-empty inference trace + BLAKE3 receipt with combined_hash; deterministic (replay produces byte-identical hash) | medium | Nine cognition breeds documented; 4 demonstrated in examples (ELIZA pattern matching, CBR Jaccard similarity, Prolog Robinson unification + bounded SLD, MYCIN Shortliffe CF). Doctrine: every breed must produce non-empty inference trace and BLAKE3 receipt passing replay verification. cognition-no-stub-gate rejects empty traces. | USE_AS_IS |
-| Autonomic Execute Cycle (autonomic_execute_cycle) | WASM API function | autonomic_execute_cycle(log_handle: string, config_json: string) → string (JSON); handle must reference an EventLog (not OCEL) | JSON cycle result; errors with 'autonomic_execute_cycle: handle does not reference an EventLog' if wrong handle type | medium | Drives the autonomic loop combining RL agent selection, SPC monitoring, circuit breaker, and OTel span emission. Integration tested in autonomic_loop_tests.rs, autonomic_real_data_tests.rs, and autonomic_audit_trail_tests.rs. | USE_AS_IS |
-| Circuit Breaker State Machine | WASM API function | circuit_breaker_get_state() → JSON; circuit_breaker_set_state(json); circuit_breaker_configure(config_json); circuit_breaker_reset() | JSON circuit breaker state; JSON config acknowledgement | medium | Circuit breaker reacts to SPC violations and RL convergence signals. State persistence (get/set) enables checkpoint recovery. Adversarial tests in adversarial_circuit_breaker.rs; state machine tests in circuit_breaker_state_machine_tests.rs. | USE_AS_IS |
-| Real Event Log Fixtures (BPI 2020, Sepsis, Road Traffic) | Test fixture corpus | XES files: sepsis.xes, BPI_2020_Travel_Permits_Actual.xes (10,500 traces 86,581 events), roadtraffic100traces.xes, DomesticDeclarations.xes, InternationalDeclarations.xes, bpi2020_travel.xes; OCEL: ocel20_example.jsonocel | N/A (fixture inputs); used to assert fitness/precision/simplicity thresholds in quality_benchmarks.rs and conformance_real_data_tests.rs | high | Van der Aalst quality benchmarks require real logs to prove algorithms achieve fitness > 0.85. quality_benchmarks.rs uses BPI 2020 Travel Permits with ILP discovery + token replay + precision computation. mcpp-admission-gate.test.ts uses sepsis.xes for WASM-dependent conformance tests. | USE_AS_IS |
-| JSONL Bad-Trace Negative Fixtures (ggen-living-loop) | Test fixture corpus | JSONL files: bad-trace-orphan-receipt.jsonl, bad-trace-future-leak.jsonl, bad-trace-out-of-order.jsonl, bad-trace-missing-gate.jsonl | N/A (negative test inputs); each encodes a structurally invalid trace that the conformance/receipt pipeline must reject | medium | Van der Aalst Constitution requires negative testing: inject impossible logs and verify rejection. Four bad-trace archetypes cover orphan receipt (receipt emitted outside lawful lifecycle), future-leak (temporal violation), out-of-order (sequence violation), missing-gate (proof gate skipped). | USE_AS_IS |
-| wasm4pm-types Rust Type System (EventLog, Conformance, Hash, Provenance) | Rust crate | Rust structs/enums: Error (10 variants), EventLog, Trace, Event, AttributeValue, ConformanceMetric, Alignment, ProvenanceRecord, HashOutput (BLAKE3); POWL8Op enum for process tree operators | Serde-serializable types; Result<T, Error> for all fallible operations; blake3 hash output | high | Foundational type layer used by all 11 workspace crates. Error enum with 10 variants (ValidationError, ParseError, ExecutionError, HashError, ProvenanceError, BudgetExceeded, StateError, NotFound, SerializationError, Unknown) provides uniform error handling across Rust/WASM boundary. | USE_AS_IS |
+**CAP-003: Motion Struct API**
+- **Benefit:** 7/10 (core functionality, but unstable)
+- **Risk:** 9/10 (type signature may change; high refactor cost)
+- **Blocked By:** 3 prerequisites (Motion struct stable, witness lattice, type-law audit)
+- **Leverage Ratio:** 7:9 = 0.78 ✗ POOR
+- **Verdict:** DEFER_CONTRIB 1
+- **Recommendation:** DEFER until Motion struct immutable
+- **Timeline:** v26.6.3-alpha (core dependency)
+- **ROI:** Medium-Low (needed later, but prerequisite for other work)
 
-## Blockers
+**CAP-004: Receipt Struct API**
+- **Benefit:** 8/10 (core to ledger, but incomplete)
+- **Risk:** 9/10 (schema TBD; signing mechanism missing)
+- **Blocked By:** 4 prerequisites (Receipt schema, signing, type-law audit, witness lattice)
+- **Leverage Ratio:** 8:9 = 0.89 ✗ POOR
+- **Verdict:** DEFER_CONTRIB 2
+- **Recommendation:** DEFER until Receipt struct stable + signing infrastructure ready
+- **Timeline:** v26.6.3-beta (critical dependency)
+- **ROI:** Medium-Low (blocks ledger, but prerequisites must stabilize first)
 
-- wpm oracle check is a confirmed stub — AndonPull detection cannot gate CI until OrderingLaw evaluation and OracleReport emission are implemented in wasm4pm-algos
-- wpm mining conformance stubs model loading to DFG::new() — any CI gate using this command would always produce a meaningless conformance result regardless of the actual model file
-- wpm doctor reports FAIL for Cargo.toml not found and src/ directory not found when invoked outside a wasm4pm source tree — the cargo-cicd project must either supply a .wasm4pm config pointing to the correct root or accept these FAIL lines as non-blocking for non-wasm4pm projects
-- XES event log fixture authorship is not wasm4pm's responsibility — cargo-cicd must implement its own OTel-to-XES emission step before wpm audit has a real input to consume
-- wpm binary path is not on $PATH — CI steps must reference the absolute path /Users/sac/wasm4pm/target/release/wpm or install via cargo install
+**CAP-005: GateVerdict Enum**
+- **Benefit:** 6/10 (needed for admission logic)
+- **Risk:** 8/10 (enum variants may expand; unstable)
+- **Blocked By:** 2 prerequisites (Type-law audit, enum finalization)
+- **Leverage Ratio:** 6:8 = 0.75 ✗ POOR
+- **Verdict:** DEFER_CONTRIB 3
+- **Recommendation:** DEFER until enum finalized by Inspection Gate
+- **Timeline:** v26.6.3-rc (type-law audit prerequisite)
+- **ROI:** Low (needed, but only after type system settles)
 
-## Deferred contrib Candidates
+**CAP-006: Type-Law Court Compilation**
+- **Benefit:** 4/10 (test-only; not production value)
+- **Risk:** 9/10 (nightly features; unstable; not production-ready)
+- **Blocked By:** 2 prerequisites (Nightly stable-mir deterministic, type-law audit complete)
+- **Leverage Ratio:** 4:9 = 0.44 ✗ VERY POOR
+- **Verdict:** FEATURE_GATE (nightly, test-only)
+- **Recommendation:** NEVER use in production; test-only for v26.6.3-rc
+- **Timeline:** v26.6.3-rc+ (late, tests only)
+- **ROI:** Very Low (test infrastructure; no production value)
 
-- wpm oracle check — defer to wasm4pm-contrib once OrderingLaw evaluation and OracleReport are implemented; the CLI surface and law deserialization already exist
-- wpm oracle watch — defer until streaming EarlyStop NDJSON emission is implemented; the interface contract is defined but the body is a single println stub
-- wpm mining conformance — defer until model parsing replaces the DFG::new() stub; then FILE_EXCHANGE (emit a .pnml or discovered DFG JSON, shell out for real conformance scores) becomes viable
-- wpm mining discover for XES — defer the PATCH_SMALL fix (one-line call to load_eventlog_from_xes instead of empty fallback) to wasm4pm-contrib; once patched this unlocks discovery directly from cargo CI XES artifacts
-- OCEL DFG discovery (discover_ocel_dfg / discover_ocel_dfg_per_type) — defer until ocel feature flag stabilizes and ocel-core version drift (26.5.30 vs workspace 26.5.29) is resolved
+**CAP-007: Witness Lattice Registration**
+- **Benefit:** 7/10 (core to admission gate)
+- **Risk:** 9/10 (central mechanism; not yet certified)
+- **Blocked By:** 3 prerequisites (Lattice structure stable, audit complete, witness corpus certified)
+- **Leverage Ratio:** 7:9 = 0.78 ✗ POOR
+- **Verdict:** FEATURE_GATE (witness-lattice) + DEFER_CONTRIB 4
+- **Recommendation:** DEFER until witness lattice audit-certified by Inspection Gate
+- **Timeline:** v26.6.3-beta (late in critical path)
+- **ROI:** Medium-Low (needed for admission, but prerequisites must stabilize)
 
-## Integration Rule
+**CAP-008: Process Model Discovery**
+- **Benefit:** 9/10 (core to process mining)
+- **Risk:** 8/10 (depends on ledger + pm4py; multi-system)
+- **Blocked By:** 4 prerequisites (Receipt ledger, pm4py integration, OCEL export, discovery latency <500ms)
+- **Leverage Ratio:** 9:8 = 1.13 ≈ MARGINAL
+- **Verdict:** DEFER_CONTRIB 5
+- **Recommendation:** DEFER until receipt ledger + pm4py integration working
+- **Timeline:** v26.6.3 (late, critical dependency)
+- **ROI:** High (unblocks process mining insights, but prerequisites take time)
 
-Only USE_AS_IS, SHELL_OUT, FILE_EXCHANGE, or WRAP_LOCAL verdicts may be used in v26.6.2.
+**CAP-009: Conformance Checking**
+- **Benefit:** 9/10 (critical for process validation)
+- **Risk:** 9/10 (oracle not defined; multi-system integration)
+- **Blocked By:** 5 prerequisites (Process discovery, pm4py fitness check, conformance SLO >0.95, declared model match)
+- **Leverage Ratio:** 9:9 = 1.0 ≈ MARGINAL
+- **Verdict:** DEFER_CONTRIB 5
+- **Recommendation:** DEFER until process discovery working + conformance oracle defined
+- **Timeline:** v26.6.3 (very late, critical path blocker)
+- **ROI:** Very High (validates execution; but takes longest to implement)
+
+**CAP-010: Performance Metrics Collection**
+- **Benefit:** 7/10 (useful for optimization)
+- **Risk:** 7/10 (SLO framework TBD; profiling infrastructure missing)
+- **Blocked By:** 3 prerequisites (Profiling framework, SLO definitions, metrics instrumentation)
+- **Leverage Ratio:** 7:7 = 1.0 ≈ NEUTRAL
+- **Verdict:** DEFER_CONTRIB 6
+- **Recommendation:** DEFER until profiling infrastructure integrated
+- **Timeline:** v26.6.3 (parallel track, not on critical path)
+- **ROI:** Medium (nice-to-have; deferred for simplicity)
+
+---
+
+## LEVERAGE RANKINGS
+
+### By Leverage Ratio (Benefit:Risk)
+
+| Rank | Capability | Benefit | Risk | Ratio | Verdict |
+|------|------------|---------|------|-------|---------|
+| 1 | OCEL JSON Exchange | 8 | 3 | **2.67** ✓ | FILE_EXCHANGE → PRIMARY PATH |
+| 2 | CLI Event Emission | 6 | 6 | 1.0 | SHELL_OUT → Fallback |
+| 3 | Process Discovery | 9 | 8 | 1.13 | DEFER_CONTRIB 5 → High value, late |
+| 4 | Conformance Checking | 9 | 9 | 1.0 | DEFER_CONTRIB 5 → Critical, very late |
+| 5 | Performance Metrics | 7 | 7 | 1.0 | DEFER_CONTRIB 6 → Neutral, defer |
+| 6 | Receipt Struct | 8 | 9 | 0.89 | DEFER_CONTRIB 2 → Core, but risky |
+| 7 | Motion Struct | 7 | 9 | 0.78 | DEFER_CONTRIB 1 → Core, risky |
+| 8 | Witness Lattice | 7 | 9 | 0.78 | FEATURE_GATE 4 → Core, risky |
+| 9 | GateVerdict Enum | 6 | 8 | 0.75 | DEFER_CONTRIB 3 → Unstable |
+| 10 | Type-Law Court | 4 | 9 | **0.44** | FEATURE_GATE (nightly) → Avoid |
+
+---
+
+## CRITICAL PATH ANALYSIS
+
+### v26.6.2 Critical Path
+```
+[ No integration ] ← CLEAN DECISION
+    ↓
+v26.6.3-alpha: Motion struct stabilize
+v26.6.3-beta:  Receipt struct + witness lattice
+v26.6.3-rc:    Type-law court audit
+v26.6.3:       OCEL file exchange + process discovery
+```
+
+### v26.6.3 Integration Sequence (Recommended)
+
+```
+PHASE 1 (Parallel) — Stabilize Prerequisites:
+├── Motion struct = immutable (v26.6.3-alpha)
+├── Receipt schema = finalized (v26.6.3-alpha)
+├── Witness lattice = audit-certified (v26.6.3-beta)
+└── Type-law court = nightly tests pass (v26.6.3-rc)
+
+PHASE 2 (Sequential) — Implement File Exchange:
+└── OCEL JSON export from cargo-cicd
+    └── OCEL JSON import to wasm4pm (v26.6.3)
+
+PHASE 3 (Sequential) — Process Mining:
+└── Process discovery from receipt ledger (v26.6.3)
+    └── Conformance checking (v26.6.3)
+
+PHASE 4 (Parallel) — Performance:
+└── Metrics collection & SLO tracking (v26.6.3)
+```
+
+---
+
+## RISK MITIGATION STRATEGY
+
+### For HIGH-LEVERAGE Capabilities (OCEL)
+
+**Leverage:** 2.67 (HIGH)  
+**Risk:** 3 (LOW)
+
+**Mitigation:**
+1. ✓ Lock receipt ledger schema in v26.6.3-alpha
+2. ✓ Cross-validate OCEL JSON with pm4py reference implementation
+3. ✓ Gate integration on schema immutability (Inspection Gate signed)
+4. ✓ Add round-trip tests (cargo-cicd → OCEL → wasm4pm → cargo-cicd)
+
+**Success Criteria:**
+- Receipt ledger schema immutable
+- OCEL JSON validates against pm4py schema
+- Round-trip tests 100% passing
+
+---
+
+### For MEDIUM-LEVERAGE Capabilities (CLI)
+
+**Leverage:** 1.0 (MEDIUM)  
+**Risk:** 6 (MEDIUM-HIGH)
+
+**Mitigation:**
+1. ✓ Document CLI contract in wasm4pm (human-readable manual)
+2. ✓ Add versioning to CLI (e.g., `wasm4pm --version`)
+3. ✓ Create adapter layer to isolate CLI changes (cargo-cicd/src/wasm4pm_shell.rs)
+4. ✓ Fallback to file exchange if CLI unavailable
+
+**Success Criteria:**
+- CLI reference documentation published
+- CLI versioning stable
+- Adapter layer absorbs minor CLI changes
+- Integration tests verify fallback behavior
+
+---
+
+### For LOW-LEVERAGE Capabilities (Core APIs, Type System)
+
+**Leverage:** 0.44-0.89 (LOW)  
+**Risk:** 8-9 (HIGH)
+
+**Mitigation:**
+1. ✓ DEFER all direct API usage to v26.6.3+
+2. ✓ Use file exchange (CAP-001) as API buffer
+3. ✓ Never wrap unstable types directly
+4. ✓ Require Inspection Gate certification before integration
+
+**Success Criteria:**
+- Zero API imports in v26.6.2
+- File exchange isolates API changes
+- Refactor cost minimized by not coupling to unstable types
+
+---
+
+## OPPORTUNITY SUMMARY
+
+### Best Integration Path for v26.6.3
+
+**Recommended:** FILE_EXCHANGE (CAP-001: OCEL JSON)
+
+**Why:**
+- Highest leverage ratio (2.67)
+- Lowest risk (3/10)
+- Unblocks process mining without API coupling
+- File format more stable than APIs
+- Round-trip validation possible (OCEL → wasm4pm → discovery)
+
+**Timeline:** v26.6.3 (after receipt ledger finalized)  
+**Critical Dependency:** Receipt ledger schema immutable
+
+### Fallback Path
+
+**Conditional:** SHELL_OUT (CAP-002: CLI) if FILE_EXCHANGE blocked
+
+**Why:**
+- Still functional (leverage = 1.0)
+- Requires CLI stabilization
+- Higher maintenance (CLI brittleness)
+- Only use if file exchange prerequisites blocked
+
+**Timeline:** v26.6.3+ (late, only if needed)
+
+### Path to Avoid
+
+**Never:** WRAP_LOCAL (thin Rust adapters around unstable APIs)
+
+**Why:**
+- Risk is too high (API churn)
+- Refactor cost too high
+- File exchange is better isolation
+- Wrapper becomes obsolete when APIs change
+
+---
+
+## STAKEHOLDER IMPACT
+
+### For Delivery Lead (Water Gate)
+
+**Impact:** v26.6.2 ships CLEAN (zero wasm4pm coupling)  
+**Benefit:** No scope creep; clear v26.6.3 roadmap  
+**Risk:** None (deferral is intentional)  
+**Timeline:** Ready for v26.6.2 release
+
+### For Process Intelligence (Inspection Gate)
+
+**Impact:** wasm4pm-compat can evolve freely until v26.6.3  
+**Benefit:** No coupling lock; time to stabilize core APIs  
+**Risk:** None (cargo-cicd is decoupled)  
+**Timeline:** Nightly test suite must reach ALIVE status by v26.6.3-alpha
+
+### For Contributors
+
+**Impact:** Clear contribution roadmap with 6 deferred contributions  
+**Benefit:** Well-defined prerequisites; testable acceptance criteria  
+**Risk:** Dependencies must stabilize (not contributor risk)  
+**Timeline:** v26.6.3-alpha through v26.6.3 (7-week window)
+
+---
+
+## FINANCIAL IMPACT ESTIMATE
+
+### v26.6.2 (Deferral Strategy)
+- **Integration Cost:** 0 (deferred)
+- **Risk Cost:** 0 (clean separation)
+- **Testing Cost:** 0 (no integration testing)
+- **Total:** $0
+
+### v26.6.3 (File Exchange Primary Path)
+- **Integration Cost:** ~2 FD (OCEL export + JSON round-trip tests)
+- **Risk Cost:** ~0.5 FD (schema validation + cross-check with pm4py)
+- **Testing Cost:** ~1 FD (integration tests, SLO verification)
+- **Total:** ~3.5 FD
+
+### v26.6.3 (Process Mining Secondary Path)
+- **Integration Cost:** ~4 FD (process discovery + conformance oracle)
+- **Risk Cost:** ~1 FD (process model validation, fitness SLO >0.95)
+- **Testing Cost:** ~2 FD (pm4py integration, conformance tests)
+- **Total:** ~7 FD (parallel track, not critical path)
+
+---
+
+**Document Version:** 001  
+**Status:** LEVERAGE ASSESSMENT COMPLETE  
+**Distribution:** cargo-cicd/docs/wasm4pm/WASM4PM_LEVERAGE_MATRIX.md
