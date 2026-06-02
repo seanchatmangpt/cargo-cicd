@@ -15,6 +15,11 @@ pub mod trybuild_detector;
 pub mod toolchain_detector;
 pub mod cicd_toml_writer;
 
+// Named API surfaces (required by external callers)
+pub mod target;
+pub mod changed_files;
+pub mod trybuild;
+
 pub use cargo_metadata::CargoMetadataAdapter;
 pub use git_status::GitStatusAdapter;
 pub use target_scanner::TargetScannerAdapter;

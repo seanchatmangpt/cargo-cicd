@@ -1,5 +1,6 @@
 use anyhow::Result;
 use crate::cicd_toml::CicdToml;
+use std::path::Path;
 
 pub struct CicdTomlWriter;
 
@@ -20,4 +21,9 @@ impl Default for CicdTomlWriter {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Serialize `cicd` to TOML and write it to `path`.
+pub fn write_cicd_toml(cicd: &CicdToml, path: &Path) -> Result<()> {
+    cicd.write(path)
 }

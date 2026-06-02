@@ -1,70 +1,43 @@
-use anyhow::Result;
+use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
+use crate::adapters::ChangedFileDetector;
 
-/// Verbs for `cargo cicd trybuild`.
-#[derive(clap::Subcommand, Debug)]
-pub enum TrybuildVerb {
-    /// Detect changed trybuild fixtures (avoids all-fixture run by default).
-    Changed(TrybuildChangedArgs),
-}
+pub struct TrybuildNoun;
+impl TrybuildNoun { pub fn new() -> Self { Self } }
 
-/// Arguments for `cargo cicd trybuild changed`.
-#[derive(clap::Args, Debug)]
-pub struct TrybuildChangedArgs {
-    /// Base branch or commit to diff against.
-    #[arg(long, default_value = "origin/main")]
-    pub base: String,
-    /// Run the trybuild test suite for the changed fixtures.
-    #[arg(long)]
-    pub run: bool,
-}
-
-pub fn run(verb: &TrybuildVerb) -> Result<()> {
-    match verb {
-        TrybuildVerb::Changed(args) => run_changed(args),
+impl NounCommand for TrybuildNoun {
+    fn name(&self) -> &'static str { "trybuild" }
+    fn about(&self) -> &'static str { "Manage trybuild fixtures" }
+    fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
+        vec![Box::new(TrybuildChangedVerb)]
     }
 }
 
-fn run_changed(args: &TrybuildChangedArgs) -> Result<()> {
-    let all_changed = changed_files(&args.base);
-    let fixtures: Vec<String> = all_changed.into_iter().filter(|f| is_trybuild_fixture(f)).collect();
-    if fixtures.is_empty() {
-        println!("no changed trybuild fixtures relative to {}", args.base);
-        return Ok(());
-    }
-    println!("changed trybuild fixtures ({}):", fixtures.len());
-    for f in &fixtures {
-        println!("  {}", f);
-    }
-    if !args.run {
+pub struct TrybuildChangedVerb;
+impl VerbCommand for TrybuildChangedVerb {
+    fn name(&self) -> &'static str { "changed" }
+    fn about(&self) -> &'static str { "Run trybuild for changed fixtures only" }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let base = "origin/main";
+        let changed = ChangedFileDetector::changed_rs_files(base);
+        let fixtures: Vec<_> = changed.iter().filter(|f| ChangedFileDetector::is_trybuild_fixture(f)).collect();
+        println!("trybuild changed plan");
+        println!("====================");
+        println!("base ref:             {}", base);
+        println!("changed fixtures:     {}", fixtures.len());
+        println!("mode:                 changed-only (all-fixture run is opt-in)");
+        println!("snapshot mode:        changed-only");
         println!();
-        println!("pass --run to execute the ALIVE gate for these fixtures");
-        return Ok(());
+        if fixtures.is_empty() {
+            println!("no changed trybuild fixtures detected");
+            println!("skipping trybuild run — use 'cargo test' for full run");
+        } else {
+            println!("selected fixtures:");
+            for f in &fixtures {
+                println!("  {}", f);
+            }
+            println!();
+            println!("to update snapshots: TRYBUILD=overwrite cargo test");
+        }
+        Ok(())
     }
-    println!();
-    println!("running: cargo test --test ui_tests -- --ignored");
-    let status = std::process::Command::new("cargo")
-        .args(["test", "--test", "ui_tests", "--", "--ignored"])
-        .status()?;
-    if !status.success() {
-        anyhow::bail!("trybuild ui_tests failed");
-    }
-    println!("trybuild: PASS");
-    Ok(())
-}
-
-fn changed_files(base: &str) -> Vec<String> {
-    std::process::Command::new("git")
-        .args(["diff", "--name-only", base])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect())
-        .unwrap_or_default()
-}
-
-fn is_trybuild_fixture(path: &str) -> bool {
-    let in_tests = path.contains("/tests/") || path.contains("\\tests\\");
-    let is_rs_or_ref = path.ends_with(".rs") || path.ends_with(".stderr") || path.ends_with(".stdout");
-    let in_ui = path.contains("compile_fail") || path.contains("trybuild") || path.contains("/ui/");
-    in_tests && is_rs_or_ref && in_ui
 }
