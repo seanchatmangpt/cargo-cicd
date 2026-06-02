@@ -60,6 +60,13 @@ pub struct WpmResult {
     pub verdict: WpmVerdict,
 }
 
+impl std::fmt::Display for WpmResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {} — {}", self.verdict, self.command,
+            if self.success { "ok" } else { "fail" })
+    }
+}
+
 /// Standardized verdict from a wpm invocation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WpmVerdict {
