@@ -13,7 +13,6 @@ impl ToolchainDetector {
             .output();
         if let Ok(out) = output {
             return String::from_utf8_lossy(&out.stdout)
-                .trim()
                 .split_whitespace()
                 .next()
                 .unwrap_or("stable")

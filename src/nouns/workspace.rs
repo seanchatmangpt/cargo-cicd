@@ -8,6 +8,11 @@ impl WorkspaceNoun {
         Self
     }
 }
+impl Default for WorkspaceNoun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NounCommand for WorkspaceNoun {
     fn name(&self) -> &'static str {

@@ -7,6 +7,11 @@ impl GitNoun {
         Self
     }
 }
+impl Default for GitNoun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NounCommand for GitNoun {
     fn name(&self) -> &'static str {

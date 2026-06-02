@@ -9,5 +9,5 @@ fn test_publish_emits_cicd_toml() {
     cmd.current_dir(tmp.path());
     // publish should succeed even in empty dir (graceful)
     cmd.assert()
-        .code(predicates::prelude::predicate::in_iter(vec![0u32, 1]));
+        .code(predicates::prelude::predicate::in_iter(vec![0i32, 1]));
 }

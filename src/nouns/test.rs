@@ -7,6 +7,11 @@ impl TestNoun {
         Self
     }
 }
+impl Default for TestNoun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NounCommand for TestNoun {
     fn name(&self) -> &'static str {

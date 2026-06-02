@@ -7,6 +7,11 @@ impl TrybuildNoun {
         Self
     }
 }
+impl Default for TrybuildNoun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NounCommand for TrybuildNoun {
     fn name(&self) -> &'static str {

@@ -7,6 +7,11 @@ impl StatusNoun {
         Self
     }
 }
+impl Default for StatusNoun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NounCommand for StatusNoun {
     fn name(&self) -> &'static str {

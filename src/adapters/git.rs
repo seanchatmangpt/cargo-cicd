@@ -61,7 +61,7 @@ pub fn read_git_state() -> Result<GitState> {
             .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
             .output()?;
         let s = String::from_utf8_lossy(&out.stdout);
-        let parts: Vec<&str> = s.trim().split_whitespace().collect();
+        let parts: Vec<&str> = s.split_whitespace().collect();
         if parts.len() == 2 {
             (
                 parts[0].parse::<usize>().unwrap_or(0),
@@ -190,7 +190,7 @@ fn git_ahead_behind(root: &Path) -> Result<(usize, usize)> {
         ])
         .output()?;
     let s = String::from_utf8_lossy(&out.stdout);
-    let parts: Vec<&str> = s.trim().split_whitespace().collect();
+    let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() == 2 {
         let ahead = parts[0].parse().unwrap_or(0);
         let behind = parts[1].parse().unwrap_or(0);

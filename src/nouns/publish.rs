@@ -10,6 +10,11 @@ impl PublishNoun {
         Self
     }
 }
+impl Default for PublishNoun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NounCommand for PublishNoun {
     fn name(&self) -> &'static str {
