@@ -55,6 +55,21 @@ path = "tests/git_phase_closure.rs"
 name = "invariants"
 path = "tests/invariants.rs"
 
+[[test]]
+name = "wasm4pm_harness"
+path = "tests/wasm4pm_harness.rs"
+harness = true
+
+[[test]]
+name = "wasm4pm_evidence_gate"
+path = "tests/wasm4pm_evidence_gate.rs"
+harness = true
+
+[[test]]
+name = "wasm4pm_evidence_mutation"
+path = "tests/wasm4pm_evidence_mutation.rs"
+harness = true
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
