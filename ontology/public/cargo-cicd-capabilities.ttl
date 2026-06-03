@@ -155,7 +155,7 @@ cc:PublishRun
     skos:inScheme cc:CapabilityScheme ;
     skos:prefLabel "publish run"@en ;
     dcterms:description
-        "Publishes eligible workspace crates to crates.io after verifying all ALIVE release conditions are met. Emits a PublishRunEvent that the wasm4pm oracle may audit post-release."@en ;
+        "Publishes eligible workspace crates to crates.io after verifying all release readiness conditions are met. Emits a PublishRunEvent that the wasm4pm oracle may audit post-release."@en ;
     cc:cliCommand "cargo cicd publish run" ;
     cc:noun "publish" ;
     cc:verb "run" ;

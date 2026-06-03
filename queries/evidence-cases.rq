@@ -1,14 +1,12 @@
-PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
-PREFIX prov:    <http://www.w3.org/ns/prov#>
-PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX cicd: <https://cargo-cicd.rs/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT ?event ?command ?oracle ?fields
-WHERE {
-    ?e a prov:Activity ;
-       skos:prefLabel          ?event ;
-       prov:wasGeneratedBy     ?cap ;
-       cc:wasm4pmOracleCommand ?oracle ;
-       cc:requiredEventFields  ?fields .
-    ?cap cc:cliCommand ?command
+SELECT ?event_name ?activity ?emitted_by ?validated WHERE {
+    ?event a cicd:EvidenceEvent ;
+        rdfs:label ?event_name ;
+        cicd:xesActivity ?activity ;
+        cicd:emittedBy ?verb ;
+        cicd:validated ?validated .
+    ?verb rdfs:label ?emitted_by .
 }
+ORDER BY ?emitted_by

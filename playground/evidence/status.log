@@ -1,0 +1,8 @@
+cargo-cicd workspace status
+===========================
+toolchain:    stable-aarch64-apple-darwin
+target:       5.48 GB [pass]
+branch:       main
+dirty files:  8
+untracked:    36
+git:          dirty

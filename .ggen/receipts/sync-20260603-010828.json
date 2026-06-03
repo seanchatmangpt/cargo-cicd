@@ -1,0 +1,21 @@
+{
+  "operation_id": "97b463f4-a330-4142-a371-40a8dfe172ca",
+  "timestamp": "2026-06-03T01:08:28.395354Z",
+  "input_hashes": [
+    "ggen.toml:4814bbfc6cf22c7d9679320cf802347c84ebc916a727db9400ac807e873619b4"
+  ],
+  "output_hashes": [
+    "./README.md:4e012c66925e3d311932a00d88eac8af519ba94aa58b1e8fe50301f162063bb5",
+    "./docs/reference/commands/status.md:8b36bbdf2129c7af92a9cd263f71e0c78e1044133202aa3af0261434a242724c",
+    "./docs/reference/commands/target-show.md:a8950bcac651c3fd553634ffa963be1f18296bd1684afc9f68f8fc652c35765a",
+    "./docs/reference/commands/target-prune.md:d6db0e9f52ac2034d5a2849ed23dff3f06c4937ea7d302a05a805f618f8ae303",
+    "./docs/reference/commands/test-changed.md:4d09a0da7930591ca7e098b84b53c31ef1acf0f054eb15d258bbdc15bea873a8",
+    "./docs/reference/commands/trybuild-changed.md:89b8ce8da8de3e245b5ef450bb2b9ce4ce8b707216a36fcfb608f5ae25c50835",
+    "./docs/reference/commands/git-status.md:3580c8f47afb4ab4a3985339760cb082da624d5411db50140aea18ef982f81ed",
+    "./docs/reference/commands/git-close.md:a222e7621a7528bd96c2d2e3ce521fd17ccd2973b3fa79153af9c0b307154167",
+    "./docs/reference/commands/publish-run.md:1b06cbc4c3a0736aeff9f8ee494aa481469e11383339e02b91b224ae580cb995",
+    "./docs/reference/commands/workspace-doctor.md:4ad7aa2f064306689c5597c0b064fed5c75e95cca6c13e9d54a56ffef9416a60"
+  ],
+  "signature": "f5ae366bcf332bf14e2a18ff7ed01c099a169bb5a7962b6e9eb6cda4844b1adce1d12ad7d89dee9c6f993e4ed36e256ec9c528494bb6e204a220d940cfc80b0e",
+  "previous_receipt_hash": "0c5ccd35c1abbbc0d8900b1a9cff9a37ef406910942d67e3e945f9545feb4862"
+}

@@ -1,0 +1,9 @@
+trybuild changed plan
+====================
+base ref:             origin/main
+changed fixtures:     0
+mode:                 changed-only (all-fixture run is opt-in)
+snapshot mode:        changed-only
+
+no changed trybuild fixtures detected
+skipping trybuild run — use 'cargo test' for full run

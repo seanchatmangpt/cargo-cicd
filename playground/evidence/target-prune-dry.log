@@ -1,0 +1,6 @@
+Error: Argument parsing failed: error: unexpected argument '--dry-run' found
+
+Usage: cargo-cicd target prune [OPTIONS]
+
+For more information, try '--help'.
+

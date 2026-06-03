@@ -1,0 +1,7 @@
+[scenario]
+name = "workspace-doctor"
+description = "Verify workspace doctor reports a healthy workspace"
+command = "cargo cicd workspace doctor"
+expected_exit_code = 0
+evidence_event = "workspace doctor"
+wasm4pm_verdict = "accept"

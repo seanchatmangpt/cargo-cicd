@@ -1,0 +1,7 @@
+[scenario]
+name = "publish"
+description = "Verify publish pre-flight checks pass for the workspace"
+command = "cargo cicd publish"
+expected_exit_code = 0
+evidence_event = "publish"
+wasm4pm_verdict = "accept"

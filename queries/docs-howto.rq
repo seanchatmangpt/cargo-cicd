@@ -1,41 +1,13 @@
-# docs-howto.rq
-# Purpose : Drive how-to guide generation for cargo-cicd v26.6.2.
-# Returns : doc_id, title, task_description, steps_count, commands_used
-# Source  : diataxis.ttl — capabilities linked to cc:HowTo
-
-PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX owl:     <http://www.w3.org/2002/07/owl#>
-PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
-PREFIX dcterms: <http://purl.org/dc/terms/>
-PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
 PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
 
-SELECT
-    ?doc_id
-    ?title
-    ?task_description
-    ?steps_count
-    (GROUP_CONCAT(DISTINCT ?cli_command; separator=", ") AS ?commands_used)
-WHERE {
-    # How-To doc anchors: one per capability linked to cc:HowTo.
-    ?capability a skos:Concept ;
-                skos:inScheme       cc:CapabilityScheme ;
-                cc:coveredByDocType cc:HowTo ;
-                skos:prefLabel      ?cap_label ;
-                cc:cliCommand       ?cli_command ;
-                dcterms:description ?task_description .
-
-    # doc_id derived from the capability IRI fragment; title from label.
-    BIND(STRAFTER(STR(?capability), "https://cargo-cicd.rs/ontology/") AS ?doc_id)
-    BIND(CONCAT("How to use ", STR(?cap_label)) AS ?title)
-
-    # steps_count is not modelled in the ontology; placeholder value 0 allows
-    # the doc renderer to detect unresolved steps and trigger authoring.
-    BIND(0 AS ?steps_count)
-
-    FILTER(lang(?task_description) = "en" || lang(?task_description) = "")
-    FILTER(lang(?cap_label)        = "en" || lang(?cap_label)        = "")
+SELECT ?noun_name ?verb_name ?verb_about ?cli_command WHERE {
+    ?cap a skos:Concept ;
+         cc:noun ?noun_name ;
+         cc:verb ?verb_name ;
+         dcterms:description ?verb_about ;
+         cc:cliCommand ?cli_command .
+    BIND(CONCAT("cargo cicd ", ?noun_name, " ", ?verb_name) AS ?full_command)
 }
-GROUP BY ?doc_id ?title ?task_description ?steps_count
-ORDER BY ?doc_id
+ORDER BY ?noun_name ?verb_name

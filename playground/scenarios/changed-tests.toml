@@ -1,0 +1,12 @@
+[scenario]
+name = "changed-tests"
+description = "Verify test changed and trybuild changed complete against current workspace"
+command = "cargo cicd test changed"
+expected_exit_code = 0
+evidence_event = "test changed"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+command = "cargo cicd trybuild changed"
+expected_exit_code = 0
+evidence_event = "trybuild changed"

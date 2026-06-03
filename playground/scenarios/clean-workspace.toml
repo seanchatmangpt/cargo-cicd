@@ -1,0 +1,7 @@
+[scenario]
+name = "clean-workspace"
+description = "Verify status shows pass state in a clean workspace"
+command = "cargo cicd status"
+expected_exit_code = 0
+evidence_event = "status show"
+wasm4pm_verdict = "accept"

@@ -1,0 +1,9 @@
+changed test plan
+=================
+base ref:         origin/main
+changed .rs:      0
+affected tests:   0
+no changed test files detected — conservative mode
+recommendation: run 'cargo test' to be safe
+
+note: exact affected-test selection is conservative by design

@@ -93,6 +93,10 @@ harness = true
 name = "wasm4pm_refusal_cases"
 path = "tests/wasm4pm_refusal_cases.rs"
 
+[[test]]
+name = "ggen_customization_guard"
+path = "tests/ggen_customization_guard.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"

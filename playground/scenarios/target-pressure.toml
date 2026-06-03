@@ -1,0 +1,12 @@
+[scenario]
+name = "target-pressure"
+description = "Verify target show reports target directory size and prune dry-run completes"
+command = "cargo cicd target show"
+expected_exit_code = 0
+evidence_event = "target show"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+command = "cargo cicd target prune --dry-run"
+expected_exit_code = 0
+evidence_event = "target prune dry-run"

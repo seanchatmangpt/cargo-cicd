@@ -1,0 +1,56 @@
+git status
+==========
+branch:       main
+staged:       0
+dirty:        8
+untracked:    36
+ahead:        0
+behind:       0
+
+dirty files:
+  M README.md
+  M docs/reference/commands/publish-run.md
+  M ontology/cargo-cicd.ttl
+  M ontology/public/cargo-cicd-capabilities.ttl
+  M queries/docs-howto.rq
+  M queries/docs-readme.rq
+  M queries/evidence-cases.rq
+  M queries/playground-matrix.rq
+untracked:
+  ? .ggen/
+  ? README.md.backup
+  ? docs/explanation/why-changed-test-planning.md
+  ? docs/explanation/why-cicd-toml.md
+  ? docs/explanation/why-local-first-cicd.md
+  ? docs/explanation/why-wasm4pm-evidence-validation.md
+  ? docs/how-to/close-a-git-phase.md
+  ? docs/how-to/control-target-directory.md
+  ? docs/how-to/inspect-workspace-status.md
+  ? docs/how-to/publish-cicd-toml.md
+  ? docs/how-to/run-changed-tests.md
+  ? docs/how-to/run-changed-trybuild.md
+  ? docs/how-to/run-the-playground.md
+  ? docs/reference/cicd-toml.md
+  ? docs/reference/commands.md
+  ? docs/reference/commands/git-close.md.backup
+  ? docs/reference/commands/git-status.md.backup
+  ? docs/reference/commands/publish-run.md.backup
+  ? docs/reference/commands/status.md.backup
+  ? docs/reference/commands/target-prune.md.backup
+  ? docs/reference/commands/target-show.md.backup
+  ? docs/reference/commands/test-changed.md.backup
+  ? docs/reference/commands/trybuild-changed.md.backup
+  ? docs/reference/commands/workspace-doctor.md.backup
+  ? docs/reference/configuration.md
+  ? docs/reference/evidence-format.md
+  ? docs/reference/feature-flags.md
+  ? docs/tutorials/first-playground-run.md
+  ? playground/Cargo.toml
+  ? playground/crates/
+  ? playground/evidence/
+  ? playground/expected/
+  ? playground/rust-toolchain.toml
+  ? playground/scenarios/
+  ? playground/scripts/clean.sh
+  ? playground/scripts/run-playground.sh
+next: recommendation: run 'cargo cicd git close' to stage and commit
