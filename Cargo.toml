@@ -38,7 +38,7 @@ wasm4pm = ["process-data"]  # capability scan complete; integration deferred to 
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-clap-noun-verb = { path = "/Users/sac/clap-noun-verb", version = "26.5.19" }  # path=local 26.6.2; version pins crates.io floor until 26.6.2 indexed
+clap-noun-verb = "26.6.2"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 anyhow = "1"
