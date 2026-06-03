@@ -1,7 +1,6 @@
 use crate::adapters::ChangedFileDetector;
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
-use std::time::Instant;
 
 pub struct TrybuildNoun;
 impl TrybuildNoun {
@@ -36,7 +35,10 @@ impl VerbCommand for TrybuildChangedVerb {
         "Run trybuild for changed fixtures only"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let start = Instant::now();
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("trybuild:changed");
+        start_evt.case_id = Some(case_id.clone());
         let fixture_dir = "tests/ui";
         let base = "origin/main";
         let changed = ChangedFileDetector::changed_rs_files(base);
