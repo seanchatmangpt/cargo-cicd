@@ -1,23 +1,57 @@
-# Tutorial: {{ doc.title }}
+# Tutorial: Getting Started with cargo-cicd
 
-**Audience:** {{ doc.audience }}
+<!-- BEGIN custom:audience -->
+**Audience:** Rust developers new to cargo-cicd who want a guided walkthrough.
+<!-- END custom:audience -->
 
-## What you will learn
+<!-- BEGIN custom:prerequisites -->
+## Prerequisites
 
-In this tutorial you will:
-{% for cap in doc.capabilities_covered -%}
-- Use `{{ cap.cli_command }}` to {{ cap.description | lower }}
+- Rust toolchain installed (`rustup`)
+- A Rust workspace with a `Cargo.toml` at the root
+- `cargo-cicd` installed: `cargo install cargo-cicd`
+<!-- END custom:prerequisites -->
+
+<!-- BEGIN ggen:initial-commands -->
+<!-- Rendered from ontology. Do not edit. -->
+## Available Commands
+
+The following commands are available in this workspace:
+
+| Command | Description |
+|---------|-------------|
+{% for row in rows -%}
+| `cargo cicd {{ row.noun_name }} {{ row.verb_name }}` | {{ row.verb_about }} |
 {% endfor %}
+<!-- END ggen:initial-commands -->
 
-## Steps
+<!-- BEGIN custom:step-by-step -->
+## Step-by-Step
 
-{% for step in doc.steps -%}
-### Step {{ loop.index }}: {{ step.title }}
+### Step 1: Verify your workspace
 
-{{ step.body }}
+Confirm `cargo-cicd` can see your workspace:
 
 ```sh
-{{ step.command }}
+cargo cicd workspace check
 ```
 
-{% endfor %}
+### Step 2: Run your first command
+
+Pick a command from the table above and run it in your workspace root.
+
+### Step 3: Inspect cicd.toml
+
+After running a command, `cargo-cicd` publishes state to `cicd.toml`:
+
+```sh
+cat cicd.toml
+```
+<!-- END custom:step-by-step -->
+
+<!-- BEGIN custom:next-steps -->
+## Next Steps
+
+- Read the how-to guides for task-oriented instructions
+- Read the reference docs for full command details
+<!-- END custom:next-steps -->

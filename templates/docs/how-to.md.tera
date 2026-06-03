@@ -1,9 +1,22 @@
-# How to {{ doc.title }}
+# How to: {{ rows[0].noun_about }}
 
-{{ doc.task_description }}
+<!-- BEGIN ggen:command-summary -->
+<!-- Rendered from ontology. Do not edit. -->
+{% for row in rows -%}
+## `{{ row.full_command }}`
 
-## Steps
-
-{% for step in doc.steps -%}
-{{ loop.index }}. {{ step }}
+{{ row.verb_about }}
 {% endfor %}
+<!-- END ggen:command-summary -->
+
+<!-- BEGIN custom:walkthrough -->
+## Walkthrough
+
+Run the command in your workspace root.
+<!-- END custom:walkthrough -->
+
+<!-- BEGIN custom:troubleshooting -->
+## Troubleshooting
+
+If the command fails, check that your workspace has a `Cargo.toml` at the root.
+<!-- END custom:troubleshooting -->

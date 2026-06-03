@@ -1,0 +1,36 @@
+# Explanation: cargo-cicd Design
+
+<!-- BEGIN custom:why-this-exists -->
+## Why This Exists
+
+`cargo-cicd` exists because Rust workspaces need a local-first CI/CD helper that keeps
+builds clean, fast, and push-ready without requiring a remote CI service for every check.
+
+Local feedback loops should be fast and honest. `cargo-cicd` manufactures a `cicd.toml`
+artifact that records workspace state so remote CI can trust what was verified locally.
+<!-- END custom:why-this-exists -->
+
+<!-- BEGIN custom:tradeoffs -->
+## Tradeoffs
+
+**Local-first vs. remote-authoritative**
+Running checks locally before push means faster feedback but requires discipline to not
+skip checks. `cargo-cicd` makes skipping visible by omitting entries from `cicd.toml`.
+
+**cicd.toml as carrier**
+Publishing state to `cicd.toml` in the workspace root makes state inspectable by both
+humans and downstream tooling. The tradeoff is that `cicd.toml` must be kept in sync
+with actual run history — stale entries are worse than missing ones.
+
+**Noun-verb command structure**
+Commands follow a `noun verb` pattern (e.g., `workspace check`) for discoverability and
+composability. The tradeoff is slightly more typing compared to single-word commands.
+<!-- END custom:tradeoffs -->
+
+<!-- BEGIN custom:architecture-notes -->
+## Architecture Notes
+
+`cargo-cicd` is structured as a clap-based CLI with a noun-verb command hierarchy.
+Each command pair maps to an operator in the manufacturing pipeline and emits a
+process event that can be validated by downstream tooling.
+<!-- END custom:architecture-notes -->

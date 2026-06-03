@@ -1,14 +1,24 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# GENERATED from ontology playground-matrix.rq. Do not edit ggen block.
+# <!-- BEGIN ggen:matrix -->
 set -euo pipefail
-# Generated from ontology/cargo-cicd-playground.ttl. Do not edit by hand.
-# BEGIN ggen:scenarios
-WPM=/Users/sac/wasm4pm/target/release/wpm
-PASS=0; FAIL=0; BLOCKED=0
+BINARY="${BINARY:-./target/debug/cargo-cicd}"
+PASS=0; FAIL=0
+
+run_scenario() {
+    local name="$1" cmd="$2"
+    echo "▶ $name: $cmd"
+    if $cmd >/dev/null 2>&1; then
+        echo "  ✓ PASS"; PASS=$((PASS+1))
+    else
+        echo "  ✗ FAIL"; FAIL=$((FAIL+1))
+    fi
+}
+
 {% for row in rows -%}
-echo "--- {{ row.name }} ---"
-# command: {{ row.command }}
-# precondition: {{ row.precondition }}
-# expected wasm4pm verdict: {{ row.verdict }}
+run_scenario "{{ row.scenario_name }}" "$BINARY {{ row.noun_name }} {{ row.verb_name }}"
 {% endfor %}
-echo "PASS=$PASS FAIL=$FAIL BLOCKED=$BLOCKED"
-# END ggen:scenarios
+# <!-- END ggen:matrix -->
+
+echo "Matrix: $PASS passed, $FAIL failed"
+[ "$FAIL" -eq 0 ]

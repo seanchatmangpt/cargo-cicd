@@ -1,11 +1,18 @@
-[scenario]
-name = "{{ scenario.scenario_name }}"
-command = "{{ scenario.command_used }}"
-precondition = "{{ scenario.precondition }}"
-expected_outcome = "{{ scenario.expected_outcome }}"
-evidence_event = "{{ scenario.evidence_event }}"
-wasm4pm_oracle = "{{ scenario.wasm4pm_oracle }}"
-wasm4pm_expected_verdict = "{{ scenario.wasm4pm_expected_verdict }}"
+# Playground scenario: {{ rows[0].scenario_name }}
+# Generated from ontology. Do not edit ggen blocks.
 
-[mutation]
-variant = "{{ scenario.mutation_variant | default(value="none") }}"
+[scenario]
+name = "{{ rows[0].scenario_name }}"
+command = "cargo cicd {{ rows[0].noun_name }} {{ rows[0].verb_name }}"
+precondition = "{{ rows[0].precondition }}"
+expected_outcome = "{{ rows[0].expected_outcome }}"
+
+[evidence]
+emit = true
+format = "xes"
+path = "playground/evidence/{{ rows[0].scenario_name }}-events.xes"
+
+[validation]
+wasm4pm_required = true
+oracle = "wpm audit"
+expected_verdict = "accept"

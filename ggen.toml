@@ -4,88 +4,232 @@ version = "26.6.2"
 description = "Manufacturing surface for cargo-cicd — CI/CD helper for Rust workspaces"
 
 [ontology]
-source = "ontology/cargo-cicd.ttl"
-standard_only = false
+source = "ontology/public/cargo-cicd-capabilities.ttl"
+base_iri = "https://cargo-cicd.rs/ontology/"
+
+[ontology.prefixes]
+cc      = "https://cargo-cicd.rs/ontology/"
+skos    = "http://www.w3.org/2004/02/skos/core#"
+dcterms = "http://purl.org/dc/terms/"
+prov    = "http://www.w3.org/ns/prov#"
+xsd     = "http://www.w3.org/2001/XMLSchema#"
+rdf     = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+rdfs    = "http://www.w3.org/2000/01/rdf-schema#"
+
+[inference]
+
+[[inference.rules]]
+name = "capability-projection"
+construct = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+CONSTRUCT {
+  ?cap a cc:Capability ;
+       cc:cliCommand ?cli_command ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       dcterms:description ?description .
+}
+WHERE {
+  ?cap a skos:Concept ;
+       cc:cliCommand ?cli_command ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       dcterms:description ?description .
+}
+ORDER BY ?noun ?verb
+"""
 
 [generation]
 output_dir = "."
 
-[inference]
-rules = [
-    { name = "command-projection", construct = "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }" }
-]
-
-[[rules]]
+[[generation.rules]]
 name = "readme"
-query = "queries/docs-readme.rq"
-template = "templates/README.md.tera"
-output = "README.md"
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:cliCommand ?cli_command ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       dcterms:description ?description .
+}
+ORDER BY ?noun ?verb
+""" }
+template = { file = "templates/README.md.tera" }
+output_file = "README.md"
+mode = "Overwrite"
 
-[[rules]]
-name = "playground-matrix"
-query = "queries/playground-matrix.rq"
-template = "templates/playground/run-matrix.sh.tera"
-output = "playground/scripts/run-matrix.sh"
-
-[[rules]]
+[[generation.rules]]
 name = "reference-status"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/status.md"
-filter = { noun = "status" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "status")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/status.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-target-show"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/target-show.md"
-filter = { noun = "target", verb = "show" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "target" && ?verb = "show")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/target-show.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-target-prune"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/target-prune.md"
-filter = { noun = "target", verb = "prune" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "target" && ?verb = "prune")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/target-prune.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-test-changed"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/test-changed.md"
-filter = { noun = "test", verb = "changed" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "test")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/test-changed.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-trybuild-changed"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/trybuild-changed.md"
-filter = { noun = "trybuild", verb = "changed" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "trybuild")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/trybuild-changed.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-git-status"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/git-status.md"
-filter = { noun = "git", verb = "status" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "git" && ?verb = "status")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/git-status.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-git-close"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/git-close.md"
-filter = { noun = "git", verb = "close" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "git" && ?verb = "close")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/git-close.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-publish-run"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/publish-run.md"
-filter = { noun = "publish", verb = "run" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "publish")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/publish-run.md"
+mode = "Overwrite"
 
-[[rules]]
+[[generation.rules]]
 name = "reference-workspace-doctor"
-query = "queries/docs-readme.rq"
-template = "templates/docs/reference-command.md.tera"
-output = "docs/reference/commands/workspace-doctor.md"
-filter = { noun = "workspace", verb = "doctor" }
+query = { inline = """
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?cli_command ?noun ?verb ?description
+WHERE {
+  ?cap a cc:Capability ;
+       cc:noun ?noun ;
+       cc:verb ?verb ;
+       cc:cliCommand ?cli_command ;
+       dcterms:description ?description .
+  FILTER(?noun = "workspace")
+}
+""" }
+template = { file = "templates/docs/reference-command.md.tera" }
+output_file = "docs/reference/commands/workspace-doctor.md"
+mode = "Overwrite"

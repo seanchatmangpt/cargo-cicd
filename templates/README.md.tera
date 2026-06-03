@@ -1,24 +1,37 @@
 <!-- BEGIN custom:introduction -->
-<!-- Coding agents may edit this section. -->
-[INTRODUCTION PLACEHOLDER — customize in Pass 2]
+# cargo-cicd
+
+`cargo-cicd` is a local-first CI/CD helper for Rust workspaces.
 <!-- END custom:introduction -->
 
+## Install
+
+```sh
+cargo install cargo-cicd
+```
+
+## Usage
+
+```sh
+cargo cicd <command>
+```
+
 <!-- BEGIN ggen:commands -->
-<!-- Rendered from ontology/cargo-cicd-capabilities.ttl. Do not edit by hand. -->
-## Commands
+<!-- Rendered from ontology/cargo-cicd.ttl. Do not edit by hand. -->
 
 | Command | Description |
 |---------|-------------|
-{% for row in rows -%}
+{% for row in entities -%}
 | `{{ row.cli_command }}` | {{ row.description }} |
 {% endfor %}
 <!-- END ggen:commands -->
 
 <!-- BEGIN custom:cicd-toml -->
-<!-- Coding agents may edit this section. -->
-[CICD_TOML EXPLANATION PLACEHOLDER]
+## cicd.toml
+
+`cargo-cicd` publishes workspace state to `cicd.toml`.
 <!-- END custom:cicd-toml -->
 
-<!-- BEGIN custom:license -->
-MIT OR Apache-2.0
-<!-- END custom:license -->
+## License
+
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
