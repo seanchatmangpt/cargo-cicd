@@ -113,9 +113,11 @@ impl VerbCommand for WorkspaceDoctorVerb {
             "PASS"
         };
 
-        let event = ProcessEvent::new("workspace doctor", verdict);
-        let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
-        if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let mut event = ProcessEvent::new("workspace:doctor", verdict);
+        event.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[event], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
