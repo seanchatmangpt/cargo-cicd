@@ -1,3 +1,4 @@
+pub mod evidence;
 pub mod git;
 pub mod publish;
 pub mod status;

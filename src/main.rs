@@ -32,6 +32,7 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
             "status" => Some("show"),
             "publish" => Some("run"),
             "workspace" => Some("doctor"),
+            "evidence" => Some("doctor"),
             _ => None,
         };
         if let Some(verb) = default_verb {
@@ -57,7 +58,7 @@ fn main() -> Result<()> {
     // If the user typed just the noun (no verb), dispatch directly to bypass the limitation.
     let noun = raw.get(1).map(String::as_str).unwrap_or("").to_string();
     let verb_arg = raw.get(2).map(String::as_str).unwrap_or("").to_string();
-    let needs_default = matches!(noun.as_str(), "status" | "publish" | "workspace")
+    let needs_default = matches!(noun.as_str(), "status" | "publish" | "workspace" | "evidence")
         && (verb_arg.is_empty() || verb_arg.starts_with('-'));
 
     // Inject default verbs into local args (used only for reference, not for cli.run()).
@@ -73,11 +74,13 @@ fn main() -> Result<()> {
             "status" => return nouns::status::StatusNoun::run_direct(),
             "publish" => return nouns::publish::PublishNoun::run_direct(),
             "workspace" => return nouns::workspace::WorkspaceNoun::run_doctor(),
+            "evidence" => return nouns::evidence::EvidenceNoun::run_direct(),
             _ => {}
         }
     }
 
     let cli = cli
+        .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::status::StatusNoun::new())
         .noun(nouns::target::TargetNoun::new())
         .noun(nouns::test::TestNoun::new())

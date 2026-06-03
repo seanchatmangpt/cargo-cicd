@@ -61,50 +61,69 @@ impl VerbCommand for PublishRunVerb {
             .filter(|f| ChangedFileDetector::is_trybuild_fixture(f))
             .count();
         cicd.workspace.toolchain = ToolchainDetector::active_toolchain();
-        // ── Adjudicated publish gate ──────────────────────────────────────────
-        // Before writing cicd.toml we ask the wasm4pm oracle to adjudicate the
-        // current evidence XES.  This closes the gap between "cargo-cicd claims
-        // PASS" and "an independent process oracle agrees".
+        // ── Adjudicated publish gate (receipt doctor) ─────────────────────────
+        // Gate law: publish_ready = true only after wpm receipt doctor accepts
+        // the latest runtime receipt. wpm audit (XES) is secondary only.
         //
         // Gate outcomes:
-        //   ADJUDICATED:accept       — oracle accepted the evidence; proceed.
-        //   WARN:oracle_unavailable  — binary not found; proceed with a warning.
-        //   (bail!)                  — oracle refused; publish is blocked.
-        let evidence_xes = crate::evidence::evidence_dir().join("events.xes");
-        let publish_readiness = if evidence_xes.exists() {
-            match crate::integrations::Wasm4pmShell::detect() {
-                None => {
-                    eprintln!(
-                        "warning: wasm4pm oracle unavailable — publish proceeding without \
-                         adjudication (BLOCKED:oracle_unavailable)"
-                    );
-                    "BLOCKED:oracle_unavailable"
-                }
-                Some(wpm) => match wpm.audit(evidence_xes.to_str().unwrap_or("")) {
-                    Err(e) => {
-                        eprintln!("warning: oracle invocation failed: {e} — proceeding without adjudication");
-                        "WARN:oracle_error"
-                    }
-                    Ok(result) => {
-                        use crate::integrations::WpmVerdict;
-                        match result.verdict {
-                            WpmVerdict::Pass | WpmVerdict::Warn | WpmVerdict::Partial => {
-                                "ADJUDICATED:accept"
-                            }
-                            WpmVerdict::Fail => {
-                                return Err(clap_noun_verb::error::NounVerbError::execution_error(
-                                    "AndonPull: wasm4pm refused evidence — publish blocked"
-                                        .to_string(),
-                                ));
-                            }
-                            WpmVerdict::NotAvailable => "BLOCKED:oracle_unavailable",
-                        }
-                    }
-                },
+        //   RECEIPT_DOCTOR:accepted   — oracle admitted the receipt; proceed.
+        //   WARN:oracle_unavailable   — wpm not found; proceed with a warning.
+        //   (bail!)                   — oracle refused receipt; publish is blocked.
+        let evidence_dir = crate::evidence::evidence_dir();
+        let publish_readiness = match crate::evidence::ReceiptDoctor::discover() {
+            None => {
+                eprintln!(
+                    "warning: wasm4pm oracle unavailable — publish proceeding without \
+                     receipt adjudication (BLOCKED:oracle_unavailable)"
+                );
+                "BLOCKED:oracle_unavailable"
             }
-        } else {
-            // No evidence file yet — first-run; proceed without adjudication.
-            "WARN:no_evidence"
+            Some(doctor) => {
+                use crate::evidence::ReceiptDoctorVerdict;
+                let git_head = std::process::Command::new("git")
+                    .args(["rev-parse", "--short", "HEAD"])
+                    .output()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                    .unwrap_or_else(|_| "unknown".to_string());
+
+                // Load accumulated events to build receipt
+                let jsonl_path = evidence_dir.join("events.jsonl");
+                let events: Vec<crate::evidence::ProcessEvent> = {
+                    let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
+                    content
+                        .lines()
+                        .filter(|l| !l.trim().is_empty())
+                        .filter_map(|l| serde_json::from_str(l).ok())
+                        .collect()
+                };
+
+                let (_receipt_path, verdict) =
+                    doctor.emit_and_adjudicate(&events, &evidence_dir, &git_head);
+                match verdict {
+                    ReceiptDoctorVerdict::Accepted { ref stdout_json } => {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(stdout_json) {
+                            let state = v.get("state").and_then(|s| s.as_str()).unwrap_or("Admitted");
+                            println!("  receipt doctor: {} (wpm adjudicated)", state);
+                        }
+                        "RECEIPT_DOCTOR:accepted"
+                    }
+                    ReceiptDoctorVerdict::Refused { ref stdout, .. } => {
+                        eprintln!("AndonPull: receipt doctor refused — publish blocked");
+                        eprint!("{}", stdout);
+                        return Err(clap_noun_verb::error::NounVerbError::execution_error(
+                            "wpm receipt doctor refused admission — publish blocked".to_string(),
+                        ));
+                    }
+                    ReceiptDoctorVerdict::Blocked { ref reason } => {
+                        eprintln!(
+                            "warning: wasm4pm blocked — publish proceeding without \
+                             receipt adjudication (reason: {})",
+                            reason
+                        );
+                        "BLOCKED:oracle_unavailable"
+                    }
+                }
+            }
         };
         println!("  adjudication: {}", publish_readiness);
 
