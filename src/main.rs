@@ -91,7 +91,8 @@ fn main() -> Result<()> {
         .noun(nouns::trybuild::TrybuildNoun::new())
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
-        .noun(nouns::workspace::WorkspaceNoun::new());
+        .noun(nouns::workspace::WorkspaceNoun::new())
+        .noun(nouns::lsp::LspNoun::new());
 
     cli.run().map_err(|e| anyhow::anyhow!("{}", e))
 }

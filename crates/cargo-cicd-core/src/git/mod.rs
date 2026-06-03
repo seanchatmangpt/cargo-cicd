@@ -2,4 +2,4 @@
 pub mod head;
 pub mod phase;
 pub mod status;
-pub use status::GitStatus;
+pub use status::{GitStatus, GitStatusSummary};

@@ -2,3 +2,4 @@
 pub mod capability;
 pub mod court;
 pub mod verdict;
+pub use capability::WpmCapabilityCache;

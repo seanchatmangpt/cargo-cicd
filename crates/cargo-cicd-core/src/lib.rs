@@ -6,8 +6,8 @@
 
 pub mod diagnostics;
 pub mod evidence;
-pub mod git;
 pub mod ggen;
+pub mod git;
 pub mod public_boundary;
 pub mod publish;
 pub mod target;

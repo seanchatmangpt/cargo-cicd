@@ -1,0 +1,5 @@
+[workspace]
+name = "publish-dry-run-no-receipt-fixture"
+
+[state]
+last_close = ""

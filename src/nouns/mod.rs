@@ -1,5 +1,6 @@
 pub mod evidence;
 pub mod git;
+pub mod lsp;
 pub mod pipeline;
 pub mod publish;
 pub mod status;

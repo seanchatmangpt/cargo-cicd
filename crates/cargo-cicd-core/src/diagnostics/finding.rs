@@ -1,3 +1,57 @@
 //! CicdFinding structure.
+
+use crate::diagnostics::code::CicdCode;
+
 /// A single diagnostic finding.
-pub struct CicdFinding;
+pub struct CicdFinding {
+    pub code: CicdCode,
+    pub location: String,
+    pub source: String,
+    pub repairs: Vec<String>,
+    pub message: String,
+    pub uri: Option<String>,
+    pub route: Option<RepairRoute>,
+}
+
+/// A suggested repair route for a finding.
+pub struct RepairRoute {
+    pub command: String,
+    pub explanation: String,
+}
+
+impl CicdFinding {
+    pub fn new(
+        code: CicdCode,
+        location: impl Into<String>,
+        source: impl Into<String>,
+        repairs: Vec<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            code,
+            location: location.into(),
+            source: source.into(),
+            repairs,
+            message: message.into(),
+            uri: None,
+            route: None,
+        }
+    }
+
+    /// Construct a minimal finding for test use.
+    pub fn minimal(code: CicdCode, message: impl Into<String>) -> Self {
+        Self::new(code, "", "", vec![], message)
+    }
+
+    /// Attach a file URI to this finding.
+    pub fn at_uri(mut self, uri: impl Into<String>) -> Self {
+        self.uri = Some(uri.into());
+        self
+    }
+
+    /// Attach a repair route to this finding.
+    pub fn with_route(mut self, route: RepairRoute) -> Self {
+        self.route = Some(route);
+        self
+    }
+}

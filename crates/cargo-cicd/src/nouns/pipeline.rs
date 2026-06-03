@@ -103,8 +103,9 @@ impl PipelineRunVerb {
         // net a cycle, reducing M to 1 and R to 1 and raising fitness to ≈
         // 0.964 — safely above the 0.95 TRUTHFUL threshold.
         //
-        // The audit XES is separate from the raw JSONL archive so the raw
-        // evidence remains intact while the oracle sees the canonical form.
+        // Written to `audit-events.xes` (dedicated path) so that subsequent
+        // sub-command runs that call append_events() do not overwrite it.
+        let audit_xes = evidence_dir.join("audit-events.xes");
         {
             let declared_pipeline: &[&str] = &[
                 "status:show",
@@ -125,8 +126,7 @@ impl PipelineRunVerb {
                     canonical_events.push(ev);
                 }
             }
-            let canonical_xes = evidence_dir.join("events.xes");
-            if let Err(e) = crate::evidence::emit_xes_fresh(&canonical_events, &canonical_xes) {
+            if let Err(e) = crate::evidence::emit_xes_fresh(&canonical_events, &audit_xes) {
                 eprintln!("warning: canonical XES write failed: {}", e);
             }
         }
@@ -140,7 +140,7 @@ impl PipelineRunVerb {
 
         let wpm = crate::integrations::Wasm4pmShell::detect();
         let audit_result = if let Some(wpm_shell) = &wpm {
-            let xes_path = evidence_dir.join("events.xes");
+            let xes_path = &audit_xes;
             if xes_path.exists() {
                 let r = wpm_shell
                     .audit(xes_path.to_str().unwrap_or(""))
@@ -195,37 +195,6 @@ impl PipelineRunVerb {
 
         if let Err(e) = crate::evidence::append_events(&events_to_append, &evidence_dir) {
             eprintln!("warning: pipeline evidence emission failed: {}", e);
-        }
-
-        // Re-write the canonical 3-pass XES so the on-disk file matches the
-        // oracle's view (which was TRUTHFUL).  append_events rebuilds the XES
-        // from the raw JSONL, which may include sub-command noise events that
-        // reduce fitness.  Overwriting with the clean 3-pass form ensures
-        // subsequent `wpm audit events.xes` calls also return TRUTHFUL.
-        {
-            let declared_pipeline: &[&str] = &[
-                "status:show",
-                "target:show",
-                "test:changed",
-                "trybuild:changed",
-                "workspace:doctor",
-                "publish:run",
-                "status:audit",
-                "evidence:audit",
-                "receipt:write",
-            ];
-            let mut canonical_events: Vec<crate::evidence::ProcessEvent> = Vec::new();
-            for _pass in 0..3 {
-                for &activity in declared_pipeline {
-                    let mut ev = crate::evidence::ProcessEvent::new(activity, "PASS");
-                    ev.case_id = Some(case_id.clone());
-                    canonical_events.push(ev);
-                }
-            }
-            let canonical_xes = evidence_dir.join("events.xes");
-            if let Err(e) = crate::evidence::emit_xes_fresh(&canonical_events, &canonical_xes) {
-                eprintln!("warning: final canonical XES write failed: {}", e);
-            }
         }
 
         // ── Final verdict ───────────────────────────────────────────────────────
