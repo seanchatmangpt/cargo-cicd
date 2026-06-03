@@ -1,24 +1,54 @@
-# Public Boundary Audit
+# cargo-cicd v26.6.2 — Public Boundary Audit
 
-This table records the forbidden-term scan results for all public-facing files.
+**Date:** 2026-06-02
+**Version:** 26.6.2
 
-Forbidden terms: `ALIVE`, `Inspection Gate`, `Nehemiah`, `Field8`, `Instinct8`, `Cargo Court`, `AGI`, `Truex`, `CONSTRUCT8`
+Forbidden terms scanned: `ALIVE`, `Inspection Gate`, `Nehemiah`, `Field8`, `Instinct8`,
+`Cargo Court`, `AGI`, `Truex`, `CONSTRUCT8`
 
-| File | Terms Scanned | Classification | Status |
-|---|---|---|---|
-| `README.md` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Public / crates.io | CLEAN |
-| `LICENSE-MIT` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Public / crates.io | CLEAN |
-| `LICENSE-APACHE` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Public / crates.io | CLEAN |
-| `Cargo.toml` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Public / crates.io | CLEAN |
-| `src/main.rs` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Public / compiled binary | CLEAN |
-| `src/lib.rs` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Public / compiled binary | CLEAN |
-| `CLAUDE.md` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Internal / not published | INTERNAL — excluded from crates.io |
-| `cicd.toml` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Internal / gitignored or .ignore | INTERNAL |
-| `docs/release/CRATES_IO_RELEASE_CHECKLIST.md` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Internal docs | CLEAN |
-| `docs/release/PUBLIC_BOUNDARY_AUDIT.md` | ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8, Cargo Court, AGI, Truex, CONSTRUCT8 | Internal docs | CLEAN |
+Scan command:
+```
+grep -rn "ALIVE\|Inspection Gate\|Nehemiah\|Field8\|Instinct8\|Cargo Court\|AGI\|Truex\|CONSTRUCT8" \
+  README.md LICENSE-MIT LICENSE-APACHE Cargo.toml src/
+```
 
-## Notes
+---
 
-- `CLAUDE.md` contains forbidden terms in the FORBIDDEN list definition itself. This file is not published to crates.io and is excluded via `.cargo/publish` exclude list or `.gitignore` as appropriate.
-- All public-facing files (README, LICENSE, Cargo.toml, src/) are confirmed clean as of 2026-06-02.
-- Re-run this audit before each release by running: `grep -rn "ALIVE\|Inspection Gate\|Nehemiah\|Field8\|Instinct8\|Cargo Court\|AGI\|Truex\|CONSTRUCT8" README.md LICENSE-MIT LICENSE-APACHE Cargo.toml src/`
+## Results per File
+
+| File | Classification | Verdict |
+|---|---|---|
+| `README.md` | Public / crates.io rendered | CLEAN |
+| `LICENSE-MIT` | Public / crates.io rendered | CLEAN |
+| `LICENSE-APACHE` | Public / crates.io rendered | CLEAN |
+| `Cargo.toml` | Public / crates.io metadata | CLEAN |
+| `src/main.rs` | Public / compiled binary | CLEAN |
+| `src/lib.rs` | Public / compiled binary | CLEAN |
+| `src/evidence.rs` | Public / compiled binary | CLEAN |
+| `src/integrations/wasm4pm_current.rs` | Public / compiled binary | CLEAN (ALIVE removed in f931629) |
+| `src/integrations/wasm4pm_exchange.rs` | Public / compiled binary | CLEAN |
+| `src/integrations/wasm4pm_shell.rs` | Public / compiled binary | CLEAN |
+| `src/engine/*` | Public / compiled binary | CLEAN |
+| `src/nouns/*` | Public / compiled binary | CLEAN |
+| `src/adapters/*` | Public / compiled binary | CLEAN |
+| `src/autonomic/*` | Public / compiled binary | CLEAN |
+| `src/policies/*` | Public / compiled binary | CLEAN |
+| `src/state/*` | Public / compiled binary | CLEAN |
+| `docs/commands/*.md` | Public / included in package | CLEAN |
+| `CLAUDE.md` | Internal / excluded from crates.io | INTERNAL — excluded |
+| `cicd.toml` | Internal / excluded from crates.io | INTERNAL — excluded |
+| `receipts/*` | Internal / excluded from crates.io | INTERNAL — excluded |
+
+---
+
+## Notable Fix
+
+`src/integrations/wasm4pm_current.rs` contained the forbidden term `ALIVE` in a public
+doc comment. Removed in commit f931629. The file is confirmed clean.
+
+---
+
+## Verdict: CLEAN
+
+No forbidden internal terms appear in any public-facing file that is included in the
+published crate package.
