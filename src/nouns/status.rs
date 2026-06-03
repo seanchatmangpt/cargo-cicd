@@ -61,8 +61,7 @@ impl StatusShowVerb {
         let mut complete_evt = ProcessEvent::completed("status:show", t0, ev_verdict);
         complete_evt.case_id = Some(case_id.clone());
 
-        let evidence_path = evidence_dir.join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[start_evt, complete_evt], &evidence_path) {
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
