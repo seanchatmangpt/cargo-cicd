@@ -32,10 +32,7 @@ fn test_git_status_shows_clean_tree() {
         .output()
         .unwrap();
     // Should succeed and mention branch or status
-    assert!(
-        output.status.success(),
-        "git status should not panic"
-    );
+    assert!(output.status.success(), "git status should not panic");
 }
 
 #[test]

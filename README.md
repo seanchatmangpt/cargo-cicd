@@ -4,8 +4,6 @@
 
 It helps keep repositories clean, target directories under control, test runs focused on what changed, and local state ready before CI runs.
 
-> Clean less. Rebuild less. Test what changed. Push clean.
-
 ## Install
 
 ```sh
@@ -13,6 +11,8 @@ cargo install cargo-cicd
 ```
 
 ## Usage
+
+`cargo-cicd` exposes a Cargo external subcommand. After install, use it as:
 
 ```sh
 cargo cicd status
@@ -28,41 +28,65 @@ cargo cicd workspace doctor
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `status` | Show workspace state (toolchain, target size, dirty files, changed file count) |
-| `target show` | Show target directory size and artifact breakdown |
-| `target prune` | Prune stale target artifacts safely (dry-run by default) |
-| `test changed` | Run only tests for changed source files |
-| `trybuild changed` | Run only trybuild fixtures for changed test files |
-| `git status` | Show git phase state |
-| `git close` | Enforce clean phase closure — refuses to hide dirty files |
-| `publish` | Emit `cicd.toml` with current workspace state |
-| `workspace doctor` | Diagnose workspace health and suggest autonomic actions |
+### `cargo cicd status`
+
+Show workspace CI/CD status: toolchain, target directory size, git branch, dirty file count.
+
+### `cargo cicd target show`
+
+Show target directory size and state versus configured limits.
+
+### `cargo cicd target prune`
+
+Remove stale artifacts from the target directory. Use `--dry-run` to preview.
+
+### `cargo cicd test changed`
+
+Identify and run tests for files changed relative to a base branch.
+
+### `cargo cicd trybuild changed`
+
+Run only changed trybuild fixtures rather than the full suite.
+
+### `cargo cicd git status`
+
+Show git branch, dirty files, and untracked files.
+
+### `cargo cicd git close`
+
+Stage, commit, and clean up the current git phase.
+
+### `cargo cicd publish`
+
+Emit `cicd.toml` with current workspace state.
+
+### `cargo cicd workspace doctor`
+
+Run workspace health checks and emit autonomic suggestions.
 
 ## cicd.toml
 
-`cargo cicd publish` records workspace state into `cicd.toml`:
+`cargo-cicd` can publish local CI/CD process data into `cicd.toml`.
+
+This records workspace state, target size, changed files, selected checks, git phase state, and command events.
+
+Example:
 
 ```toml
 [workspace]
-name = "my-project"
-toolchain = "nightly-2026-04-15"
+name = "my-crate"
+toolchain = "stable-aarch64-apple-darwin"
+target_dir = "target"
 
 [state]
-target_size_gb = 3.15
 dirty = false
-changed_files = 0
+target_size_gb = 1.24
+
+[target]
+max_size_gb = 20
+prune_after_days = 14
 ```
-
-## Features
-
-| Feature | Default | Purpose |
-|---|:---:|---|
-| `process-data` | no | Enables process data emission |
-| `autonomic` | no | Adds autonomic policy suggestions |
-| `wasm4pm` | no | Enables wasm4pm integration (requires wpm binary) |
 
 ## License
 
-MIT OR Apache-2.0
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option.
