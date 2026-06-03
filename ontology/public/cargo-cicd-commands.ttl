@@ -1,0 +1,98 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ───────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/commands>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd feature-flag taxonomy"@en ;
+    dcterms:description
+        "Feature flag taxonomy for cargo-cicd v26.6.2. Each Cargo feature is a skos:Concept with explicit broader/narrower relations and links to the capabilities and evidence events it gates."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    owl:imports <https://cargo-cicd.rs/ontology/prefixes> ;
+    owl:imports <https://cargo-cicd.rs/ontology/capabilities> ;
+    owl:imports <https://cargo-cicd.rs/ontology/evidence> ;
+    owl:versionInfo "26.6.2" .
+
+# ── Feature scheme ────────────────────────────────────────────────────────────
+cc:FeatureScheme
+    a skos:ConceptScheme ;
+    skos:prefLabel "cargo-cicd Cargo features"@en ;
+    dcterms:description
+        "Hierarchy of Cargo features that gate cargo-cicd capabilities. 'autonomic' and 'wasm4pm' both imply 'process-data'."@en .
+
+# ── defaultFeature ────────────────────────────────────────────────────────────
+cc:defaultFeature
+    a skos:Concept ;
+    skos:inScheme cc:FeatureScheme ;
+    skos:prefLabel "default feature"@en ;
+    skos:definition
+        "Always-on. All nine public commands are available without any explicit feature flag. No process-data emission; no oracle integration."@en ;
+    skos:narrower cc:processDataFeature ;
+    skos:scopeNote
+        "Commands gated here: status show, target show, target prune, test changed, trybuild changed, git status, git close, publish run, workspace doctor."@en ;
+    dcterms:relation cc:StatusShow ,
+                     cc:TargetShow ,
+                     cc:TargetPrune ,
+                     cc:TestChanged ,
+                     cc:TrybuildChanged ,
+                     cc:GitStatus ,
+                     cc:GitClose ,
+                     cc:PublishRun ,
+                     cc:WorkspaceDoctor ;
+    dcterms:relation cc:StatusShowEvent ,
+                     cc:TargetShowEvent ,
+                     cc:TargetPruneEvent ,
+                     cc:TestChangedEvent ,
+                     cc:TrybuildChangedEvent ,
+                     cc:GitStatusEvent ,
+                     cc:GitCloseEvent ,
+                     cc:PublishRunEvent ,
+                     cc:WorkspaceDoctorEvent .
+
+# ── processDataFeature ────────────────────────────────────────────────────────
+cc:processDataFeature
+    a skos:Concept ;
+    skos:inScheme cc:FeatureScheme ;
+    skos:prefLabel "process-data feature"@en ;
+    skos:definition
+        "Enables structured XES/OCEL event emission for all commands. Events are written to disk before any oracle is called (Invariant E2). Does not activate oracle integration or policy suggestions."@en ;
+    skos:broader cc:defaultFeature ;
+    skos:narrower cc:autonomicFeature , cc:wasm4pmFeature ;
+    skos:scopeNote
+        "Implied by both cc:autonomicFeature and cc:wasm4pmFeature."@en .
+
+# ── autonomicFeature ──────────────────────────────────────────────────────────
+cc:autonomicFeature
+    a skos:Concept ;
+    skos:inScheme cc:FeatureScheme ;
+    skos:prefLabel "autonomic feature"@en ;
+    skos:definition
+        "Enables heuristic policy suggestions derived from evidence patterns (e.g. 'target too large — prune recommended'). Implies processDataFeature. Does NOT issue conformance verdicts — those remain the exclusive domain of wasm4pm (Invariant E1)."@en ;
+    skos:broader cc:processDataFeature ;
+    skos:scopeNote
+        "Suggestions are advisory only. cargo-cicd never adjudicates its own process."@en .
+
+# ── wasm4pmFeature ────────────────────────────────────────────────────────────
+cc:wasm4pmFeature
+    a skos:Concept ;
+    skos:inScheme cc:FeatureScheme ;
+    skos:prefLabel "wasm4pm feature"@en ;
+    skos:definition
+        "Enables the wasm4pm oracle integration bridge: calls 'wpm audit', 'wpm doctor', or 'wpm lean' after evidence is written to disk. Implies processDataFeature. If the oracle is unavailable the event log is preserved and adjudication is deferred (Invariant E3)."@en ;
+    skos:broader cc:processDataFeature ;
+    skos:scopeNote
+        "Oracle verdict is the sole authoritative conformance signal. cargo-cicd surfaces it but does not produce it."@en ;
+    dcterms:relation cc:StatusShowEvent ,
+                     cc:TargetShowEvent ,
+                     cc:TargetPruneEvent ,
+                     cc:TestChangedEvent ,
+                     cc:TrybuildChangedEvent ,
+                     cc:GitStatusEvent ,
+                     cc:GitCloseEvent ,
+                     cc:PublishRunEvent ,
+                     cc:WorkspaceDoctorEvent .

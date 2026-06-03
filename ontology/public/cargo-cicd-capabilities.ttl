@@ -1,0 +1,180 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ───────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/capabilities>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd capability taxonomy"@en ;
+    dcterms:description
+        "Each public sub-command of cargo-cicd v26.6.2 modelled as a skos:Concept grounded in PROV-O, DCTERMS, and SKOS. No private foundation vocabulary."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    owl:imports <https://cargo-cicd.rs/ontology/prefixes> ;
+    owl:versionInfo "26.6.2" .
+
+# ── Concept Scheme ────────────────────────────────────────────────────────────
+cc:CapabilityScheme
+    a skos:ConceptScheme ;
+    skos:prefLabel "cargo-cicd capabilities"@en ;
+    dcterms:description "All public CLI sub-commands of cargo-cicd, organised as a SKOS concept scheme."@en .
+
+# ── Feature flag resources ────────────────────────────────────────────────────
+cc:defaultFeature
+    a skos:Concept ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "default feature"@en ;
+    dcterms:description "Always-on Cargo feature; no opt-in required."@en .
+
+cc:processDataFeature
+    a skos:Concept ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "process-data feature"@en ;
+    dcterms:description "Enables process-data emission into XES/OCEL evidence logs."@en .
+
+cc:autonomicFeature
+    a skos:Concept ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "autonomic feature"@en ;
+    dcterms:description "Enables policy suggestions. Implies processDataFeature."@en ;
+    skos:broader cc:processDataFeature .
+
+cc:wasm4pmFeature
+    a skos:Concept ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "wasm4pm feature"@en ;
+    dcterms:description "Enables integration with the external wasm4pm oracle. Implies processDataFeature."@en ;
+    skos:broader cc:processDataFeature .
+
+# ── 1. status show ────────────────────────────────────────────────────────────
+cc:StatusShow
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "status show"@en ;
+    dcterms:description
+        "Displays the current workspace status: dirty files, pending tests, last-known trybuild result, and publish readiness. Read-only; emits a StatusShowEvent."@en ;
+    cc:cliCommand "cargo cicd status show" ;
+    cc:noun "status" ;
+    cc:verb "show" ;
+    cc:defaultVerb "show" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:StatusShowEvent ;
+    cc:publicBoundaryClean true .
+
+# ── 2. target show ────────────────────────────────────────────────────────────
+cc:TargetShow
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "target show"@en ;
+    dcterms:description
+        "Reports the size and age profile of the local Cargo target directory without modifying it."@en ;
+    cc:cliCommand "cargo cicd target show" ;
+    cc:noun "target" ;
+    cc:verb "show" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:TargetShowEvent ;
+    cc:publicBoundaryClean true .
+
+# ── 3. target prune ───────────────────────────────────────────────────────────
+cc:TargetPrune
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "target prune"@en ;
+    dcterms:description
+        "Removes stale build artefacts from the Cargo target directory according to configurable age/size policy. Emits a TargetPruneEvent recording bytes freed."@en ;
+    cc:cliCommand "cargo cicd target prune" ;
+    cc:noun "target" ;
+    cc:verb "prune" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:TargetPruneEvent ;
+    cc:publicBoundaryClean false .
+
+# ── 4. test changed ───────────────────────────────────────────────────────────
+cc:TestChanged
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "test changed"@en ;
+    dcterms:description
+        "Runs cargo test restricted to crates whose source files have changed since the last green commit. Emits a TestChangedEvent with pass/fail counts and affected crate list."@en ;
+    cc:cliCommand "cargo cicd test changed" ;
+    cc:noun "test" ;
+    cc:verb "changed" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:TestChangedEvent ;
+    cc:publicBoundaryClean false .
+
+# ── 5. trybuild changed ───────────────────────────────────────────────────────
+cc:TrybuildChanged
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "trybuild changed"@en ;
+    dcterms:description
+        "Runs trybuild type-law fixtures for changed crates, verifying that compile-fail fixtures fail for the correct named law and compile-pass fixtures succeed. Emits a TrybuildChangedEvent."@en ;
+    cc:cliCommand "cargo cicd trybuild changed" ;
+    cc:noun "trybuild" ;
+    cc:verb "changed" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:TrybuildChangedEvent ;
+    cc:publicBoundaryClean false .
+
+# ── 6. git status ─────────────────────────────────────────────────────────────
+cc:GitStatus
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "git status"@en ;
+    dcterms:description
+        "Surfaces a structured summary of the git working-tree state: branch, ahead/behind counts, staged/unstaged/untracked file counts, and last-commit metadata."@en ;
+    cc:cliCommand "cargo cicd git status" ;
+    cc:noun "git" ;
+    cc:verb "status" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:GitStatusEvent ;
+    cc:publicBoundaryClean true .
+
+# ── 7. git close ──────────────────────────────────────────────────────────────
+cc:GitClose
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "git close"@en ;
+    dcterms:description
+        "Performs the lawful branch-close sequence: ensures tests pass, commits any staged evidence, merges to the trunk branch, and emits a GitCloseEvent as a receipt."@en ;
+    cc:cliCommand "cargo cicd git close" ;
+    cc:noun "git" ;
+    cc:verb "close" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:GitCloseEvent ;
+    cc:publicBoundaryClean false .
+
+# ── 8. publish run ────────────────────────────────────────────────────────────
+cc:PublishRun
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "publish run"@en ;
+    dcterms:description
+        "Publishes eligible workspace crates to crates.io after verifying all ALIVE release conditions are met. Emits a PublishRunEvent that the wasm4pm oracle may audit post-release."@en ;
+    cc:cliCommand "cargo cicd publish run" ;
+    cc:noun "publish" ;
+    cc:verb "run" ;
+    cc:defaultVerb "run" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:PublishRunEvent ;
+    cc:publicBoundaryClean false .
+
+# ── 9. workspace doctor ───────────────────────────────────────────────────────
+cc:WorkspaceDoctor
+    a skos:Concept , prov:SoftwareAgent ;
+    skos:inScheme cc:CapabilityScheme ;
+    skos:prefLabel "workspace doctor"@en ;
+    dcterms:description
+        "Diagnoses the Cargo workspace for structural health: duplicate dependencies, missing feature declarations, version skew, and toolchain mismatch. Emits a WorkspaceDoctorEvent."@en ;
+    cc:cliCommand "cargo cicd workspace doctor" ;
+    cc:noun "workspace" ;
+    cc:verb "doctor" ;
+    cc:defaultVerb "doctor" ;
+    cc:requiresFeature cc:defaultFeature ;
+    cc:emitsEvent cc:WorkspaceDoctorEvent ;
+    cc:publicBoundaryClean true .

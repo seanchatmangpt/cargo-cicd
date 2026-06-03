@@ -1,0 +1,131 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ───────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/evidence>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd evidence events"@en ;
+    dcterms:description
+        "Evidence events emitted by cargo-cicd v26.6.2 as prov:Activity instances. Adjudication is NEVER performed by cargo-cicd; all verdicts are issued by the external wasm4pm oracle (Invariant E1)."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    owl:imports <https://cargo-cicd.rs/ontology/prefixes> ;
+    owl:imports <https://cargo-cicd.rs/ontology/capabilities> ;
+    owl:versionInfo "26.6.2" .
+
+# ── Mandatory field set (shared across all events) ────────────────────────────
+# event_id, timestamp_iso, workspace_id, repo_path, command,
+# inputs, outputs, verdict_claimed, duration_ms, artifacts
+
+# ── 1. StatusShowEvent ────────────────────────────────────────────────────────
+cc:StatusShowEvent
+    a prov:Activity ;
+    skos:prefLabel "StatusShowEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd status show' completes. Captures workspace dirtiness, pending-test count, last trybuild digest, and publish-readiness boolean."@en ;
+    prov:wasGeneratedBy cc:StatusShow ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm audit" .
+
+# ── 2. TargetShowEvent ────────────────────────────────────────────────────────
+cc:TargetShowEvent
+    a prov:Activity ;
+    skos:prefLabel "TargetShowEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd target show' completes. Records target directory total size in bytes, number of artefact entries, and oldest artefact age."@en ;
+    prov:wasGeneratedBy cc:TargetShow ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm audit" .
+
+# ── 3. TargetPruneEvent ───────────────────────────────────────────────────────
+cc:TargetPruneEvent
+    a prov:Activity ;
+    skos:prefLabel "TargetPruneEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd target prune' completes. Records bytes freed, number of entries removed, and the policy parameters applied."@en ;
+    prov:wasGeneratedBy cc:TargetPrune ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm audit" .
+
+# ── 4. TestChangedEvent ───────────────────────────────────────────────────────
+cc:TestChangedEvent
+    a prov:Activity ;
+    skos:prefLabel "TestChangedEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd test changed' completes. Records affected crate list, pass count, fail count, ignored count, and total elapsed time."@en ;
+    prov:wasGeneratedBy cc:TestChanged ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm audit" .
+
+# ── 5. TrybuildChangedEvent ───────────────────────────────────────────────────
+cc:TrybuildChangedEvent
+    a prov:Activity ;
+    skos:prefLabel "TrybuildChangedEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd trybuild changed' completes. Records fixture counts (compile-fail, compile-pass), pass/fail split, and any fixture that failed for the wrong named law."@en ;
+    prov:wasGeneratedBy cc:TrybuildChanged ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm audit" .
+
+# ── 6. GitStatusEvent ─────────────────────────────────────────────────────────
+cc:GitStatusEvent
+    a prov:Activity ;
+    skos:prefLabel "GitStatusEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd git status' completes. Records branch name, ahead/behind counts, staged/unstaged/untracked file counts, and HEAD commit SHA."@en ;
+    prov:wasGeneratedBy cc:GitStatus ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm audit" .
+
+# ── 7. GitCloseEvent ──────────────────────────────────────────────────────────
+cc:GitCloseEvent
+    a prov:Activity ;
+    skos:prefLabel "GitCloseEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd git close' completes the lawful branch-close sequence. Records source branch, target branch, merge SHA, and evidence-commit digest."@en ;
+    prov:wasGeneratedBy cc:GitClose ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm lean" .
+
+# ── 8. PublishRunEvent ────────────────────────────────────────────────────────
+cc:PublishRunEvent
+    a prov:Activity ;
+    skos:prefLabel "PublishRunEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd publish run' completes. Records crates published, crates skipped, crates.io upload receipt, and the ALIVE condition snapshot at time of release."@en ;
+    prov:wasGeneratedBy cc:PublishRun ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm doctor" .
+
+# ── 9. WorkspaceDoctorEvent ───────────────────────────────────────────────────
+cc:WorkspaceDoctorEvent
+    a prov:Activity ;
+    skos:prefLabel "WorkspaceDoctorEvent"@en ;
+    dcterms:description
+        "Emitted when 'cargo cicd workspace doctor' completes. Records finding counts by severity (error, warning, info), toolchain digest, and dependency duplication report."@en ;
+    prov:wasGeneratedBy cc:WorkspaceDoctor ;
+    cc:requiredEventFields
+        "event_id, timestamp_iso, workspace_id, repo_path, command, inputs, outputs, verdict_claimed, duration_ms, artifacts" ;
+    cc:validatedByWasm4pm true ;
+    cc:wasm4pmOracleCommand "wpm doctor" .

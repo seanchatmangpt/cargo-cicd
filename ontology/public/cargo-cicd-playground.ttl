@@ -1,0 +1,233 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ───────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/playground>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd playground capability matrix"@en ;
+    dcterms:description
+        "Positive and negative playground scenarios for each cargo-cicd v26.6.2 command. Each scenario names a precondition, expected outcome, evidence event, mutation variant for the negative case, and the wasm4pm oracle expected verdict."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    owl:imports <https://cargo-cicd.rs/ontology/prefixes> ;
+    owl:imports <https://cargo-cicd.rs/ontology/capabilities> ;
+    owl:imports <https://cargo-cicd.rs/ontology/evidence> ;
+    owl:versionInfo "26.6.2" .
+
+# ── PlaygroundScenario class ──────────────────────────────────────────────────
+cc:PlaygroundScenario
+    a owl:Class ;
+    rdfs:label "PlaygroundScenario"@en ;
+    rdfs:comment "A named scenario in the cargo-cicd playground, covering one command under specific preconditions."@en .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. status show
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_StatusShow_Clean
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "status-show-clean-workspace" ;
+    cc:commandUsed cc:StatusShow ;
+    cc:precondition "clean_workspace" ;
+    cc:expectedOutcome "Exits 0; StatusShowEvent emitted; dirty_files=0; publish_ready=true" ;
+    cc:evidenceEvent cc:StatusShowEvent ;
+    cc:mutationVariant "inject_unstaged_file_into_workspace" ;
+    cc:wasm4pmExpectedVerdict "Accept" .
+
+cc:Scenario_StatusShow_Dirty
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "status-show-dirty-workspace" ;
+    cc:commandUsed cc:StatusShow ;
+    cc:precondition "dirty_workspace" ;
+    cc:expectedOutcome "Exits 0; StatusShowEvent emitted; dirty_files>0; publish_ready=false" ;
+    cc:evidenceEvent cc:StatusShowEvent ;
+    cc:mutationVariant "omit_dirty_files_field_from_event" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. target show
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_TargetShow_Large
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "target-show-large-target" ;
+    cc:commandUsed cc:TargetShow ;
+    cc:precondition "large_target" ;
+    cc:expectedOutcome "Exits 0; TargetShowEvent emitted; total_bytes>1_000_000_000; oldest_artefact_age reported" ;
+    cc:evidenceEvent cc:TargetShowEvent ;
+    cc:mutationVariant "report_zero_bytes_despite_large_target" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_TargetShow_Empty
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "target-show-empty-target" ;
+    cc:commandUsed cc:TargetShow ;
+    cc:precondition "empty_target_directory" ;
+    cc:expectedOutcome "Exits 0; TargetShowEvent emitted; total_bytes=0; entry_count=0" ;
+    cc:evidenceEvent cc:TargetShowEvent ;
+    cc:mutationVariant "omit_entry_count_field" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. target prune
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_TargetPrune_Stale
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "target-prune-stale-artefacts" ;
+    cc:commandUsed cc:TargetPrune ;
+    cc:precondition "stale_artefacts_present" ;
+    cc:expectedOutcome "Exits 0; TargetPruneEvent emitted; bytes_freed>0; entries_removed>0" ;
+    cc:evidenceEvent cc:TargetPruneEvent ;
+    cc:mutationVariant "claim_bytes_freed=0_when_artefacts_were_deleted" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_TargetPrune_NothingToPrune
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "target-prune-nothing-to-prune" ;
+    cc:commandUsed cc:TargetPrune ;
+    cc:precondition "clean_target_directory" ;
+    cc:expectedOutcome "Exits 0; TargetPruneEvent emitted; bytes_freed=0; entries_removed=0" ;
+    cc:evidenceEvent cc:TargetPruneEvent ;
+    cc:mutationVariant "omit_policy_parameters_field" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. test changed
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_TestChanged_Pass
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "test-changed-all-pass" ;
+    cc:commandUsed cc:TestChanged ;
+    cc:precondition "changed_files_with_passing_tests" ;
+    cc:expectedOutcome "Exits 0; TestChangedEvent emitted; fail_count=0; affected_crates listed" ;
+    cc:evidenceEvent cc:TestChangedEvent ;
+    cc:mutationVariant "omit_affected_crates_list" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_TestChanged_Fail
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "test-changed-with-failures" ;
+    cc:commandUsed cc:TestChanged ;
+    cc:precondition "changed_files_with_failing_tests" ;
+    cc:expectedOutcome "Exits non-zero; TestChangedEvent emitted; fail_count>0; verdict_claimed=failure" ;
+    cc:evidenceEvent cc:TestChangedEvent ;
+    cc:mutationVariant "claim_verdict_claimed=success_when_tests_failed" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 5. trybuild changed
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_TrybuildChanged_AllCorrect
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "trybuild-changed-all-correct" ;
+    cc:commandUsed cc:TrybuildChanged ;
+    cc:precondition "changed_trybuild_fixtures_all_lawful" ;
+    cc:expectedOutcome "Exits 0; TrybuildChangedEvent emitted; wrong_law_failures=0" ;
+    cc:evidenceEvent cc:TrybuildChangedEvent ;
+    cc:mutationVariant "omit_wrong_law_failures_field" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_TrybuildChanged_WrongLaw
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "trybuild-changed-wrong-law-failure" ;
+    cc:commandUsed cc:TrybuildChanged ;
+    cc:precondition "compile_fail_fixture_fails_for_wrong_reason" ;
+    cc:expectedOutcome "Exits non-zero; TrybuildChangedEvent emitted; wrong_law_failures>0; named defective fixtures" ;
+    cc:evidenceEvent cc:TrybuildChangedEvent ;
+    cc:mutationVariant "suppress_wrong_law_failure_entry_from_event" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 6. git status
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_GitStatus_Clean
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "git-status-clean-branch" ;
+    cc:commandUsed cc:GitStatus ;
+    cc:precondition "clean_workspace" ;
+    cc:expectedOutcome "Exits 0; GitStatusEvent emitted; staged=0; unstaged=0; untracked=0" ;
+    cc:evidenceEvent cc:GitStatusEvent ;
+    cc:mutationVariant "omit_head_commit_sha" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_GitStatus_Dirty
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "git-status-dirty-branch" ;
+    cc:commandUsed cc:GitStatus ;
+    cc:precondition "dirty_workspace" ;
+    cc:expectedOutcome "Exits 0; GitStatusEvent emitted; unstaged>0 or staged>0 or untracked>0" ;
+    cc:evidenceEvent cc:GitStatusEvent ;
+    cc:mutationVariant "report_all_zero_counts_despite_dirty_tree" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 7. git close
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_GitClose_Lawful
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "git-close-lawful-sequence" ;
+    cc:commandUsed cc:GitClose ;
+    cc:precondition "all_tests_passing_clean_workspace" ;
+    cc:expectedOutcome "Exits 0; GitCloseEvent emitted; merge_sha populated; evidence_commit_digest populated" ;
+    cc:evidenceEvent cc:GitCloseEvent ;
+    cc:mutationVariant "omit_evidence_commit_digest" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_GitClose_FailedTests
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "git-close-with-failing-tests" ;
+    cc:commandUsed cc:GitClose ;
+    cc:precondition "failing_tests_present" ;
+    cc:expectedOutcome "Exits non-zero; close sequence aborted; no merge performed" ;
+    cc:evidenceEvent cc:GitCloseEvent ;
+    cc:mutationVariant "emit_merge_sha_despite_no_merge" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 8. publish run
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_PublishRun_ALIVEMet
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "publish-run-alive-conditions-met" ;
+    cc:commandUsed cc:PublishRun ;
+    cc:precondition "all_alive_conditions_met" ;
+    cc:expectedOutcome "Exits 0; PublishRunEvent emitted; crates_published list non-empty; crates.io receipt present" ;
+    cc:evidenceEvent cc:PublishRunEvent ;
+    cc:mutationVariant "omit_alive_condition_snapshot_from_event" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_PublishRun_BlockerPresent
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "publish-run-blocker-present" ;
+    cc:commandUsed cc:PublishRun ;
+    cc:precondition "one_or_more_alive_conditions_unmet" ;
+    cc:expectedOutcome "Exits non-zero; publish aborted; blocker list reported; no crates published" ;
+    cc:evidenceEvent cc:PublishRunEvent ;
+    cc:mutationVariant "claim_crates_published_despite_blocker" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 9. workspace doctor
+# ══════════════════════════════════════════════════════════════════════════════
+cc:Scenario_WorkspaceDoctor_Healthy
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "workspace-doctor-healthy" ;
+    cc:commandUsed cc:WorkspaceDoctor ;
+    cc:precondition "workspace_no_structural_issues" ;
+    cc:expectedOutcome "Exits 0; WorkspaceDoctorEvent emitted; error_count=0; warning_count=0" ;
+    cc:evidenceEvent cc:WorkspaceDoctorEvent ;
+    cc:mutationVariant "suppress_toolchain_digest_field" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .
+
+cc:Scenario_WorkspaceDoctor_DuplicateDeps
+    a cc:PlaygroundScenario ;
+    cc:scenarioName "workspace-doctor-duplicate-deps" ;
+    cc:commandUsed cc:WorkspaceDoctor ;
+    cc:precondition "duplicate_dependencies_present" ;
+    cc:expectedOutcome "Exits non-zero; WorkspaceDoctorEvent emitted; error_count>0; duplicate report lists crate names" ;
+    cc:evidenceEvent cc:WorkspaceDoctorEvent ;
+    cc:mutationVariant "omit_duplicate_report_from_event" ;
+    cc:wasm4pmExpectedVerdict "Refuse" .

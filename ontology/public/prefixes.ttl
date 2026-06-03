@@ -1,0 +1,105 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dcat:    <http://www.w3.org/ns/dcat#> .
+@prefix odrl:    <http://www.w3.org/ns/odrl/2/> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ──────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/prefixes>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd public prefix declarations"@en ;
+    dcterms:description
+        "Canonical prefix table shared by all cargo-cicd ontology modules. Import this file to obtain consistent IRI bindings."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    dcterms:creator <https://cargo-cicd.rs/> ;
+    dcterms:license <https://spdx.org/licenses/Apache-2.0> ;
+    owl:versionInfo "26.6.2" .
+
+# ── Local property declarations (IRI stubs; axioms live in capability files) ─
+cc:noun               a owl:DatatypeProperty ;
+    rdfs:label "noun"@en ;
+    rdfs:comment "The noun segment of a cargo-cicd sub-command (e.g. 'status', 'git')."@en ;
+    rdfs:range xsd:string .
+
+cc:verb               a owl:DatatypeProperty ;
+    rdfs:label "verb"@en ;
+    rdfs:comment "The verb segment of a cargo-cicd sub-command (e.g. 'show', 'close')."@en ;
+    rdfs:range xsd:string .
+
+cc:defaultVerb        a owl:DatatypeProperty ;
+    rdfs:label "defaultVerb"@en ;
+    rdfs:comment "The verb invoked when only the bare noun is supplied on the CLI."@en ;
+    rdfs:range xsd:string .
+
+cc:cliCommand         a owl:DatatypeProperty ;
+    rdfs:label "CLI command"@en ;
+    rdfs:comment "Full invocation string as typed by the user, e.g. 'cargo cicd status show'."@en ;
+    rdfs:range xsd:string .
+
+cc:requiresFeature    a owl:ObjectProperty ;
+    rdfs:label "requires feature"@en ;
+    rdfs:comment "Links a capability to the Cargo feature that must be enabled."@en .
+
+cc:emitsEvent         a owl:ObjectProperty ;
+    rdfs:label "emits event"@en ;
+    rdfs:comment "Links a capability to the prov:Activity it produces in the evidence log."@en .
+
+cc:publicBoundaryClean a owl:DatatypeProperty ;
+    rdfs:label "public boundary clean"@en ;
+    rdfs:comment "True iff the command is safe to expose at the public API boundary without side-effects that require adjudication."@en ;
+    rdfs:range xsd:boolean .
+
+cc:requiredEventFields a owl:DatatypeProperty ;
+    rdfs:label "required event fields"@en ;
+    rdfs:comment "Comma-separated list of mandatory fields in the XES/OCEL event record emitted by this activity."@en ;
+    rdfs:range xsd:string .
+
+cc:validatedByWasm4pm  a owl:DatatypeProperty ;
+    rdfs:label "validated by wasm4pm"@en ;
+    rdfs:comment "True iff the external wasm4pm oracle is the sole authority that may issue a conformance verdict for this evidence."@en ;
+    rdfs:range xsd:boolean .
+
+cc:wasm4pmOracleCommand a owl:DatatypeProperty ;
+    rdfs:label "wasm4pm oracle command"@en ;
+    rdfs:comment "The wpm sub-command used to adjudicate this evidence (e.g. 'wpm audit')."@en ;
+    rdfs:range xsd:string .
+
+cc:scenarioName       a owl:DatatypeProperty ;
+    rdfs:label "scenario name"@en ;
+    rdfs:range xsd:string .
+
+cc:commandUsed        a owl:ObjectProperty ;
+    rdfs:label "command used"@en .
+
+cc:precondition       a owl:DatatypeProperty ;
+    rdfs:label "precondition"@en ;
+    rdfs:range xsd:string .
+
+cc:expectedOutcome    a owl:DatatypeProperty ;
+    rdfs:label "expected outcome"@en ;
+    rdfs:range xsd:string .
+
+cc:evidenceEvent      a owl:ObjectProperty ;
+    rdfs:label "evidence event"@en .
+
+cc:mutationVariant    a owl:DatatypeProperty ;
+    rdfs:label "mutation variant"@en ;
+    rdfs:range xsd:string .
+
+cc:wasm4pmExpectedVerdict a owl:DatatypeProperty ;
+    rdfs:label "wasm4pm expected verdict"@en ;
+    rdfs:range xsd:string .
+
+cc:conditionMet       a owl:DatatypeProperty ;
+    rdfs:label "condition met"@en ;
+    rdfs:range xsd:boolean .
+
+cc:blockerReason      a owl:DatatypeProperty ;
+    rdfs:label "blocker reason"@en ;
+    rdfs:range xsd:string .

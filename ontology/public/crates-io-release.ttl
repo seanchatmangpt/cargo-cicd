@@ -1,0 +1,196 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix dcat:    <http://www.w3.org/ns/dcat#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ───────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/release>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd crates.io release checklist — ALIVE conditions"@en ;
+    dcterms:description
+        "The 16 ALIVE release conditions for cargo-cicd v26.6.2 modelled as prov:Entity instances. Each condition records whether it is currently met and, if not, the blocker reason."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    owl:imports <https://cargo-cicd.rs/ontology/prefixes> ;
+    owl:versionInfo "26.6.2" .
+
+# ── ReleaseCondition class ────────────────────────────────────────────────────
+cc:ReleaseCondition
+    a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "ReleaseCondition"@en ;
+    rdfs:comment "A single ALIVE gate condition that must be satisfied before cargo-cicd is published to crates.io."@en .
+
+# ── Release dataset (DCAT) ────────────────────────────────────────────────────
+cc:CargoCicdRelease_26_6_2
+    a dcat:Dataset , prov:Entity ;
+    dcterms:title "cargo-cicd v26.6.2 crates.io release"@en ;
+    dcterms:description "Candidate release record for cargo-cicd version 26.6.2."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    owl:versionInfo "26.6.2" ;
+    dcterms:hasPart
+        cc:RC01 , cc:RC02 , cc:RC03 , cc:RC04 ,
+        cc:RC05 , cc:RC06 , cc:RC07 , cc:RC08 ,
+        cc:RC09 , cc:RC10 , cc:RC11 , cc:RC12 ,
+        cc:RC13 , cc:RC14 , cc:RC15 , cc:RC16 .
+
+# ── RC01 — Version pin ────────────────────────────────────────────────────────
+cc:RC01
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC01" ;
+    skos:prefLabel "Version pin"@en ;
+    dcterms:description
+        "Cargo.toml version field matches the intended release version string (26.6.2)."@en ;
+    cc:conditionMet true .
+
+# ── RC02 — Changelog entry ────────────────────────────────────────────────────
+cc:RC02
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC02" ;
+    skos:prefLabel "Changelog entry"@en ;
+    dcterms:description
+        "CHANGELOG.md contains an entry for version 26.6.2 with a release date."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "CHANGELOG.md entry for 26.6.2 not yet written." .
+
+# ── RC03 — Clean working tree ─────────────────────────────────────────────────
+cc:RC03
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC03" ;
+    skos:prefLabel "Clean working tree"@en ;
+    dcterms:description
+        "git status shows zero unstaged, staged, or untracked files at publish time."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Ontology files uncommitted as of 2026-06-02." .
+
+# ── RC04 — All tests pass ─────────────────────────────────────────────────────
+cc:RC04
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC04" ;
+    skos:prefLabel "All tests pass"@en ;
+    dcterms:description
+        "'cargo test --all-features --tests' exits 0 on the release commit."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Test run against release commit not yet verified." .
+
+# ── RC05 — Trybuild fixtures green ────────────────────────────────────────────
+cc:RC05
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC05" ;
+    skos:prefLabel "Trybuild fixtures green"@en ;
+    dcterms:description
+        "'cargo test --test ui_tests -- --ignored' passes: all compile-fail fixtures fail for the correct named law; all compile-pass fixtures succeed."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "ALIVE gate not run against release commit." .
+
+# ── RC06 — No clippy warnings ─────────────────────────────────────────────────
+cc:RC06
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC06" ;
+    skos:prefLabel "No clippy warnings"@en ;
+    dcterms:description
+        "'cargo clippy --all-features -- -D warnings' exits 0."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Clippy run against release candidate not yet completed." .
+
+# ── RC07 — Docs build clean ───────────────────────────────────────────────────
+cc:RC07
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC07" ;
+    skos:prefLabel "Docs build clean"@en ;
+    dcterms:description
+        "'cargo doc --all-features --no-deps' exits 0 with zero warnings."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Docs build not yet run against release candidate." .
+
+# ── RC08 — Format check passes ───────────────────────────────────────────────
+cc:RC08
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC08" ;
+    skos:prefLabel "Format check passes"@en ;
+    dcterms:description
+        "'cargo fmt --check' exits 0 (no unstaged formatting diffs)."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Format check not run against release candidate." .
+
+# ── RC09 — No unsafe code ─────────────────────────────────────────────────────
+cc:RC09
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC09" ;
+    skos:prefLabel "No unsafe code"@en ;
+    dcterms:description
+        "The crate compiles without any 'unsafe' block; #![forbid(unsafe_code)] remains in effect."@en ;
+    cc:conditionMet true .
+
+# ── RC10 — Feature matrix builds ─────────────────────────────────────────────
+cc:RC10
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC10" ;
+    skos:prefLabel "Feature matrix builds"@en ;
+    dcterms:description
+        "All three feature combinations build cleanly: --no-default-features, --features formats, --features strict, --features wasm4pm, --all-features."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Full feature matrix build not yet run against release candidate." .
+
+# ── RC11 — Public API documented ─────────────────────────────────────────────
+cc:RC11
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC11" ;
+    skos:prefLabel "Public API documented"@en ;
+    dcterms:description
+        "Every public type, module, and function has rustdoc stating what it is, what it is not, that it is structure-only, and when to graduate."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Documentation audit not yet completed." .
+
+# ── RC12 — Ontology files committed ──────────────────────────────────────────
+cc:RC12
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC12" ;
+    skos:prefLabel "Ontology files committed"@en ;
+    dcterms:description
+        "All seven public ontology TTL files are committed to the repository under ontology/public/."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Ontology files created but not yet committed as of 2026-06-02." .
+
+# ── RC13 — Evidence invariants documented ────────────────────────────────────
+cc:RC13
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC13" ;
+    skos:prefLabel "Evidence invariants E1–E3 documented"@en ;
+    dcterms:description
+        "The evidence module rustdoc or README explicitly states invariants E1 (no self-adjudication), E2 (XES written before audit call), and E3 (deferred adjudication when oracle offline)."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "E3 invariant documentation is truncated in the evidence module header." .
+
+# ── RC14 — crates.io dry-run passes ──────────────────────────────────────────
+cc:RC14
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC14" ;
+    skos:prefLabel "crates.io dry-run passes"@en ;
+    dcterms:description
+        "'cargo publish --dry-run' exits 0 for all workspace members intended for release."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "Dry-run not yet performed." .
+
+# ── RC15 — No private foundation vocabulary ───────────────────────────────────
+cc:RC15
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC15" ;
+    skos:prefLabel "No private foundation vocabulary"@en ;
+    dcterms:description
+        "All ontology files use PROV-O, DCTERMS, SKOS, SHACL, DCAT, or OWL as structural footing. No invented foundation namespace replaces these standards."@en ;
+    cc:conditionMet true .
+
+# ── RC16 — wasm4pm oracle contract stable ────────────────────────────────────
+cc:RC16
+    a cc:ReleaseCondition ;
+    dcterms:identifier "RC16" ;
+    skos:prefLabel "wasm4pm oracle contract stable"@en ;
+    dcterms:description
+        "The wasm4pm feature flag bridge interface is declared stable at v26.6.2: 'wpm audit', 'wpm doctor', 'wpm lean' command signatures are frozen for this release."@en ;
+    cc:conditionMet false ;
+    cc:blockerReason "wasm4pm oracle contract not yet signed off by wasm4pm project." .

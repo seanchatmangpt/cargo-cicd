@@ -1,0 +1,109 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <https://cargo-cicd.rs/ontology/> .
+
+# ── Ontology header ───────────────────────────────────────────────────────────
+<https://cargo-cicd.rs/ontology/diataxis>
+    a owl:Ontology ;
+    dcterms:title "cargo-cicd Diátaxis documentation structure"@en ;
+    dcterms:description
+        "Maps each cargo-cicd v26.6.2 public command and cross-cutting concern to the four Diátaxis documentation quadrants: Tutorial, How-To, Reference, Explanation."@en ;
+    dcterms:created "2026-06-02"^^xsd:date ;
+    dcterms:source <https://diataxis.fr/> ;
+    owl:imports <https://cargo-cicd.rs/ontology/prefixes> ;
+    owl:imports <https://cargo-cicd.rs/ontology/capabilities> ;
+    owl:versionInfo "26.6.2" .
+
+# ── Diátaxis quadrant scheme ──────────────────────────────────────────────────
+cc:DiataxisScheme
+    a skos:ConceptScheme ;
+    skos:prefLabel "Diátaxis documentation quadrants"@en ;
+    dcterms:description "The four Diátaxis quadrants as a SKOS concept scheme."@en .
+
+cc:Tutorial
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "Tutorial"@en ;
+    skos:definition
+        "Learning-oriented documentation. Guides a newcomer through a concrete task so they acquire experience. Success criterion: the learner completes the task."@en ;
+    dcterms:source <https://diataxis.fr/tutorials/> .
+
+cc:HowTo
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "How-To"@en ;
+    skos:definition
+        "Task-oriented documentation. Assumes the reader has a goal and prior knowledge. Provides step-by-step instructions without teaching background theory."@en ;
+    dcterms:source <https://diataxis.fr/how-to-guides/> .
+
+cc:Reference
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "Reference"@en ;
+    skos:definition
+        "Information-oriented documentation. Describes the machinery precisely and completely. Written for practitioners who need accurate facts while working."@en ;
+    dcterms:source <https://diataxis.fr/reference/> .
+
+cc:Explanation
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "Explanation"@en ;
+    skos:definition
+        "Understanding-oriented documentation. Illuminates design decisions, trade-offs, and background context. Not a task guide; read when one wants to understand 'why'."@en ;
+    dcterms:source <https://diataxis.fr/explanation/> .
+
+# ── DocCoverage property ──────────────────────────────────────────────────────
+cc:coveredByDocType
+    a owl:ObjectProperty ;
+    rdfs:label "covered by doc type"@en ;
+    rdfs:comment "Links a capability or cross-cutting concern to the Diátaxis quadrants whose documentation covers it."@en ;
+    rdfs:range skos:Concept .
+
+# ── All 9 commands → Reference ────────────────────────────────────────────────
+cc:StatusShow      cc:coveredByDocType cc:Reference .
+cc:TargetShow      cc:coveredByDocType cc:Reference .
+cc:TargetPrune     cc:coveredByDocType cc:Reference .
+cc:TestChanged     cc:coveredByDocType cc:Reference .
+cc:TrybuildChanged cc:coveredByDocType cc:Reference .
+cc:GitStatus       cc:coveredByDocType cc:Reference .
+cc:GitClose        cc:coveredByDocType cc:Reference .
+cc:PublishRun      cc:coveredByDocType cc:Reference .
+cc:WorkspaceDoctor cc:coveredByDocType cc:Reference .
+
+# ── Tutorial coverage: status show, publish run, workspace doctor ─────────────
+cc:StatusShow      cc:coveredByDocType cc:Tutorial .
+cc:PublishRun      cc:coveredByDocType cc:Tutorial .
+cc:WorkspaceDoctor cc:coveredByDocType cc:Tutorial .
+
+# ── How-To coverage: target prune, git close ──────────────────────────────────
+cc:TargetPrune     cc:coveredByDocType cc:HowTo .
+cc:GitClose        cc:coveredByDocType cc:HowTo .
+
+# ── Cross-cutting concerns → Explanation ──────────────────────────────────────
+cc:EvidenceEmissionConcern
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "Evidence emission architecture"@en ;
+    dcterms:description
+        "Explains why cargo-cicd emits evidence but never adjudicates (Invariants E1–E3), the XES/OCEL format choice, and the oracle handoff protocol."@en ;
+    cc:coveredByDocType cc:Explanation .
+
+cc:AutonomicPoliciesConcern
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "Autonomic policy suggestions"@en ;
+    dcterms:description
+        "Explains the design of heuristic suggestions under the autonomic feature flag: why they are advisory, how they are derived from evidence patterns, and why they are not verdicts."@en ;
+    cc:coveredByDocType cc:Explanation .
+
+cc:Wasm4pmOracleConcern
+    a skos:Concept ;
+    skos:inScheme cc:DiataxisScheme ;
+    skos:prefLabel "wasm4pm oracle adjudication"@en ;
+    dcterms:description
+        "Explains the authority separation between cargo-cicd (emitter) and wasm4pm (adjudicator), the deferred-adjudication contract when the oracle is offline, and how to interpret wpm verdict payloads."@en ;
+    cc:coveredByDocType cc:Explanation .
