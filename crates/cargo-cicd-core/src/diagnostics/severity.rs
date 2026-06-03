@@ -1,3 +1,9 @@
 //! Severity levels.
 /// Severity of a cicd diagnostic.
-pub enum CicdSeverity {}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CicdSeverity {
+    Error,
+    Warning,
+    Information,
+    Hint,
+}

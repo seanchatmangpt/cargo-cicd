@@ -123,11 +123,29 @@ impl VerbCommand for PublishRunVerb {
                 }
             }
         };
-        println!("  adjudication: {}", publish_readiness);
-
+        // Always write cicd.toml to capture current state, regardless of gate outcome.
         cicd.write_default()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
         println!("published cicd.toml");
+
+        println!("  adjudication: {}", publish_readiness);
+
+        // Run cargo publish --dry-run as final gate (after state capture).
+        // This confirms the crate would actually publish.
+        if publish_readiness == "RECEIPT_DOCTOR:accepted" {
+            let dry_run_status = std::process::Command::new("cargo")
+                .args(["publish", "--dry-run", "--allow-dirty"])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if !dry_run_status {
+                eprintln!("AndonPull: cargo publish --dry-run failed — publish blocked");
+                return Err(clap_noun_verb::error::NounVerbError::execution_error(
+                    "cargo publish --dry-run failed — crate is not publishable".to_string(),
+                ));
+            }
+            println!("  dry-run: PASS (cargo publish --dry-run succeeded)");
+        }
         println!("  workspace:    {}", cicd.workspace.name);
         println!("  toolchain:    {}", cicd.workspace.toolchain);
         println!("  target:       {:.2} GB", cicd.state.target_size_gb);

@@ -8,7 +8,7 @@ use cargo_cicd_core::diagnostics::CicdFinding;
 ///
 /// One quick-fix action is produced per repair command in `finding.route_commands`.
 pub fn finding_to_actions(f: &CicdFinding, _uri: &Url) -> Vec<CodeAction> {
-    f.route_commands
+    f.repairs
         .iter()
         .map(|cmd| CodeAction {
             title: format!("Run: {}", cmd),

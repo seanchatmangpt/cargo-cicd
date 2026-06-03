@@ -1,10 +1,12 @@
 //! CicdFinding structure.
 
 use crate::diagnostics::code::CicdCode;
+use crate::diagnostics::severity::CicdSeverity;
 
 /// A single diagnostic finding.
 pub struct CicdFinding {
     pub code: CicdCode,
+    pub severity: CicdSeverity,
     pub location: String,
     pub source: String,
     pub repairs: Vec<String>,
@@ -29,6 +31,7 @@ impl CicdFinding {
     ) -> Self {
         Self {
             code,
+            severity: CicdSeverity::Warning,
             location: location.into(),
             source: source.into(),
             repairs,
@@ -41,6 +44,12 @@ impl CicdFinding {
     /// Construct a minimal finding for test use.
     pub fn minimal(code: CicdCode, message: impl Into<String>) -> Self {
         Self::new(code, "", "", vec![], message)
+    }
+
+    /// Set the severity of this finding.
+    pub fn with_severity(mut self, severity: CicdSeverity) -> Self {
+        self.severity = severity;
+        self
     }
 
     /// Attach a file URI to this finding.
