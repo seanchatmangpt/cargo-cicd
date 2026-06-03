@@ -1,0 +1,34 @@
+{
+  "type": "choice_graph",
+  "name": "cargo-cicd manufacturing process",
+  "version": "v26.6.2",
+  "description": "Lawful command ordering for cargo-cicd CI/CD manufacturing",
+  "activities": [
+    "status:show", "status:audit",
+    "target:show", "target:prune",
+    "test:changed", "trybuild:changed",
+    "workspace:doctor",
+    "publish:run",
+    "evidence:audit", "receipt:write"
+  ],
+  "partial_order": [
+    { "from": "status:show", "to": "test:changed", "type": "required_predecessor" },
+    { "from": "test:changed", "to": "publish:run", "type": "required_predecessor" },
+    { "from": "status:audit", "to": "receipt:write", "type": "required_predecessor" }
+  ],
+  "required_stages": ["status:show", "status:audit"],
+  "object_types": {
+    "ProcessEvidence": {
+      "created_by": ["status:show", "test:changed", "publish:run"],
+      "terminated_by": ["evidence:audit"],
+      "schema": "schemas/receipts/process-evidence.json",
+      "min_count": 1
+    }
+  },
+  "admission_gate": {
+    "type": "conformance",
+    "required_score": 1.0,
+    "adjudicator": "wasm4pm",
+    "command": "wpm audit"
+  }
+}
