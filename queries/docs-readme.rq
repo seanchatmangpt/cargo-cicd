@@ -1,0 +1,30 @@
+# docs-readme.rq
+# Purpose : Drive README command table generation for cargo-cicd v26.6.2.
+# Returns : noun, verb, cli_command, description, feature_required
+# Order   : noun ASC, verb ASC
+
+PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl:     <http://www.w3.org/2002/07/owl#>
+PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov:    <http://www.w3.org/ns/prov#>
+PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+PREFIX cc:      <https://cargo-cicd.rs/ontology/>
+
+SELECT ?noun ?verb ?cli_command ?description ?feature_required
+WHERE {
+    ?capability a skos:Concept ;
+                skos:inScheme cc:CapabilityScheme ;
+                cc:noun           ?noun ;
+                cc:verb           ?verb ;
+                cc:cliCommand     ?cli_command ;
+                dcterms:description ?description ;
+                cc:requiresFeature  ?featureNode .
+
+    ?featureNode skos:prefLabel ?feature_required .
+
+    FILTER(lang(?description) = "en" || lang(?description) = "")
+    FILTER(lang(?feature_required) = "en" || lang(?feature_required) = "")
+}
+ORDER BY ?noun ?verb
