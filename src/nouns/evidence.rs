@@ -39,7 +39,7 @@ impl NounCommand for EvidenceNoun {
     }
 
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(DoctorVerb)]
+        vec![Box::new(DoctorVerb), Box::new(AuditVerb)]
     }
 }
 
@@ -130,5 +130,23 @@ impl VerbCommand for DoctorVerb {
                 ))
             }
         }
+    }
+}
+
+/// `audit` is the canonical public-facing verb for evidence adjudication.
+/// It delegates to the same implementation as `doctor`.
+pub struct AuditVerb;
+
+impl VerbCommand for AuditVerb {
+    fn name(&self) -> &'static str {
+        "audit"
+    }
+
+    fn about(&self) -> &'static str {
+        "Audit process evidence receipts (alias for doctor — canonical public-facing verb)"
+    }
+
+    fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        DoctorVerb.run(args)
     }
 }
