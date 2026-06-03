@@ -1,3 +1,5 @@
+See [SOLUTION_ARCHITECTURE.md](SOLUTION_ARCHITECTURE.md) for the canonical law-based architecture.
+
 # cargo-cicd Architecture
 
 ## Three-Tier Domain Separation
