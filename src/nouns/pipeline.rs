@@ -119,7 +119,7 @@ impl PipelineRunVerb {
             let mut canonical_events: Vec<crate::evidence::ProcessEvent> = Vec::new();
             for _pass in 0..3 {
                 for &activity in declared_pipeline {
-                    let mut ev = crate::evidence::ProcessEvent::new(activity, "PASS");
+                    let mut ev = crate::evidence::ProcessEvent::for_pipeline(activity, "PASS");
                     ev.case_id = Some(case_id.clone());
                     canonical_events.push(ev);
                 }
@@ -167,9 +167,11 @@ impl PipelineRunVerb {
         // Emit status:audit + evidence:audit + receipt:write events.
         let (mut sa_start_evt, sa_t0) = crate::evidence::ProcessEvent::started("status:audit");
         sa_start_evt.case_id = Some(case_id.clone());
+        sa_start_evt.trace_class = "pipeline_run".to_string();
         let mut sa_complete =
             crate::evidence::ProcessEvent::completed("status:audit", sa_t0, oracle_verdict);
         sa_complete.case_id = Some(case_id.clone());
+        sa_complete.trace_class = "pipeline_run".to_string();
 
         let wpm_path = wpm
             .as_ref()
@@ -182,11 +184,13 @@ impl PipelineRunVerb {
             &wpm_path,
         );
         ea_evt.case_id = Some(case_id.clone());
+        ea_evt.trace_class = "pipeline_run".to_string();
 
         let mut events_to_append = vec![sa_start_evt, sa_complete, ea_evt];
 
         if oracle_verdict == "ACCEPT" {
-            let mut rw_evt = crate::evidence::ProcessEvent::new("receipt:write", "COMPLETE");
+            let mut rw_evt =
+                crate::evidence::ProcessEvent::for_pipeline("receipt:write", "COMPLETE");
             rw_evt.case_id = Some(case_id.clone());
             events_to_append.push(rw_evt);
         }

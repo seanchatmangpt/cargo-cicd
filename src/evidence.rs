@@ -122,12 +122,25 @@ pub struct ProcessEvent {
     /// Path to the wpm binary used for adjudication.
     /// `None` until adjudication has been performed.
     pub oracle_command: Option<String>,
+    /// Trace class separating pipeline runs from ambient live-workspace history.
+    ///
+    /// - `"pipeline_run"` — emitted by `pipeline run`; complete sequential
+    ///   execution of all declared activities.
+    /// - `"live_workspace"` — emitted by individual sub-command invocations;
+    ///   accumulated ambient history (VARIANCE verdict is expected and honest).
+    #[serde(default = "default_trace_class")]
+    pub trace_class: String,
+}
+
+fn default_trace_class() -> String {
+    "live_workspace".to_string()
 }
 
 impl ProcessEvent {
     /// Construct a completed `ProcessEvent` with the current real timestamp.
     ///
     /// `verdict` should be `"PASS"`, `"WARN"`, or `"FAIL"`.
+    /// The `trace_class` is set to `"live_workspace"` (ambient command history).
     pub fn new(command: &str, verdict: &str) -> Self {
         Self {
             event_id: new_event_id(command),
@@ -142,6 +155,7 @@ impl ProcessEvent {
             verdict_adjudicated: None,
             adjudicated_at: None,
             oracle_command: None,
+            trace_class: "live_workspace".to_string(),
         }
     }
 
@@ -164,6 +178,7 @@ impl ProcessEvent {
             verdict_adjudicated: None,
             adjudicated_at: None,
             oracle_command: None,
+            trace_class: "live_workspace".to_string(),
         };
         (ev, t0)
     }
@@ -184,6 +199,7 @@ impl ProcessEvent {
             verdict_adjudicated: None,
             adjudicated_at: None,
             oracle_command: None,
+            trace_class: "live_workspace".to_string(),
         }
     }
 
@@ -206,6 +222,19 @@ impl ProcessEvent {
             verdict_adjudicated: Some(verdict.to_string()),
             adjudicated_at: Some(now_iso8601()),
             oracle_command: Some(oracle.to_string()),
+            trace_class: "live_workspace".to_string(),
+        }
+    }
+
+    /// Construct a completed event tagged as `"pipeline_run"`.
+    ///
+    /// Use this instead of [`ProcessEvent::new`] for events emitted by the
+    /// `pipeline run` command so they can be separated from ambient
+    /// `"live_workspace"` history during conformance checking.
+    pub fn for_pipeline(command: &str, verdict: &str) -> Self {
+        Self {
+            trace_class: "pipeline_run".to_string(),
+            ..Self::new(command, verdict)
         }
     }
 }
@@ -407,6 +436,10 @@ fn emit_xes_impl(events: &[ProcessEvent], path: &Path, filter: bool) -> Result<(
             xml.push_str(&format!(
                 "      <string key=\"cargo_cicd:verdict_claimed\" value=\"{}\"/>\n",
                 escape_xml(&event.verdict_claimed)
+            ));
+            xml.push_str(&format!(
+                "      <string key=\"cargo_cicd:trace_class\" value=\"{}\"/>\n",
+                escape_xml(&event.trace_class)
             ));
             if let Some(ms) = event.duration_ms {
                 xml.push_str(&format!(
@@ -876,6 +909,7 @@ mod tests {
             verdict_adjudicated: None,
             adjudicated_at: None,
             oracle_command: None,
+            trace_class: "live_workspace".to_string(),
         }
     }
 

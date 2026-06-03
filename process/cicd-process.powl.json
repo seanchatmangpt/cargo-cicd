@@ -25,6 +25,21 @@
       "min_count": 1
     }
   },
+  "trace_classes": {
+    "pipeline_run": {
+      "description": "Complete sequential execution of all declared activities",
+      "target_verdict": "TRUTHFUL",
+      "required_activities": [
+        "status:show", "target:show", "test:changed", "trybuild:changed",
+        "workspace:doctor", "publish:run", "status:audit", "evidence:audit", "receipt:write"
+      ]
+    },
+    "live_workspace": {
+      "description": "Accumulated ambient command history from individual invocations",
+      "target_verdict": "VARIANCE",
+      "note": "VARIANCE is expected and honest for live_workspace traces"
+    }
+  },
   "admission_gate": {
     "type": "conformance",
     "required_score": 0.95,

@@ -5,8 +5,8 @@ target_dir = "target"
 
 [state]
 dirty = true
-target_size_gb = 3.81
-changed_files = 3
+target_size_gb = 4.69
+changed_files = 2
 changed_tests = 0
 changed_trybuild_fixtures = 0
 
