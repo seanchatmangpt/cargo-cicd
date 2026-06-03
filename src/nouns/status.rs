@@ -22,7 +22,7 @@ impl NounCommand for StatusNoun {
         "Show workspace CI/CD status"
     }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(StatusShowVerb)]
+        vec![Box::new(StatusShowVerb), Box::new(StatusAuditVerb)]
     }
 }
 
@@ -75,6 +75,93 @@ impl VerbCommand for StatusShowVerb {
     }
     fn about(&self) -> &'static str {
         "Show full CI/CD status"
+    }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        self.execute()
+            .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))
+    }
+}
+
+// ── audit verb ────────────────────────────────────────────────────────────────
+
+/// `cargo cicd status audit` — shell out to wpm to adjudicate the current
+/// evidence XES file.  Emits an `evidence:audit` event (with oracle provenance)
+/// back into the log, then fails if the oracle refuses.
+pub struct StatusAuditVerb;
+
+impl StatusAuditVerb {
+    fn execute(&self) -> anyhow::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let xes = evidence_dir.join("events.xes");
+
+        if !xes.exists() {
+            println!("BLOCKED: no evidence at {}", xes.display());
+            return Ok(());
+        }
+
+        // Detect wpm oracle.
+        let wpm = crate::integrations::Wasm4pmShell::detect();
+        let Some(wpm_shell) = wpm else {
+            println!("BLOCKED: wpm oracle not found");
+            return Ok(());
+        };
+
+        println!("wasm4pm evidence audit");
+        println!("======================");
+        println!("evidence: {}", xes.display());
+        println!("wpm:      {}", wpm_shell.binary_path());
+
+        let result = wpm_shell
+            .audit(xes.to_str().unwrap_or(""))
+            .unwrap_or_else(|e| crate::integrations::WpmResult {
+                command: "wpm audit".to_string(),
+                success: false,
+                stdout: String::new(),
+                stderr: e.to_string(),
+                verdict: crate::integrations::WpmVerdict::Fail,
+            });
+
+        println!(
+            "exit:     {}",
+            if result.success { "0" } else { "non-zero" }
+        );
+        println!("stdout:   {}", result.stdout.trim());
+        if !result.stderr.trim().is_empty() {
+            println!("stderr:   {}", result.stderr.trim());
+        }
+
+        let oracle_verdict = if result.success { "ACCEPT" } else { "REFUSE" };
+        println!("verdict:  {}", oracle_verdict);
+
+        // Emit adjudicated event into the evidence log.
+        let mut evt = crate::evidence::ProcessEvent::new_adjudicated(
+            "evidence:audit",
+            oracle_verdict,
+            wpm_shell.binary_path(),
+        );
+        // Inherit the session case_id so this audit event lands in the same trace.
+        evt.case_id = Some(crate::session::read_or_create_session_id(&evidence_dir));
+
+        // Append to the existing XES by re-reading, pushing, and re-writing.
+        // For now, emit a companion sidecar so we don't stomp the original.
+        let audit_xes = evidence_dir.join("audit.xes");
+        if let Err(e) = crate::evidence::emit_xes(&[evt], &audit_xes) {
+            eprintln!("warning: audit evidence emission failed: {}", e);
+        }
+
+        if !result.success {
+            anyhow::bail!("wasm4pm REFUSED evidence");
+        }
+        Ok(())
+    }
+}
+
+impl VerbCommand for StatusAuditVerb {
+    fn name(&self) -> &'static str {
+        "audit"
+    }
+    fn about(&self) -> &'static str {
+        "Adjudicate current evidence XES file via the wasm4pm oracle"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         self.execute()
