@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cargo-cicd.dev/schemas/wpm-verdict-v1.json",
+  "title": "wpm audit verdict schema — version 1",
+  "description": "Contract for the JSON emitted by wpm audit (simd_token_replay). All consumers MUST read these exact keys. No consumer may fall back to 0.0 on key absence without explicit documentation.",
+  "version": "1.0.0",
+  "emitted_by": "wpm audit (wasm4pm-cli/src/commands/audit.rs → simd_token_replay)",
+  "invariant": "No court verdict may silently degrade to zero through key mismatch. CICD-WPM-004.",
+  "type": "object",
+  "required": ["overall_fitness", "total_consumed", "total_produced", "total_missing", "total_remaining", "trace_count", "trace_results"],
+  "properties": {
+    "overall_fitness": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Aggregate token replay fitness across all traces. Threshold: TRUTHFUL >= 0.95, VARIANCE >= 0.70, DECEPTIVE < 0.70."
+    },
+    "total_consumed": { "type": "integer", "minimum": 0, "description": "Sum of tokens consumed across all trace replays" },
+    "total_produced": { "type": "integer", "minimum": 0, "description": "Sum of tokens produced across all trace replays" },
+    "total_missing": { "type": "integer", "minimum": 0, "description": "Sum of tokens inserted to force-fire transitions with empty presets" },
+    "total_remaining": { "type": "integer", "minimum": 0, "description": "Sum of tokens left in non-sink places after trace ends" },
+    "trace_count": { "type": "integer", "minimum": 0 },
+    "precision": {
+      "description": "NOT COMPUTED by simd_token_replay. Always null. Future: will be computed when a reference model is provided.",
+      "type": "null"
+    },
+    "precision_note": {
+      "type": "string",
+      "description": "Human-readable explanation of why precision is null"
+    },
+    "trace_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["consumed", "produced", "missing", "remaining", "fitness"],
+        "properties": {
+          "consumed": { "type": "integer" },
+          "produced": { "type": "integer" },
+          "missing": { "type": "integer", "description": "Missing tokens — NEVER read as missing_tokens" },
+          "remaining": { "type": "integer", "description": "Remaining tokens — NEVER read as remaining_tokens" },
+          "fitness": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "consumer_contract": {
+    "MUST_read": ["overall_fitness", "trace_results[].fitness", "trace_results[].missing", "trace_results[].remaining"],
+    "MUST_NOT_read": ["fitness (top-level — does not exist)", "missing_tokens", "remaining_tokens", "trace_id"],
+    "precision_handling": "precision is null — display as UNSUPPORTED, never as 0.0000",
+    "key_mismatch_invariant": "If overall_fitness key is absent, verdict MUST be UNKNOWN not DECEPTIVE(0.0)"
+  }
+}
