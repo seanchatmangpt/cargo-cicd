@@ -65,13 +65,12 @@ impl VerbCommand for TrybuildChangedVerb {
             println!("to update snapshots: TRYBUILD=overwrite cargo test");
         }
 
-        let duration_ms = start.elapsed().as_millis() as u64;
-        let event = ProcessEvent::new("trybuild changed", "PASS");
-        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {
+        let mut complete_evt = ProcessEvent::completed("trybuild:changed", t0, "PASS");
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
-        let _ = (duration_ms, fixture_dir);
+        let _ = fixture_dir;
         Ok(())
     }
 }
