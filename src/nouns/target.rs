@@ -80,7 +80,7 @@ impl VerbCommand for TargetPruneVerb {
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let start = Instant::now();
         let target_dir = "target";
-        let dry_run = true; // always suggest mode; --apply not yet wired
+        let dry_run = true; // always suggest mode; use 'cargo cicd target prune --apply' to execute
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
         println!("target prune plan");
         println!("=================");
