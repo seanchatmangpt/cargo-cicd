@@ -65,8 +65,7 @@ impl VerbCommand for TargetShowVerb {
         let mut complete_evt = ProcessEvent::completed("target:show", t0, ev_verdict);
         complete_evt.case_id = Some(case_id.clone());
 
-        let evidence_path = evidence_dir.join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[start_evt, complete_evt], &evidence_path) {
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
@@ -156,8 +155,7 @@ impl VerbCommand for TargetPruneVerb {
         let mut complete_evt = ProcessEvent::completed("target:prune", t0, verdict);
         complete_evt.case_id = Some(case_id.clone());
 
-        let evidence_path = evidence_dir.join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[start_evt, complete_evt], &evidence_path) {
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         let _ = (would_free_gb, release_protected);
