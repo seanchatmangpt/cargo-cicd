@@ -32,6 +32,7 @@ pub fn run_all(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
         Box::new(publish::PublishAnalyzer),
         Box::new(public_boundary::PublicBoundaryAnalyzer),
         Box::new(runtime_court::RuntimeCourtAnalyzer),
+        Box::new(runtime_court::VerdictKeyMismatchAnalyzer),
         Box::new(rendered_surface::RenderedSurfaceAnalyzer),
         Box::new(close_readiness::CloseReadinessAnalyzer),
         Box::new(target_hygiene::TargetHygieneAnalyzer),

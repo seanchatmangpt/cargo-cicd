@@ -1,4 +1,4 @@
-//! RuntimeCourtAnalyzer — raises CICD-WPM-001 through CICD-WPM-003.
+//! RuntimeCourtAnalyzer — raises CICD-WPM-001 through CICD-WPM-004.
 
 use cargo_cicd_core::diagnostics::{CicdCode, CicdFinding};
 use cargo_cicd_core::workspace::snapshot::WorkspaceSnapshot;
@@ -89,5 +89,80 @@ impl CicdAnalyzer for RuntimeCourtAnalyzer {
 
     fn name(&self) -> &'static str {
         "RuntimeCourtAnalyzer"
+    }
+}
+
+/// CICD-WPM-004: detects verdict key mismatch — court emits under one key, consumer reads another.
+/// Regression guard against the historical audit.rs bug where simd_token_replay emits
+/// "overall_fitness" but audit.rs read "fitness", causing silent DECEPTIVE(0.0) for conformant
+/// evidence.
+pub struct VerdictKeyMismatchAnalyzer;
+
+impl CicdAnalyzer for VerdictKeyMismatchAnalyzer {
+    fn analyze(&self, snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
+        let mut findings = Vec::new();
+
+        // Check if schemas/wpm-verdict-v1.json exists
+        let schema_path = snapshot.root.join("schemas").join("wpm-verdict-v1.json");
+        if !schema_path.exists() {
+            findings.push(CicdFinding::new(
+                CicdCode::WpmVerdictKeyMismatch,
+                schema_path.to_string_lossy().as_ref(),
+                "create schemas/wpm-verdict-v1.json",
+                vec!["See wpm-verdict-v1.json contract".to_string()],
+                "CICD-WPM-004: verdict schema contract missing. \
+                 Create schemas/wpm-verdict-v1.json to document the court output key contract \
+                 and prevent silent key-mismatch degradation.",
+            ));
+        }
+
+        // Check audit.rs does NOT contain the old regression key "result[\"fitness\"]" at top level.
+        // Try path relative to cargo-cicd root first, then absolute fallback.
+        let candidate_paths = [
+            snapshot
+                .root
+                .parent()
+                .unwrap_or(&snapshot.root)
+                .join("wasm4pm")
+                .join("crates")
+                .join("wasm4pm-cli")
+                .join("src")
+                .join("commands")
+                .join("audit.rs"),
+            std::path::PathBuf::from("/Users/sac/wasm4pm/crates/wasm4pm-cli/src/commands/audit.rs"),
+        ];
+
+        for audit_path in &candidate_paths {
+            if audit_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(audit_path) {
+                    // Detect the regression pattern: reading "fitness" key without "overall_"
+                    let has_regression = content.contains("result[\"fitness\"]")
+                        || content.contains("result['fitness']")
+                        || (content.contains("[\"fitness\"]")
+                            && !content.contains("overall_fitness"));
+
+                    if has_regression {
+                        findings.push(CicdFinding::new(
+                            CicdCode::WpmVerdictKeyMismatch,
+                            audit_path.to_string_lossy().as_ref(),
+                            "use result[\"overall_fitness\"] not result[\"fitness\"]",
+                            vec![
+                                "Read schemas/wpm-verdict-v1.json consumer_contract".to_string()
+                            ],
+                            "CICD-WPM-004: audit.rs reads result[\"fitness\"] but simd_token_replay \
+                             emits result[\"overall_fitness\"]. This causes silent DECEPTIVE(0.0) \
+                             for conformant evidence. Use the correct key per wpm-verdict-v1.json.",
+                        ));
+                    }
+                }
+                break; // found and checked — no need to try fallback
+            }
+        }
+
+        findings
+    }
+
+    fn name(&self) -> &'static str {
+        "VerdictKeyMismatchAnalyzer"
     }
 }
