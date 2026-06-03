@@ -1,7 +1,6 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
-use std::time::Instant;
 
 pub struct StatusNoun;
 impl StatusNoun {
@@ -37,7 +36,12 @@ pub struct StatusShowVerb;
 
 impl StatusShowVerb {
     fn execute(&self) -> anyhow::Result<()> {
-        let start = Instant::now();
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+
+        let (mut start_evt, t0) = ProcessEvent::started("status:show");
+        start_evt.case_id = Some(case_id.clone());
+
         println!("cargo-cicd workspace status");
         println!("===========================");
         let toolchain = ToolchainDetector::active_toolchain();
@@ -53,20 +57,14 @@ impl StatusShowVerb {
         let dirty_word = if dirty { "dirty" } else { "clean" };
         println!("git:          {}", dirty_word);
 
-        let duration_ms = start.elapsed().as_millis() as u64;
         let ev_verdict = if dirty { "WARN" } else { "PASS" };
-        let _changed_files: Vec<&str> = git
-            .dirty_files
-            .iter()
-            .map(String::as_str)
-            .chain(git.untracked_files.iter().map(String::as_str))
-            .collect();
-        let event = ProcessEvent::new("status show", ev_verdict);
-        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {
+        let mut complete_evt = ProcessEvent::completed("status:show", t0, ev_verdict);
+        complete_evt.case_id = Some(case_id.clone());
+
+        let evidence_path = evidence_dir.join("events.xes");
+        if let Err(e) = crate::evidence::emit_xes(&[start_evt, complete_evt], &evidence_path) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
-        let _ = duration_ms;
         Ok(())
     }
 }

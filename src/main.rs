@@ -10,6 +10,7 @@ pub mod evidence;
 mod integrations;
 mod nouns;
 mod policies;
+pub mod session;
 mod state;
 
 // Inject default verbs so bare-noun invocations work:

@@ -1,7 +1,6 @@
 use crate::adapters::TargetScannerAdapter;
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
-use std::time::Instant;
 
 pub struct TargetNoun;
 impl TargetNoun {
@@ -36,7 +35,12 @@ impl VerbCommand for TargetShowVerb {
         "Show target directory size and state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let start = Instant::now();
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+
+        let (mut start_evt, t0) = ProcessEvent::started("target:show");
+        start_evt.case_id = Some(case_id.clone());
+
         let target_dir = "target";
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
         let max_gb = 20.0_f64;
@@ -53,18 +57,18 @@ impl VerbCommand for TargetShowVerb {
         let _artifact_count = std::fs::read_dir(target_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        let duration_ms = start.elapsed().as_millis() as u64;
         let ev_verdict = if verdict_str == "pass" {
             "PASS"
         } else {
             "WARN"
         };
-        let event = ProcessEvent::new("target show", ev_verdict);
-        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {
+        let mut complete_evt = ProcessEvent::completed("target:show", t0, ev_verdict);
+        complete_evt.case_id = Some(case_id.clone());
+
+        let evidence_path = evidence_dir.join("events.xes");
+        if let Err(e) = crate::evidence::emit_xes(&[start_evt, complete_evt], &evidence_path) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
-        let _ = duration_ms;
         Ok(())
     }
 }
@@ -78,7 +82,12 @@ impl VerbCommand for TargetPruneVerb {
         "Plan target directory cleanup (safe by default)"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let start = Instant::now();
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+
+        let (mut start_evt, t0) = ProcessEvent::started("target:prune");
+        start_evt.case_id = Some(case_id.clone());
+
         let target_dir = "target";
         let dry_run = true; // always suggest mode; use 'cargo cicd target prune --apply' to execute
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
@@ -103,13 +112,15 @@ impl VerbCommand for TargetPruneVerb {
 
         let would_free_gb = (would_free_bytes as f64 / 1_073_741_824.0 * 100.0).round() / 100.0;
         let release_protected = std::path::Path::new(&format!("{}/release", target_dir)).exists();
-        let duration_ms = start.elapsed().as_millis() as u64;
-        let event = ProcessEvent::new("target prune", "PASS");
-        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
-        if let Err(e) = crate::evidence::emit_xes(&[event], &evidence_path) {
+
+        let mut complete_evt = ProcessEvent::completed("target:prune", t0, "PASS");
+        complete_evt.case_id = Some(case_id.clone());
+
+        let evidence_path = evidence_dir.join("events.xes");
+        if let Err(e) = crate::evidence::emit_xes(&[start_evt, complete_evt], &evidence_path) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
-        let _ = (dry_run, duration_ms, would_free_gb, release_protected);
+        let _ = (dry_run, would_free_gb, release_protected);
         Ok(())
     }
 }

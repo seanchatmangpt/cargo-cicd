@@ -8,6 +8,7 @@ pub mod evidence;
 pub mod integrations;
 pub mod nouns;
 pub mod policies;
+pub mod session;
 pub mod state;
 
 pub use cicd_toml::CicdToml;

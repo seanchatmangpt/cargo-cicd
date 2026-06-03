@@ -11,8 +11,8 @@
 //! - **E4**: Tests assert only wasm4pm verdict, never internal cargo-cicd state.
 //!   cargo-cicd state assertions belong in unit tests; process conformance
 //!   assertions belong in evidence-gate tests.
-//! - **E5**: XES emission is append-safe. Each call to `emit_xes` produces a
-//!   complete, self-contained log for the event slice passed.
+//! - **E5**: XES emission groups events by `case_id` into separate `<trace>`
+//!   elements. Events without a `case_id` go into a default trace.
 //! - **E6**: JSONL emission mirrors XES — same event set, machine-readable
 //!   companion format for downstream tooling.
 //! - **E7**: `ExpectedWpmVerdict::Blocked` is a first-class expectation, not
@@ -24,36 +24,147 @@ use std::path::{Path, PathBuf};
 
 use crate::integrations::{Wasm4pmShell, WpmVerdict};
 
+// ── Timestamp helpers (std-only, no chrono) ───────────────────────────────────
+
+/// Return the current UTC time as an ISO-8601 string, e.g.
+/// `"2026-06-02T13:45:07.123Z"`.
+pub fn now_iso8601() -> String {
+    use std::time::SystemTime;
+    let d = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = d.as_secs();
+    let ms = d.subsec_millis();
+    let (y, mo, day) = epoch_secs_to_ymd(secs);
+    let h = (secs % 86400) / 3600;
+    let mi = (secs % 3600) / 60;
+    let s = secs % 60;
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        y, mo, day, h, mi, s, ms
+    )
+}
+
+fn epoch_secs_to_ymd(secs: u64) -> (u64, u64, u64) {
+    let mut days = secs / 86400;
+    let mut y = 1970u64;
+    loop {
+        let dy = if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 {
+            366
+        } else {
+            365
+        };
+        if days < dy {
+            break;
+        }
+        days -= dy;
+        y += 1;
+    }
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let mdays: [u64; 12] = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    let mut mo = 1u64;
+    for md in &mdays {
+        if days < *md {
+            break;
+        }
+        days -= md;
+        mo += 1;
+    }
+    (y, mo, days + 1)
+}
+
+/// Build a compact event-id from the current timestamp (no special chars).
+fn new_event_id(command: &str) -> String {
+    let ts = now_iso8601().replace(['-', ':', '.', 'T', 'Z'], "");
+    format!("evt-{}-{}", command.replace(' ', "-"), ts)
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 /// A single process event emitted by cargo-cicd for wasm4pm adjudication.
 pub struct ProcessEvent {
+    /// Unique event identifier.
     pub event_id: String,
+    /// ISO-8601 UTC timestamp captured at event construction time.
     pub timestamp_iso: String,
+    /// Session / case grouping key. Events with the same `case_id` are written
+    /// into the same XES `<trace>`.
+    pub case_id: Option<String>,
+    /// `"start"` or `"complete"`.
+    pub lifecycle_transition: String,
     pub workspace_id: String,
     pub repo_path: String,
     pub command: String,
-    pub verdict_claimed_by_cargo_cicd: String,
-    pub duration_ms: u64,
+    /// Verdict claimed by cargo-cicd (never adjudicated by cargo-cicd itself).
+    pub verdict_claimed: String,
+    /// Elapsed wall-clock milliseconds. `None` for `"start"` events.
+    pub duration_ms: Option<u64>,
 }
 
 impl ProcessEvent {
-    /// Construct a new `ProcessEvent` with canonical defaults.
+    /// Construct a completed `ProcessEvent` with the current real timestamp.
     ///
-    /// - `event_id` is `"evt-{command}"` with spaces replaced by dashes.
-    /// - `timestamp_iso` is fixed to `"2026-06-02T00:00:00.000Z"`.
-    /// - `workspace_id` is `"cargo-cicd-workspace"`.
-    /// - `repo_path` is `"."`.
-    /// - `duration_ms` is `0`.
+    /// `verdict` should be `"PASS"`, `"WARN"`, or `"FAIL"`.
     pub fn new(command: &str, verdict: &str) -> Self {
         Self {
-            event_id: format!("evt-{}", command.replace(' ', "-")),
-            timestamp_iso: "2026-06-02T00:00:00.000Z".to_string(),
+            event_id: new_event_id(command),
+            timestamp_iso: now_iso8601(),
+            case_id: None,
+            lifecycle_transition: "complete".to_string(),
             workspace_id: "cargo-cicd-workspace".to_string(),
             repo_path: ".".to_string(),
             command: command.to_string(),
-            verdict_claimed_by_cargo_cicd: verdict.to_string(),
-            duration_ms: 0,
+            verdict_claimed: verdict.to_string(),
+            duration_ms: None,
+        }
+    }
+
+    /// Construct a `"start"` lifecycle event and capture the wall-clock instant.
+    ///
+    /// Returns `(event, instant)`. Pass `instant` to [`ProcessEvent::completed`]
+    /// to measure elapsed time.
+    pub fn started(command: &str) -> (Self, std::time::Instant) {
+        let t0 = std::time::Instant::now();
+        let ev = Self {
+            event_id: new_event_id(command),
+            timestamp_iso: now_iso8601(),
+            case_id: None,
+            lifecycle_transition: "start".to_string(),
+            workspace_id: "cargo-cicd-workspace".to_string(),
+            repo_path: ".".to_string(),
+            command: command.to_string(),
+            verdict_claimed: String::new(),
+            duration_ms: None,
+        };
+        (ev, t0)
+    }
+
+    /// Construct a `"complete"` lifecycle event, measuring elapsed time from `t0`.
+    pub fn completed(command: &str, t0: std::time::Instant, verdict: &str) -> Self {
+        let duration_ms = t0.elapsed().as_millis() as u64;
+        Self {
+            event_id: new_event_id(command),
+            timestamp_iso: now_iso8601(),
+            case_id: None,
+            lifecycle_transition: "complete".to_string(),
+            workspace_id: "cargo-cicd-workspace".to_string(),
+            repo_path: ".".to_string(),
+            command: command.to_string(),
+            verdict_claimed: verdict.to_string(),
+            duration_ms: Some(duration_ms),
         }
     }
 }
@@ -119,13 +230,30 @@ impl WpmEvidenceOracle {
 
 // ── Emission ──────────────────────────────────────────────────────────────────
 
-/// Emit a minimal valid XES event log to `path`.
+/// Emit a valid XES event log to `path`, grouping events by `case_id`.
 ///
-/// The file is created (with parent directories) and overwritten if it exists.
-/// Each `ProcessEvent` becomes one `<event>` inside a single `<trace>`.
+/// - Events that share the same `case_id` (or both have `None`) are placed in
+///   the same `<trace>`.
+/// - The file is always overwritten (no partial append).
 pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
+    }
+
+    // Group events by case_id, preserving insertion order.
+    let mut case_order: Vec<String> = Vec::new();
+    let mut by_case: std::collections::HashMap<String, Vec<&ProcessEvent>> =
+        std::collections::HashMap::new();
+
+    for ev in events {
+        let key = ev
+            .case_id
+            .clone()
+            .unwrap_or_else(|| "cargo-cicd-run".to_string());
+        if !by_case.contains_key(&key) {
+            case_order.push(key.clone());
+        }
+        by_case.entry(key).or_default().push(ev);
     }
 
     let mut xml = String::new();
@@ -133,28 +261,46 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     xml.push_str("<log xes.version=\"1.0\" xes.features=\"\">\n");
     xml.push_str("  <extension name=\"Concept\" prefix=\"concept\" uri=\"http://www.xes-standard.org/concept.xesext\"/>\n");
     xml.push_str("  <extension name=\"Time\" prefix=\"time\" uri=\"http://www.xes-standard.org/time.xesext\"/>\n");
-    xml.push_str("  <trace>\n");
-    xml.push_str("    <string key=\"concept:name\" value=\"cargo-cicd-run\"/>\n");
+    xml.push_str("  <extension name=\"Lifecycle\" prefix=\"lifecycle\" uri=\"http://www.xes-standard.org/lifecycle.xesext\"/>\n");
 
-    for event in events {
-        xml.push_str("    <event>\n");
+    for case_id in &case_order {
+        let trace_events = &by_case[case_id];
+        xml.push_str("  <trace>\n");
         xml.push_str(&format!(
-            "      <string key=\"concept:name\" value=\"{}\"/>\n",
-            escape_xml(&event.command)
+            "    <string key=\"concept:name\" value=\"{}\"/>\n",
+            escape_xml(case_id)
         ));
-        xml.push_str(&format!(
-            "      <string key=\"cargo_cicd:verdict\" value=\"{}\"/>\n",
-            escape_xml(&event.verdict_claimed_by_cargo_cicd)
-        ));
-        xml.push_str(&format!(
-            "      <date key=\"time:timestamp\" value=\"{}\"/>\n",
-            escape_xml(&event.timestamp_iso)
-        ));
-        xml.push_str("      <string key=\"lifecycle:transition\" value=\"complete\"/>\n");
-        xml.push_str("    </event>\n");
+
+        for event in trace_events {
+            xml.push_str("    <event>\n");
+            xml.push_str(&format!(
+                "      <string key=\"concept:name\" value=\"{}\"/>\n",
+                escape_xml(&event.command)
+            ));
+            xml.push_str(&format!(
+                "      <date key=\"time:timestamp\" value=\"{}\"/>\n",
+                escape_xml(&event.timestamp_iso)
+            ));
+            xml.push_str(&format!(
+                "      <string key=\"lifecycle:transition\" value=\"{}\"/>\n",
+                escape_xml(&event.lifecycle_transition)
+            ));
+            xml.push_str(&format!(
+                "      <string key=\"cargo_cicd:verdict_claimed\" value=\"{}\"/>\n",
+                escape_xml(&event.verdict_claimed)
+            ));
+            if let Some(ms) = event.duration_ms {
+                xml.push_str(&format!(
+                    "      <int key=\"cargo_cicd:duration_ms\" value=\"{}\"/>\n",
+                    ms
+                ));
+            }
+            xml.push_str("    </event>\n");
+        }
+
+        xml.push_str("  </trace>\n");
     }
 
-    xml.push_str("  </trace>\n");
     xml.push_str("</log>\n");
 
     std::fs::write(path, xml)?;
@@ -163,8 +309,9 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
 
 /// Emit events as newline-delimited JSON to `path`.
 ///
-/// Each line is a JSON object with `event_id`, `command`, and
-/// `verdict_claimed_by_cargo_cicd` fields.
+/// Each line is a JSON object with `event_id`, `command`,
+/// `verdict_claimed`, `timestamp_iso`, `lifecycle_transition`, and
+/// optional `case_id` / `duration_ms` fields.
 pub fn emit_events_jsonl(events: &[ProcessEvent], path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -172,11 +319,23 @@ pub fn emit_events_jsonl(events: &[ProcessEvent], path: &Path) -> Result<()> {
 
     let mut lines = String::new();
     for event in events {
+        let case_field = match &event.case_id {
+            Some(id) => format!(",\"case_id\":{}", json_string(id)),
+            None => String::new(),
+        };
+        let dur_field = match event.duration_ms {
+            Some(ms) => format!(",\"duration_ms\":{}", ms),
+            None => String::new(),
+        };
         lines.push_str(&format!(
-            "{{\"event_id\":{},\"command\":{},\"verdict_claimed_by_cargo_cicd\":{}}}\n",
+            "{{\"event_id\":{},\"command\":{},\"verdict_claimed\":{},\"timestamp_iso\":{},\"lifecycle_transition\":{}{}{}}}\n",
             json_string(&event.event_id),
             json_string(&event.command),
-            json_string(&event.verdict_claimed_by_cargo_cicd),
+            json_string(&event.verdict_claimed),
+            json_string(&event.timestamp_iso),
+            json_string(&event.lifecycle_transition),
+            case_field,
+            dur_field,
         ));
     }
 
