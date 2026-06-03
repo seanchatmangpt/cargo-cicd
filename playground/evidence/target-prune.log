@@ -1,0 +1,12 @@
+target prune plan
+=================
+current size: 5.99 GB
+mode:         suggest (use --apply to execute)
+
+suggested candidates:
+  target/debug/incremental (3.21 GB)
+  target/debug/.fingerprint (0.00 GB)
+  target/debug/deps (2.43 GB)
+
+to execute: cargo cicd target prune --apply
+note: release artifacts are never deleted automatically

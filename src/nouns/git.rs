@@ -1,7 +1,6 @@
 use crate::adapters::GitStatusAdapter;
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
-use std::time::Instant;
 
 pub struct GitNoun;
 impl GitNoun {
@@ -36,7 +35,12 @@ impl VerbCommand for GitStatusVerb {
         "Show git repository state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let start = Instant::now();
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+
+        let (mut start_evt, t0) = ProcessEvent::started("git:status");
+        start_evt.case_id = Some(case_id.clone());
+
         let status = GitStatusAdapter::query()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
         println!("git status");
@@ -66,16 +70,16 @@ impl VerbCommand for GitStatusVerb {
             "recommendation: run 'cargo cicd git close' to stage and commit"
         };
         println!("next: {}", next);
-        let duration_ms = start.elapsed().as_millis() as u64;
         let ev_verdict = if status.dirty_files.is_empty() && status.untracked_files.is_empty() {
             "PASS"
         } else {
             "WARN"
         };
-        let event = ProcessEvent::new("git status", ev_verdict);
-        let evidence_path = crate::evidence::evidence_dir().join("events.xes");
-        let _ = crate::evidence::emit_xes(&[event], &evidence_path);
-        let _ = duration_ms;
+        let mut complete_evt = ProcessEvent::completed("git:status", t0, ev_verdict);
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
         Ok(())
     }
 }

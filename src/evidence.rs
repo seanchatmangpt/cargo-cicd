@@ -95,6 +95,7 @@ fn new_event_id(command: &str) -> String {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 /// A single process event emitted by cargo-cicd for wasm4pm adjudication.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct ProcessEvent {
     /// Unique event identifier.
     pub event_id: String,
@@ -404,6 +405,48 @@ pub fn emit_events_jsonl(events: &[ProcessEvent], path: &Path) -> Result<()> {
 /// Canonical evidence directory relative to the workspace root.
 pub fn evidence_dir() -> PathBuf {
     PathBuf::from("target/cargo-cicd/evidence")
+}
+
+/// Append `events` to `<evidence_dir>/events.jsonl`, then rebuild
+/// `<evidence_dir>/events.xes` from the full accumulated log.
+///
+/// This is the canonical emission path. It is safe to call from multiple
+/// commands in the same session — each call appends rather than overwrites,
+/// so the XES always reflects the complete session history.
+pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    if let Some(parent) = evidence_dir.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::create_dir_all(evidence_dir)?;
+
+    let jsonl_path = evidence_dir.join("events.jsonl");
+    let xes_path = evidence_dir.join("events.xes");
+
+    // Append new events to the JSONL file.
+    {
+        let mut f = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&jsonl_path)?;
+        for ev in events {
+            let line = serde_json::to_string(ev)?;
+            writeln!(f, "{}", line)?;
+        }
+    }
+
+    // Read the full accumulated JSONL back, rebuild XES from all events.
+    let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
+    let all_events: Vec<ProcessEvent> = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+
+    emit_xes(&all_events, &xes_path)?;
+    Ok(())
 }
 
 // ── Assertion ─────────────────────────────────────────────────────────────────

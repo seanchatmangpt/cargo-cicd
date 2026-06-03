@@ -1,6 +1,6 @@
 published cicd.toml
   workspace:    cargo-cicd
   toolchain:    stable-aarch64-apple-darwin
-  target:       5.48 GB
+  target:       5.99 GB
   dirty:        true
   changed:      0

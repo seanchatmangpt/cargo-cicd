@@ -11,6 +11,6 @@ autonomic policy results
 [PASS] target_pressure
 [PASS] toolchain_mismatch
 [PASS] trybuild_changed
-[SUGGEST] git_phase_dirty: Run cargo cicd git close to commit 9 dirty files
+[SUGGEST] git_phase_dirty: Run cargo cicd git close to commit 8 dirty files
 
 workspace is healthy

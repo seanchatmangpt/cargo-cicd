@@ -125,13 +125,12 @@ impl VerbCommand for TargetPruneVerb {
         let would_free_gb = (would_free_bytes as f64 / 1_073_741_824.0 * 100.0).round() / 100.0;
         let release_protected = std::path::Path::new(&format!("{}/release", target_dir)).exists();
 
-        let verdict;
-        if dry_run {
+        let verdict = if dry_run {
             println!("to execute: cargo cicd target prune --apply");
             println!("note: release artifacts are never deleted automatically");
             // Dry-run is a planning step, not a completion — emit WARN:dry_run so the
             // evidence log accurately reflects that no action was taken.
-            verdict = "WARN:dry_run";
+            "WARN:dry_run"
         } else {
             // Actually remove the incremental build artifacts.
             let mut freed_bytes: u64 = 0;
@@ -151,8 +150,8 @@ impl VerbCommand for TargetPruneVerb {
             println!();
             println!("freed: {:.2} GB", freed_gb);
             println!("note: release artifacts are never deleted automatically");
-            verdict = "PASS";
-        }
+            "PASS"
+        };
 
         let mut complete_evt = ProcessEvent::completed("target:prune", t0, verdict);
         complete_evt.case_id = Some(case_id.clone());
