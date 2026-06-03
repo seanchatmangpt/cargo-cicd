@@ -97,6 +97,10 @@ path = "tests/wasm4pm_refusal_cases.rs"
 name = "ggen_customization_guard"
 path = "tests/ggen_customization_guard.rs"
 
+[[test]]
+name = "refusal_calibration"
+path = "tests/refusal_calibration.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"
