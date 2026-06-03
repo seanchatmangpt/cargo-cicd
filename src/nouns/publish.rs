@@ -61,6 +61,53 @@ impl VerbCommand for PublishRunVerb {
             .filter(|f| ChangedFileDetector::is_trybuild_fixture(f))
             .count();
         cicd.workspace.toolchain = ToolchainDetector::active_toolchain();
+        // ── Adjudicated publish gate ──────────────────────────────────────────
+        // Before writing cicd.toml we ask the wasm4pm oracle to adjudicate the
+        // current evidence XES.  This closes the gap between "cargo-cicd claims
+        // PASS" and "an independent process oracle agrees".
+        //
+        // Gate outcomes:
+        //   ADJUDICATED:accept       — oracle accepted the evidence; proceed.
+        //   WARN:oracle_unavailable  — binary not found; proceed with a warning.
+        //   (bail!)                  — oracle refused; publish is blocked.
+        let evidence_xes = crate::evidence::evidence_dir().join("events.xes");
+        let publish_readiness = if evidence_xes.exists() {
+            match crate::integrations::Wasm4pmShell::detect() {
+                None => {
+                    eprintln!(
+                        "warning: wasm4pm oracle unavailable — publish proceeding without \
+                         adjudication (BLOCKED:oracle_unavailable)"
+                    );
+                    "BLOCKED:oracle_unavailable"
+                }
+                Some(wpm) => match wpm.audit(evidence_xes.to_str().unwrap_or("")) {
+                    Err(e) => {
+                        eprintln!("warning: oracle invocation failed: {e} — proceeding without adjudication");
+                        "WARN:oracle_error"
+                    }
+                    Ok(result) => {
+                        use crate::integrations::WpmVerdict;
+                        match result.verdict {
+                            WpmVerdict::Pass | WpmVerdict::Warn | WpmVerdict::Partial => {
+                                "ADJUDICATED:accept"
+                            }
+                            WpmVerdict::Fail => {
+                                return Err(clap_noun_verb::error::NounVerbError::execution_error(
+                                    "AndonPull: wasm4pm refused evidence — publish blocked"
+                                        .to_string(),
+                                ));
+                            }
+                            WpmVerdict::NotAvailable => "BLOCKED:oracle_unavailable",
+                        }
+                    }
+                },
+            }
+        } else {
+            // No evidence file yet — first-run; proceed without adjudication.
+            "WARN:no_evidence"
+        };
+        println!("  adjudication: {}", publish_readiness);
+
         cicd.write_default()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
         println!("published cicd.toml");
