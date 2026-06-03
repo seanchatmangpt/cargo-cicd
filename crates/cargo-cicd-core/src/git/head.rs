@@ -1,0 +1,1 @@
+//! Git HEAD reading.

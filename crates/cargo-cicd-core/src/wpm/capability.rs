@@ -1,0 +1,1 @@
+//! wpm capability model.

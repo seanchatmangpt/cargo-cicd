@@ -1,0 +1,1 @@
+//! Rendered surface model.
