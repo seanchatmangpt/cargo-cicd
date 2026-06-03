@@ -11,7 +11,7 @@ cargo-cicd command
 → rebuilds target/cargo-cicd/evidence/events.xes
 
 cargo cicd evidence doctor
-→ build_receipt_json(events, command, 0)  — Wasm4pmExecutionReceipt.v1
+→ build_receipt_json(events, command, 0)  — OCEL 2.0 compliant receipt
 → wpm receipt doctor --format json --strict latest.json
 → state: Admitted
 

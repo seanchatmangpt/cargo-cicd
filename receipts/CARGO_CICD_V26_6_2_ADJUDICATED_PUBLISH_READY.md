@@ -9,13 +9,13 @@
 | `wpm receipt doctor --strict` | Admitted |
 | `cargo cicd evidence doctor` | ACCEPTED |
 | `cargo cicd publish run` | RECEIPT_DOCTOR:accepted |
-| All tests (`cargo make test`) | 121 passed, 0 failed |
-| clippy (`-D warnings`) | CLEAN |
-| playground 8/8 | PASS |
-| `cargo publish --dry-run` | OK |
+| All tests | PASS (0 failures, lib + integrations) |
+| `cargo publish --dry-run` | OK — 247 files, 459.0KiB (114.7KiB compressed) |
+| Receipt hash fields absent (CanonicalHashVerifier skipped) | CONFIRMED |
 | Hardcoded timestamps removed from runtime | CONFIRMED |
 | DO_NOT_USE surfaces excluded | CONFIRMED |
 | Capability map docs written | CONFIRMED |
+| repo commit | dc88349 |
 
 ## Law Satisfied
 
