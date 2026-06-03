@@ -1,44 +1,14 @@
-# evidence-cases.rq
-# Purpose : Drive evidence surface rendering for cargo-cicd v26.6.2.
-# Returns : event_type, command, required_fields_count, wasm4pm_oracle,
-#           validated_by_wasm4pm
-# Note    : required_fields_count is computed by counting comma-separated
-#           tokens in cc:requiredEventFields.  All nine events share the same
-#           10-field mandatory set; the count is therefore always 10.
-
 PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX owl:     <http://www.w3.org/2002/07/owl#>
 PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
-PREFIX dcterms: <http://purl.org/dc/terms/>
 PREFIX prov:    <http://www.w3.org/ns/prov#>
-PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
 PREFIX cc:      <https://cargo-cicd.rs/ontology/>
 
-SELECT
-    ?event_type
-    ?command
-    ?required_fields_count
-    ?wasm4pm_oracle
-    ?validated_by_wasm4pm
+SELECT ?event ?command ?oracle ?fields
 WHERE {
-    ?eventNode a prov:Activity ;
-               skos:prefLabel          ?event_type ;
-               prov:wasGeneratedBy     ?commandNode ;
-               cc:requiredEventFields  ?required_fields ;
-               cc:wasm4pmOracleCommand ?wasm4pm_oracle ;
-               cc:validatedByWasm4pm   ?validated_by_wasm4pm .
-
-    ?commandNode cc:cliCommand ?command .
-
-    # Count fields: number of commas + 1.
-    # SPARQL 1.1 does not have a built-in field-count function; compute via
-    # string length difference (portably supported in Apache Jena / Oxigraph).
-    BIND(
-        (STRLEN(?required_fields) - STRLEN(REPLACE(?required_fields, ",", ""))) + 1
-        AS ?required_fields_count
-    )
-
-    FILTER(lang(?event_type) = "en" || lang(?event_type) = "")
+    ?e a prov:Activity ;
+       skos:prefLabel          ?event ;
+       prov:wasGeneratedBy     ?cap ;
+       cc:wasm4pmOracleCommand ?oracle ;
+       cc:requiredEventFields  ?fields .
+    ?cap cc:cliCommand ?command
 }
-ORDER BY ?command

@@ -1,39 +1,16 @@
-# playground-matrix.rq
-# Purpose : Drive playground capability-matrix rendering for cargo-cicd v26.6.2.
-# Returns : scenario_name, command_used, precondition, expected_outcome,
-#           evidence_event, mutation_variant, wasm4pm_verdict
-# Order   : command_used ASC, wasm4pm_verdict ASC
-
 PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX owl:     <http://www.w3.org/2002/07/owl#>
 PREFIX skos:    <http://www.w3.org/2004/02/skos/core#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
-PREFIX prov:    <http://www.w3.org/ns/prov#>
-PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
 PREFIX cc:      <https://cargo-cicd.rs/ontology/>
 
-SELECT
-    ?scenario_name
-    ?command_used_label
-    ?precondition
-    ?expected_outcome
-    ?evidence_event_label
-    ?mutation_variant
-    ?wasm4pm_verdict
+SELECT ?name ?command ?precondition ?outcome ?verdict ?mutation
 WHERE {
-    ?scenario a cc:PlaygroundScenario ;
-              cc:scenarioName           ?scenario_name ;
-              cc:commandUsed            ?commandNode ;
-              cc:precondition           ?precondition ;
-              cc:expectedOutcome        ?expected_outcome ;
-              cc:evidenceEvent          ?eventNode ;
-              cc:mutationVariant        ?mutation_variant ;
-              cc:wasm4pmExpectedVerdict ?wasm4pm_verdict .
-
-    ?commandNode cc:cliCommand  ?command_used_label .
-    ?eventNode   skos:prefLabel ?evidence_event_label .
-
-    FILTER(lang(?evidence_event_label) = "en" || lang(?evidence_event_label) = "")
+    ?s a cc:PlaygroundScenario ;
+       cc:scenarioName           ?name ;
+       cc:commandUsed            ?command ;
+       cc:precondition           ?precondition ;
+       cc:expectedOutcome        ?outcome ;
+       cc:wasm4pmExpectedVerdict ?verdict .
+    OPTIONAL { ?s cc:mutationVariant ?mutation }
 }
-ORDER BY ?command_used_label ?wasm4pm_verdict
+ORDER BY ?verdict ?command

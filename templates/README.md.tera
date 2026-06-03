@@ -1,33 +1,24 @@
-# cargo-cicd
-
-`cargo-cicd` is a local-first CI/CD helper for Rust workspaces.
-It keeps repositories clean, target directories under control, test runs focused on what changed,
-and local state ready before CI runs.
-
-## Install
-
-```sh
-cargo install cargo-cicd
-```
+<!-- BEGIN custom:introduction -->
+<!-- Coding agents may edit this section. -->
+[INTRODUCTION PLACEHOLDER — customize in Pass 2]
+<!-- END custom:introduction -->
 
 <!-- BEGIN ggen:commands -->
+<!-- Rendered from ontology/cargo-cicd-capabilities.ttl. Do not edit by hand. -->
 ## Commands
 
-| Command | Description | Feature |
-|---------|-------------|---------|
-{% for cmd in commands -%}
-| `{{ cmd.cli_command }}` | {{ cmd.description }} | {{ cmd.feature_required | default(value="default") }} |
+| Command | Description |
+|---------|-------------|
+{% for row in rows -%}
+| `{{ row.cli_command }}` | {{ row.description }} |
 {% endfor %}
 <!-- END ggen:commands -->
 
-## cicd.toml
+<!-- BEGIN custom:cicd-toml -->
+<!-- Coding agents may edit this section. -->
+[CICD_TOML EXPLANATION PLACEHOLDER]
+<!-- END custom:cicd-toml -->
 
-`cargo cicd publish` records workspace state into `cicd.toml`.
-
-## Process Data
-
-Enable `--features process-data` to emit structured process events to `target/cargo-cicd/evidence/events.jsonl`.
-
-## License
-
+<!-- BEGIN custom:license -->
 MIT OR Apache-2.0
+<!-- END custom:license -->

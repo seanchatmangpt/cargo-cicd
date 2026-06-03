@@ -16,19 +16,76 @@ rules = [
 ]
 
 [[rules]]
-name = "noun-modules"
-query = "queries/commands.rq"
-template = "templates/noun.rs.tera"
-output = "src/nouns/{{noun_name}}.rs"
+name = "readme"
+query = "queries/docs-readme.rq"
+template = "templates/README.md.tera"
+output = "README.md"
 
 [[rules]]
-name = "command-docs"
-query = "queries/commands.rq"
-template = "templates/command_doc.md.tera"
-output = "docs/commands/{{noun_name}}.md"
+name = "playground-matrix"
+query = "queries/playground-matrix.rq"
+template = "templates/playground/run-matrix.sh.tera"
+output = "playground/scripts/run-matrix.sh"
 
 [[rules]]
-name = "cli-tests"
-query = "queries/commands.rq"
-template = "templates/cli_test.rs.tera"
-output = "tests/cli/test_{{noun_name}}.rs"
+name = "reference-status"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/status.md"
+filter = { noun = "status" }
+
+[[rules]]
+name = "reference-target-show"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/target-show.md"
+filter = { noun = "target", verb = "show" }
+
+[[rules]]
+name = "reference-target-prune"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/target-prune.md"
+filter = { noun = "target", verb = "prune" }
+
+[[rules]]
+name = "reference-test-changed"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/test-changed.md"
+filter = { noun = "test", verb = "changed" }
+
+[[rules]]
+name = "reference-trybuild-changed"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/trybuild-changed.md"
+filter = { noun = "trybuild", verb = "changed" }
+
+[[rules]]
+name = "reference-git-status"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/git-status.md"
+filter = { noun = "git", verb = "status" }
+
+[[rules]]
+name = "reference-git-close"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/git-close.md"
+filter = { noun = "git", verb = "close" }
+
+[[rules]]
+name = "reference-publish-run"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/publish-run.md"
+filter = { noun = "publish", verb = "run" }
+
+[[rules]]
+name = "reference-workspace-doctor"
+query = "queries/docs-readme.rq"
+template = "templates/docs/reference-command.md.tera"
+output = "docs/reference/commands/workspace-doctor.md"
+filter = { noun = "workspace", verb = "doctor" }
