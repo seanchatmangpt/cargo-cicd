@@ -1,46 +1,75 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 PASS=0; FAIL=0; BLOCKED=0
 
-if ! command -v wpm &>/dev/null; then
-  echo "  [BLOCKED] wpm not found in PATH — install wasm4pm to run refusal gate"
-  BLOCKED=$((BLOCKED+1))
-  echo ""
-  echo "PASS=$PASS FAIL=$FAIL BLOCKED=$BLOCKED"
-  exit 0
+# Discover wpm — same priority order as validate-with-wasm4pm.sh
+WPM=""
+for candidate in \
+    "${WPM_BIN:-}" \
+    "$REPO_ROOT/../wasm4pm/target/release/wpm" \
+    "$HOME/wasm4pm/target/release/wpm" \
+    "$HOME/wasm4pm/target/debug/wpm" \
+    "$(command -v wpm 2>/dev/null || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        WPM="$candidate"
+        break
+    fi
+done
+
+if [ -z "${WPM:-}" ]; then
+    echo "BLOCKED: wasm4pm oracle unavailable — refusal gate skipped"
+    echo "PASS=$PASS FAIL=$FAIL BLOCKED=1"
+    exit 1
 fi
+
+echo "=== wasm4pm refusal gate ==="
+echo "oracle: $WPM"
 
 EVIDENCE_DIR="$(mktemp -d)"
 trap "rm -rf $EVIDENCE_DIR" EXIT
 
 check_refused() {
-  local name="$1" file="$2"
-  if wpm audit "$file" 2>&1; then
-    echo "  [FAIL] expected REFUSE for $name but got ACCEPT"
-    FAIL=$((FAIL+1))
-  else
-    echo "  [PASS] wpm refused: $name"
-    PASS=$((PASS+1))
-  fi
+    local name="$1" file="$2"
+    if "$WPM" audit "$file" >/dev/null 2>&1; then
+        echo "  ✗ FAIL: expected REFUSE for $name but got ACCEPT"
+        FAIL=$((FAIL+1))
+    else
+        echo "  ✓ REFUSED: $name"
+        PASS=$((PASS+1))
+    fi
 }
 
-# empty file
-printf '' > "$EVIDENCE_DIR/empty.jsonl"
-check_refused "empty file" "$EVIDENCE_DIR/empty.jsonl"
+# 1. Empty file
+printf '' > "$EVIDENCE_DIR/empty.xes"
+check_refused "empty file" "$EVIDENCE_DIR/empty.xes"
 
-# binary garbage
-printf '\x00\x01\xff\xfe NOT JSON' > "$EVIDENCE_DIR/binary-garbage.jsonl"
-check_refused "binary garbage" "$EVIDENCE_DIR/binary-garbage.jsonl"
+# 2. Binary garbage
+printf '\x00\x01\xff\xfe NOT XML' > "$EVIDENCE_DIR/binary-garbage.xes"
+check_refused "binary garbage" "$EVIDENCE_DIR/binary-garbage.xes"
 
-# truncated JSON
-printf '{"event_id":"' > "$EVIDENCE_DIR/truncated.jsonl"
-check_refused "truncated json" "$EVIDENCE_DIR/truncated.jsonl"
+# 3. Truncated XES
+printf '<?xml version="1.0"' > "$EVIDENCE_DIR/truncated.xes"
+check_refused "truncated xml" "$EVIDENCE_DIR/truncated.xes"
 
-# missing required fields
-printf '{"timestamp":"2026-01-01T00:00:00Z"}\n' > "$EVIDENCE_DIR/missing-fields.jsonl"
-check_refused "missing required fields" "$EVIDENCE_DIR/missing-fields.jsonl"
+# 4. Mismatched tags (proven to cause wpm exit 1)
+cat > "$EVIDENCE_DIR/mismatched-tags.xes" <<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<log xes.version="1.0" xes.features="">
+  <trace>
+    <event>
+      <string key="concept:name" value="status show"/>
+    </wrong_close>
+  </trace>
+</log>
+XML
+check_refused "mismatched tags" "$EVIDENCE_DIR/mismatched-tags.xes"
+
+# 5. Corrupt XML (plain text)
+echo "NOT VALID XML AT ALL" > "$EVIDENCE_DIR/corrupt.xes"
+check_refused "corrupt xml" "$EVIDENCE_DIR/corrupt.xes"
 
 echo ""
-echo "PASS=$PASS FAIL=$FAIL BLOCKED=$BLOCKED"
-[ $FAIL -eq 0 ]
+echo "Refusal gate: $PASS refused, $FAIL unexpected-accepts, $BLOCKED blocked"
+[ "$FAIL" -eq 0 ] || exit 1

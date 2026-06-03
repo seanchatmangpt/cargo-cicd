@@ -27,7 +27,7 @@ run_command() {
 
 run_command "status"              "$BINARY" status
 run_command "target-show"         "$BINARY" target show
-run_command "target-prune-dry"    "$BINARY" target prune --dry-run
+run_command "target-prune"        "$BINARY" target prune
 run_command "test-changed"        "$BINARY" test changed
 run_command "trybuild-changed"    "$BINARY" trybuild changed
 run_command "git-status"          "$BINARY" git status
