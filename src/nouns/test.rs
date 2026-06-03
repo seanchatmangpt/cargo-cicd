@@ -35,7 +35,10 @@ impl VerbCommand for TestChangedVerb {
         "Run tests for changed files only"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let start = Instant::now();
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("test:changed");
+        start_evt.case_id = Some(case_id.clone());
         let base = "origin/main";
         let changed = ChangedFileDetector::changed_rs_files(base);
         let test_files: Vec<_> = changed
@@ -61,9 +64,7 @@ impl VerbCommand for TestChangedVerb {
         println!();
         println!("note: exact affected-test selection is conservative by design");
 
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let mut complete_evt = ProcessEvent::completed("test:changed", start, "PASS");
+        let mut complete_evt = ProcessEvent::completed("test:changed", t0, "PASS");
         complete_evt.case_id = Some(case_id);
         if let Err(e) = crate::evidence::append_events(&[complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
