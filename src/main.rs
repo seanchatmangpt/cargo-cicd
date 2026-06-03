@@ -41,24 +41,31 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
 }
 
 fn main() -> Result<()> {
-    // Re-parse argv with default verb injection before handing to clap-noun-verb
-    let args = inject_default_verbs(std::env::args().collect());
-    // Safety: args always has at least the binary name
-    let _argv0 = &args[0];
+    let raw: Vec<String> = std::env::args().collect();
+
+    // Cargo external subcommand protocol: `cargo cicd status` invokes `cargo-cicd cicd status`.
+    // Re-exec without the "cicd" prefix so the rest of main sees clean argv.
+    if raw.get(1).map(String::as_str) == Some("cicd") {
+        let bin = &raw[0];
+        let rest = &raw[2..];
+        let status = std::process::Command::new(bin).args(rest).status()?;
+        std::process::exit(status.code().unwrap_or(1));
+    }
+
+    // Check bare-noun BEFORE verb injection: env::args() is what CliBuilder::run() reads.
+    // If the user typed just the noun (no verb), dispatch directly to bypass the limitation.
+    let noun = raw.get(1).map(String::as_str).unwrap_or("").to_string();
+    let verb_arg = raw.get(2).map(String::as_str).unwrap_or("").to_string();
+    let needs_default = matches!(noun.as_str(), "status" | "publish" | "workspace")
+        && (verb_arg.is_empty() || verb_arg.starts_with('-'));
+
+    // Inject default verbs into local args (used only for reference, not for cli.run()).
+    let _args = inject_default_verbs(raw);
 
     let cli = CliBuilder::new()
         .name("cargo-cicd")
         .version("26.6.2")
         .about("Local-first CI/CD helpers for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml.");
-
-    // Run with injected args
-    // clap-noun-verb CliBuilder::run() uses std::env::args() internally; we need to
-    // work around this by running the appropriate noun directly when we injected a default.
-    // Use the stripped args (not raw env::args) so cargo-subcommand prefix is already removed.
-    let noun = args.get(1).map(String::as_str).unwrap_or("").to_string();
-    let verb_arg = args.get(2).map(String::as_str).unwrap_or("").to_string();
-    let needs_default = matches!(noun.as_str(), "status" | "publish" | "workspace")
-        && (verb_arg.is_empty() || verb_arg.starts_with('-'));
 
     if needs_default {
         match noun.as_str() {
