@@ -1,9 +1,9 @@
 git status
 ==========
 branch:       main
-staged:       0
+staged:       3
 dirty:        6
-untracked:    1
+untracked:    3
 ahead:        0
 behind:       0
 
@@ -11,9 +11,11 @@ dirty files:
   M cicd.toml
   M playground/evidence/git-status.log
   M playground/evidence/status.log
+  M playground/evidence/target-prune.log
   M playground/evidence/target-show.log
-  M playground/scripts/run-playground.sh
-  M playground/scripts/validate-with-wasm4pm.sh
+  M playground/evidence/test-changed.log
 untracked:
-  ? playground/evidence/target-prune.log
+  ? docs/wasm4pm/WASM4PM_ALLOWED_SURFACES.md
+  ? docs/wasm4pm/WASM4PM_CAPABILITY_MAP.md
+  ? docs/wasm4pm/WASM4PM_EXCLUDED_SURFACES.md
 next: recommendation: run 'cargo cicd git close' to stage and commit

@@ -14,8 +14,9 @@ impl EvidenceNoun {
     }
 
     pub fn run_direct() -> anyhow::Result<()> {
-        let matches =
-            clap::Command::new("evidence").get_matches_from(vec!["evidence", "doctor"]);
+        // Dispatch directly to the doctor verb without going through clap
+        // subcommand parsing — the bare-noun path has no subcommand context.
+        let matches = clap::Command::new("evidence").get_matches_from(vec!["evidence"]);
         let args = VerbArgs::new(matches);
         DoctorVerb
             .run(&args)

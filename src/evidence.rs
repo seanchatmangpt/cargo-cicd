@@ -724,3 +724,159 @@ fn json_string(s: &str) -> String {
             .replace('\t', "\\t")
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_complete_event(id: &str, cmd: &str) -> ProcessEvent {
+        ProcessEvent {
+            event_id: id.to_string(),
+            timestamp_iso: "2026-06-02T00:00:00Z".to_string(),
+            case_id: Some("test-case".to_string()),
+            lifecycle_transition: "complete".to_string(),
+            workspace_id: "ws-test".to_string(),
+            repo_path: "/repo".to_string(),
+            command: cmd.to_string(),
+            verdict_claimed: "pass".to_string(),
+            duration_ms: Some(42),
+            verdict_adjudicated: None,
+            adjudicated_at: None,
+            oracle_command: None,
+        }
+    }
+
+    fn make_start_event(id: &str, cmd: &str) -> ProcessEvent {
+        ProcessEvent {
+            lifecycle_transition: "start".to_string(),
+            duration_ms: None,
+            ..make_complete_event(id, cmd)
+        }
+    }
+
+    /// build_receipt_json must produce all top-level OCEL 2.0 receipt fields
+    /// required by wpm receipt doctor --strict.
+    #[test]
+    fn build_receipt_json_top_level_fields_present() {
+        let ev = make_complete_event("evt-001", "cargo cicd status");
+        let receipt = build_receipt_json(&[&ev], "cargo cicd status", 0);
+
+        assert!(receipt.get("receipt_id").is_some(), "missing receipt_id");
+        assert!(receipt.get("producer").is_some(), "missing producer");
+        assert!(receipt.get("producer_version").is_some(), "missing producer_version");
+        assert!(receipt.get("created_at").is_some(), "missing created_at");
+        assert!(receipt.get("repo_path").is_some(), "missing repo_path");
+        assert!(receipt.get("git_head").is_some(), "missing git_head");
+        assert!(receipt.get("algorithms").is_some(), "missing algorithms");
+    }
+
+    /// producer must always be "cargo-cicd".
+    #[test]
+    fn build_receipt_json_producer_is_cargo_cicd() {
+        let ev = make_complete_event("evt-002", "cargo cicd test");
+        let receipt = build_receipt_json(&[&ev], "cargo cicd test", 0);
+        assert_eq!(receipt["producer"], "cargo-cicd");
+    }
+
+    /// algorithms must be a non-empty array.
+    #[test]
+    fn build_receipt_json_algorithms_non_empty() {
+        let ev = make_complete_event("evt-003", "cargo cicd build");
+        let receipt = build_receipt_json(&[&ev], "cargo cicd build", 0);
+        let algos = receipt["algorithms"].as_array().expect("algorithms must be array");
+        assert!(!algos.is_empty(), "algorithms array must not be empty");
+    }
+
+    /// Each algorithm entry must carry expected_path, observed_path, and
+    /// boundary_evidence — the three sub-fields checked by wpm receipt doctor --strict.
+    #[test]
+    fn build_receipt_json_algorithm_shape() {
+        let ev = make_complete_event("evt-004", "cargo cicd publish");
+        let receipt = build_receipt_json(&[&ev], "cargo cicd publish", 0);
+        let algo = &receipt["algorithms"][0];
+
+        assert!(algo.get("algorithm_id").is_some(), "missing algorithm_id");
+        let expected_path = algo.get("expected_path").expect("missing expected_path");
+        let observed_path = algo.get("observed_path").expect("missing observed_path");
+        let boundary = algo.get("boundary_evidence").expect("missing boundary_evidence");
+
+        // expected_path must have route_id + expected_ocel2 with ocel-version
+        assert!(expected_path.get("route_id").is_some(), "expected_path missing route_id");
+        let exp_ocel = expected_path.get("expected_ocel2").expect("missing expected_ocel2");
+        assert_eq!(exp_ocel["ocel-version"], "2.0", "expected_ocel2 ocel-version must be 2.0");
+
+        // observed_path must have route_id + observed_ocel2 with ocel-version
+        assert!(observed_path.get("route_id").is_some(), "observed_path missing route_id");
+        let obs_ocel = observed_path.get("observed_ocel2").expect("missing observed_ocel2");
+        assert_eq!(obs_ocel["ocel-version"], "2.0", "observed_ocel2 ocel-version must be 2.0");
+
+        // boundary_evidence must have exit_code and command
+        assert!(boundary.get("exit_code").is_some(), "boundary_evidence missing exit_code");
+        assert!(boundary.get("command").is_some(), "boundary_evidence missing command");
+    }
+
+    /// boundary_evidence exit_code must reflect the value passed to the function.
+    #[test]
+    fn build_receipt_json_exit_code_propagated() {
+        let ev = make_complete_event("evt-005", "cargo cicd git");
+        let receipt = build_receipt_json(&[&ev], "cargo cicd git", 42);
+        let exit_code = receipt["algorithms"][0]["boundary_evidence"]["exit_code"]
+            .as_i64()
+            .expect("exit_code must be integer");
+        assert_eq!(exit_code, 42);
+    }
+
+    /// observed_ocel2 events list must always contain at least the sentinel receipt-emit event,
+    /// even when the input slice is empty.
+    #[test]
+    fn build_receipt_json_observed_events_never_empty_with_no_input() {
+        let receipt = build_receipt_json(&[], "cargo cicd status", 0);
+        let obs_events = receipt["algorithms"][0]["observed_path"]["observed_ocel2"]["events"]
+            .as_array()
+            .expect("observed events must be array");
+        assert!(!obs_events.is_empty(), "observed events must not be empty (sentinel required)");
+    }
+
+    /// Only "complete" lifecycle events must appear in the observed OCEL; "start"
+    /// events are filtered out.
+    #[test]
+    fn build_receipt_json_filters_start_events() {
+        let complete = make_complete_event("evt-complete", "cargo cicd status");
+        let start = make_start_event("evt-start", "cargo cicd status");
+        let receipt = build_receipt_json(&[&complete, &start], "cargo cicd status", 0);
+        let obs_events = receipt["algorithms"][0]["observed_path"]["observed_ocel2"]["events"]
+            .as_array()
+            .expect("observed events must be array");
+
+        // Should have: 1 complete event + 1 sentinel = 2 total; start must be absent.
+        assert_eq!(obs_events.len(), 2, "expected 1 complete + 1 sentinel");
+        let ids: Vec<&str> = obs_events
+            .iter()
+            .filter_map(|e| e["id"].as_str())
+            .collect();
+        assert!(ids.contains(&"evt-complete"), "complete event must be present");
+        assert!(!ids.contains(&"evt-start"), "start event must be filtered out");
+    }
+
+    /// emit_receipt_json must write a valid JSON file at the expected path.
+    #[test]
+    fn emit_receipt_json_writes_file() {
+        use std::env;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let orig = env::current_dir().expect("cwd");
+        env::set_current_dir(tmp.path()).expect("set_current_dir");
+
+        let ev = make_complete_event("evt-emit", "cargo cicd status");
+        let path = emit_receipt_json(&[&ev], "cargo cicd status", 0)
+            .expect("emit_receipt_json must succeed");
+
+        assert!(path.exists(), "receipt file must exist at {}", path.display());
+        let raw = std::fs::read_to_string(&path).expect("read receipt");
+        let parsed: serde_json::Value = serde_json::from_str(&raw).expect("receipt must be valid JSON");
+        assert!(parsed.get("receipt_id").is_some(), "written receipt missing receipt_id");
+
+        env::set_current_dir(orig).expect("restore cwd");
+    }
+}

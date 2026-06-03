@@ -1,6 +1,8 @@
+  receipt doctor: Admitted (wpm adjudicated)
+  adjudication: RECEIPT_DOCTOR:accepted
 published cicd.toml
   workspace:    cargo-cicd
   toolchain:    stable-aarch64-apple-darwin
-  target:       5.99 GB
+  target:       7.05 GB
   dirty:        true
-  changed:      0
+  changed:      3

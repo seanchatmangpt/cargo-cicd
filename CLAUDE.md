@@ -97,7 +97,8 @@ Internal smoke tests may pass, but release closure requires:
 The wasm4pm feature flag gates richer runtime integration, not the evidence-gate acceptance law.
 
 wpm binary: /Users/sac/wasm4pm/target/release/wpm
-Primary oracle command: wpm audit <file.xes>
+Primary oracle command: wpm receipt doctor --format json --strict <receipt.json>
+Secondary XES health check: wpm audit <file.xes>
 Evidence format: XES (XML Event Stream), not JSONL
 Evidence dir: target/cargo-cicd/evidence/
 
@@ -110,8 +111,9 @@ Evidence dir: target/cargo-cicd/evidence/
 
 2. wasm4pm evidence-gate tests (closing — release gate):
    - Must emit process evidence as XES
-   - Must invoke wpm oracle: wpm audit <file.xes>
-   - Must assert wasm4pm Accept/Refuse verdict
+   - Must invoke wpm oracle: `wpm audit <file.xes>`
+   - Must invoke receipt doctor: `wpm receipt doctor --format json --strict` on emitted receipts
+   - Must assert wasm4pm Accept/Refuse verdict from both oracle and receipt doctor
    - Files: tests/wasm4pm_evidence_gate.rs, tests/wasm4pm_evidence_mutation.rs, tests/wasm4pm_refusal_cases.rs
 
 No release may claim ALIVE solely from cargo-cicd internal tests.

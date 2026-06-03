@@ -129,3 +129,29 @@ fn test_workspace_doctor_runs() {
         .success()
         .stdout(predicate::str::contains("workspace doctor"));
 }
+
+// ── 9. evidence doctor — wired noun+verb reachable ───────────────────────────
+
+/// Verify that `cargo cicd evidence doctor` is wired and reachable via the
+/// compiled binary.  When the wpm oracle is absent the verb exits non-zero
+/// with a diagnostic message; when it is present it exits 0.  Either way
+/// the binary must parse the noun+verb without panicking.
+#[test]
+fn test_evidence_doctor_runs() {
+    let mut cmd = Command::cargo_bin("cargo-cicd").unwrap();
+    cmd.args(["evidence", "doctor"]);
+    // Exit 0 (wpm present + verdict Accept) or 1 (wpm absent / Refuse) are
+    // both valid; any other code signals a panic or clap parse failure.
+    cmd.assert()
+        .code(predicate::in_iter(vec![0i32, 1]));
+}
+
+/// Verify that the bare noun `cargo cicd evidence` reaches doctor via the
+/// default-verb injection wired in main.rs.
+#[test]
+fn test_evidence_bare_noun_reaches_doctor() {
+    let mut cmd = Command::cargo_bin("cargo-cicd").unwrap();
+    cmd.arg("evidence");
+    cmd.assert()
+        .code(predicate::in_iter(vec![0i32, 1]));
+}

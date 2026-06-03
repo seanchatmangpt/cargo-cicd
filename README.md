@@ -21,6 +21,7 @@ cargo cicd <command>
 
 | Command | Description |
 |---------|-------------|
+| `cargo cicd evidence doctor` | Adjudicates runtime process evidence via the wasm4pm receipt doctor. Runs `wpm receipt doctor --format json --strict` on the latest process receipt and emits an EvidenceDoctorEvent recording the Accept/Refuse verdict. |
 | `cargo cicd git close` | Performs the lawful branch-close sequence: ensures tests pass, commits any staged evidence, merges to the trunk branch, and emits a GitCloseEvent as a receipt. |
 | `cargo cicd git status` | Surfaces a structured summary of the git working-tree state: branch, ahead/behind counts, staged/unstaged/untracked file counts, and last-commit metadata. |
 | `cargo cicd publish run` | Publishes eligible workspace crates to crates.io after verifying all release readiness conditions are met. Emits a PublishRunEvent that the wasm4pm oracle may audit post-release. |

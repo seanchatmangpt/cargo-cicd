@@ -40,4 +40,13 @@ fi
 
 echo "--- wpm audit: positive evidence ---"
 "$WPM" audit "$EVIDENCE_XES"
+echo ""
+
+echo "--- wpm receipt doctor ---"
+RECEIPT_FILE="$REPO_ROOT/target/cargo-cicd/evidence/receipts/latest.json"
+if [ ! -f "$RECEIPT_FILE" ]; then
+    echo "BLOCKED: receipt not found at $RECEIPT_FILE"
+    exit 1
+fi
+"$WPM" receipt doctor --format json --strict "$RECEIPT_FILE"
 echo "verdict: ACCEPT"

@@ -1,7 +1,7 @@
 changed test plan
 =================
 base ref:         origin/main
-changed .rs:      0
+changed .rs:      3
 affected tests:   0
 no changed test files detected — conservative mode
 recommendation: run 'cargo test' to be safe
