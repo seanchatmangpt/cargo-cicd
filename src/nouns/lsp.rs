@@ -165,6 +165,14 @@ static CICD_CATALOG: &[CicdCodeEntry] = &[
         repair: "run cargo cicd evidence doctor to invoke wpm receipt doctor",
         clears_when: "receipt exists and was adjudicated by wpm",
     },
+    CicdCodeEntry {
+        code: "CICD-WPM-004",
+        title: "verdict_key_mismatch",
+        severity: "Error",
+        observed: "audit surface / verdict reader",
+        repair: "align court output schema with audit reader — court emits overall_fitness; reader must read overall_fitness",
+        clears_when: "regression fixture proves audit reads correct key without silent zero fallback",
+    },
     // TARGET family
     CicdCodeEntry {
         code: "CICD-TARGET-001",
@@ -417,8 +425,10 @@ impl VerbCommand for LspExplainVerb {
     fn about(&self) -> &'static str {
         "Explain a diagnostic code (e.g. CICD-GIT-001)"
     }
-    fn trailing_var_arg(&self) -> bool {
-        true
+    fn additional_args(&self) -> Vec<clap::Arg> {
+        vec![clap::Arg::new("code")
+            .help("Diagnostic code to explain (e.g. CICD-GIT-001)")
+            .required(false)]
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();
@@ -427,8 +437,7 @@ impl VerbCommand for LspExplainVerb {
         let (mut start_evt, t0) = ProcessEvent::started("lsp:explain");
         start_evt.case_id = Some(case_id.clone());
 
-        let codes = args.trailing();
-        let code = codes.first().map(|s| s.to_ascii_uppercase()).unwrap_or_default();
+        let code = args.get_one_str_opt("code").map(|s| s.to_ascii_uppercase()).unwrap_or_default();
 
         let verdict = match CICD_CATALOG.iter().find(|e| e.code == code) {
             Some(entry) => {
@@ -478,6 +487,12 @@ pub fn explain_diagnostic_code(code: &str) -> String {
         "CICD-WPM-001" => "unconfirmed_receipt_court: wpm binary not found or receipt doctor not confirmed. Install wasm4pm or set WPM_BIN env var.".to_string(),
         "CICD-WPM-002" => "capability_scan_missing: wpm capability scan has not been run. Run 'cargo cicd lsp doctor' to check.".to_string(),
         "CICD-WPM-003" => "runtime_court_not_invoked: wpm receipt doctor has not been called for the current evidence. Run 'cargo cicd evidence doctor'.".to_string(),
+        "CICD-WPM-004" => r#"Code:     CICD-WPM-004
+Title:    verdict_key_mismatch
+Severity: Error
+Observed: audit surface / verdict reader
+Repair:   align court output schema with audit reader — court emits overall_fitness; reader must read overall_fitness
+Clears when: regression fixture proves audit reads correct key without silent zero fallback"#.to_string(),
         "CICD-TEST-001" => "changed_test_not_run: changed test files have not been run. Run 'cargo cicd test changed'.".to_string(),
         "CICD-TEST-002" => "trybuild_fixture_changed: trybuild fixtures were modified. Re-run trybuild to confirm.".to_string(),
         "CICD-TARGET-001" => "target_growth_warning: target directory is large. Run 'cargo cicd target show' then 'cargo cicd target prune' if needed.".to_string(),
