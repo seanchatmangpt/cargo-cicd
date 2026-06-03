@@ -425,10 +425,15 @@ impl VerbCommand for LspExplainVerb {
     fn about(&self) -> &'static str {
         "Explain a diagnostic code (e.g. CICD-GIT-001)"
     }
-    fn additional_args(&self) -> Vec<clap::Arg> {
-        vec![clap::Arg::new("code")
-            .help("Diagnostic code to explain (e.g. CICD-GIT-001)")
-            .required(false)]
+    fn build_command(&self) -> clap::Command {
+        clap::Command::new(self.name())
+            .about(self.about())
+            .arg(
+                clap::Arg::new("code")
+                    .help("Diagnostic code to explain (e.g. CICD-GIT-001)")
+                    .required(false)
+                    .index(1),
+            )
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();
@@ -459,7 +464,16 @@ impl VerbCommand for LspExplainVerb {
                 for entry in CICD_CATALOG {
                     eprintln!("  {}  {}", entry.code, entry.title);
                 }
-                "FAIL"
+                let mut complete_evt = ProcessEvent::completed("lsp:explain", t0, "FAIL");
+                complete_evt.case_id = Some(case_id);
+                if let Err(e) =
+                    crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir)
+                {
+                    eprintln!("warning: evidence emission failed: {}", e);
+                }
+                return Err(clap_noun_verb::error::NounVerbError::execution_error(
+                    format!("unknown diagnostic code: {code}"),
+                ));
             }
         };
 

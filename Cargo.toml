@@ -109,6 +109,10 @@ path = "tests/ggen_customization_guard.rs"
 name = "refusal_calibration"
 path = "tests/refusal_calibration.rs"
 
+[[test]]
+name = "lsp_explain"
+path = "tests/lsp_explain.rs"
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"

@@ -13,7 +13,7 @@ use cargo_cicd_core::diagnostics::CicdFinding;
 use crate::analyzers::run_all;
 use crate::protocol::code_action_map::finding_to_actions;
 use crate::protocol::diagnostic_map::finding_to_lsp;
-use crate::server::capabilities::server_capabilities;
+use crate::server::capabilities::build_server_capabilities;
 use cargo_cicd_core::workspace::WorkspaceSnapshot;
 
 /// The LSP backend for cargo-cicd-lsp.
@@ -61,7 +61,7 @@ impl LanguageServer for Backend {
             }
         }
         Ok(InitializeResult {
-            capabilities: server_capabilities(),
+            capabilities: build_server_capabilities(),
             server_info: Some(ServerInfo {
                 name: "cargo-cicd-lsp".to_string(),
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
