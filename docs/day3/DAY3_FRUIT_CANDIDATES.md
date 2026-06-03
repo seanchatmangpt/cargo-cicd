@@ -1,107 +1,140 @@
-# Day 3 Fruit Candidates — cargo-cicd v26.6.2
+# DAY3_FRUIT_CANDIDATES — cargo-cicd v26.6.2
 
-**Generated:** 2026-06-02
-**Branch:** main (ec59465)
-**Baseline:** 155+ tests passing, zero failures
+**Date:** 2026-06-03
+**Re-verified:** 2026-06-02 (Day 3 synthesis agent, git HEAD 00d29c2)
+**Purpose:** Rank Day 3 work candidates by readiness, impact, and scope so the highest-value, lowest-risk item is selected first.
 
 ---
 
-## Scoring Formula
+## FruitScore Formula
 
 ```
-FruitScore = (Impact × ProofReadiness × UserVisibility) / (Risk × Scope)
+FruitScore = (impact * proof_readiness * user_visibility) / (risk * scope)
 ```
 
-Scale 1–5 each axis. Higher score = lower-hanging fruit.
+All dimensions scored 1–5:
+
+| Dimension | Meaning |
+|---|---|
+| impact | How much does completing this improve the system? |
+| proof_readiness | How close is the existing code to done? |
+| user_visibility | How visible is the result to a user? |
+| risk | How likely is this to break something or encounter unknown blockers? |
+| scope | How large is the change? |
+
+Higher FruitScore = more fruit, less work, lower risk.
 
 ---
 
-## Top 3 Candidates
+## Candidate Table
 
-### Rank 1 — Candidate A: CICD-WPM-004 verdict key regression (publish path extension)
-
-**FruitScore: 15.0**
-
-| Axis | Score | Rationale |
-|---|---|---|
-| Impact | 3 | Prevents silent 0.0 fitness masking non-conformance in the publish path |
-| ProofReadiness | 5 | 5 passing tests already in `diagnostics_verdict_key.rs`; schema struct in `cargo-cicd-core`; CICD-WPM-004 registered |
-| UserVisibility | 2 | Schema-level protection; invisible to CLI users directly |
-| Risk | 1 | No new code needed for LSP side; extend only to `publish.rs` key read |
-| Scope | 2 | Narrow: confirm `ReceiptDoctorVerdict` in `publish.rs` reads `overall_fitness`, not `fitness` |
-
-**What exists:** `WpmVerdict::authoritative_fitness()`, 5 unit tests, CICD-WPM-004 diagnostic code, `wpm-verdict-v1.json` schema contract.
-
-**What is missing:** Explicit test asserting `publish.rs` ReceiptDoctor path cannot produce a false Admitted verdict from wrong-key JSON.
-
-**Day3 execution steps:**
-1. Read `src/nouns/publish.rs` lines handling ReceiptDoctorVerdict.
-2. Confirm `serde_json::Value::get` key matches `wpm-verdict-v1.json` contract.
-3. If mismatched: one-line fix. If matched: add a schema-fixture test asserting the contract.
-4. Emit ProcessEvent, verify with XES emit → wpm audit pattern.
+| Rank | Candidate | Impact | Proof Readiness | User Visibility | Risk | Scope | FruitScore | Status |
+|---|---|---|---|---|---|---|---|---|
+| 1 | LSP editor diagnostics proof | 3 | 4 | 4 | 2 | 2 | **12.0** | PARTIAL — clap wiring gap only |
+| 2 | CICD-WPM-004 + regression fixture | 4 | 3 | 3 | 2 | 3 | **6.0** | PARTIAL — catalog present; runtime_court.rs not wired |
+| 3 | Publish gate as adjudicated receipt | 4 | 3 | 4 | 3 | 3 | **5.33** | PARTIAL — fixture present; no test; no receipt schema |
+| 4 | Spec Kit integration | 3 | 1 | 3 | 2 | 5 | **0.9** | NOT STARTED |
+| 5 | LSP fixture coverage expansion | 2 | 4 | 2 | 1 | 3 | **5.33** | PARTIAL — 13 codes lack fixture tests |
 
 ---
 
-### Rank 2 — Candidate B: LSP editor proof — diagnostic JSON from real workspace fixture
+## Candidate Details
 
-**FruitScore: 6.67**
+### 1. LSP editor diagnostics proof — FruitScore 12.0
 
-| Axis | Score | Rationale |
-|---|---|---|
-| Impact | 4 | Closes gap between "unit tests pass" and "editor receives diagnostics" |
-| ProofReadiness | 3 | `backend.rs` complete; `run_all(WorkspaceSnapshot)` tested; gap is wire-level JSON-RPC proof |
-| UserVisibility | 5 | Direct editor integration proof |
-| Risk | 3 | tower-lsp JSON-RPC framing is non-trivial; Law 5 capability defect must be fixed first |
-| Scope | 3 | Medium: fixture workspace + Content-Length framing wrapper + initialize + didOpen flow |
+**Description:** Prove `cargo cicd lsp explain` works end-to-end. Wire the `code` positional arg through clap-noun-verb 26.6.2 `build_command()`. Confirm CICD-GIT-001 and at least 7 catalog codes are reachable. Produce JSON proof of an initialize response and one diagnostic.
 
-**Prerequisite (Law 5 fix):** `backend.rs` uses `server_capabilities()` (no `diagnosticProvider`) instead of `build_server_capabilities()` (declares `DiagnosticServerCapabilities`). One-line fix in `backend.rs` before any test is written.
+**Status:** PARTIAL — run logic implemented; positional arg not wired through `build_command()`.
 
-**Day3 execution steps:**
-1. Fix `backend.rs`: change `server_capabilities()` → `build_server_capabilities()`.
-2. `tests/lsp_initialize_fixture.rs`: spawn binary, send `initialize` JSON-RPC, assert `capabilities.diagnosticProvider` present.
-3. `tests/lsp_did_open_fixture.rs`: send `textDocument/didOpen`, assert `publishDiagnostics` notification or clean shutdown.
-4. Emit XES evidence, run `wpm audit` under `REQUIRE_WPM_ORACLE=1`.
+**Enabling surfaces:**
+- `lsp.rs` `additional_args()` already declares `clap::Arg::new("code")`
+- CICD_CATALOG has 22 entries including CICD-WPM-004
+- `explain_diagnostic_code()` helper covers at least 7 codes
 
----
+**Blocking gaps:**
+- `build_command()` in clap-noun-verb 26.6.2 does not forward `additional_args()` positional args
+- `code` arg is unreachable at runtime without that wiring
 
-### Rank 3 — Candidate D: Publish gate dry-run — invoke `cargo publish --dry-run` after Admitted verdict
-
-**FruitScore: 4.69**
-
-| Axis | Score | Rationale |
-|---|---|---|
-| Impact | 5 | Closes actual release gate: Admitted receipt → dry-run proceeds; Refused/Blocked → dry-run skipped |
-| ProofReadiness | 3 | `ReceiptDoctor` exists; `publish.rs` calls it; CICD-PUBLISH-002 defined; dry-run invocation absent |
-| UserVisibility | 5 | Directly visible: publish halts loudly on non-Admitted verdict |
-| Risk | 4 | Touching the publish gate; Refused path must not break Admitted path |
-| Scope | 4 | Broad: dry-run invocation + error handling + Admitted vs Refused fixture tests |
-
-**What is missing:** `cargo publish --dry-run` is never invoked by the publish verb. The Admitted path proceeds to emit a receipt but does not verify the crate would actually publish.
-
-**Day3 execution steps (scoped minimum):**
-1. Add `cargo publish --dry-run` invocation in `publish.rs` after `ReceiptDoctorVerdict::Admitted`.
-2. Add test: Blocked verdict → dry-run not invoked.
-3. Add test: Admitted verdict (mocked or real wpm) → dry-run invoked and result reported.
-4. Emit XES for both paths.
+**First step:** Locate `build_command()` in clap-noun-verb 26.6.2 crate and add positional arg forwarding from `additional_args()`; verify with `cargo cicd lsp explain CICD-GIT-001` producing JSON receipt.
 
 ---
 
-## Summary Table
+### 2. CICD-WPM-004 + regression fixture — FruitScore 6.0
 
-| Rank | Candidate | FruitScore | Status | Prerequisite |
-|---|---|---|---|---|
-| 1 | A: CICD-WPM-004 publish path | 15.0 | LIVE — extend to publish path | None |
-| 2 | B: LSP editor proof | 6.67 | PARTIAL — Law 5 fix required | Fix `backend.rs` capability function |
-| 3 | D: Publish gate dry-run | 4.69 | PARTIAL — dry-run invocation missing | Admitted path must be stable first |
+**Description:** Wire `verdict_key_mismatch` (CICD-WPM-004) into `analyzers/runtime_court.rs` so it fires when `overall_fitness` key is absent or misnamed in wpm audit output. Add regression fixture proving the diagnostic is emitted correctly.
 
-Candidates C (conformance precision UNSUPPORTED declaration) and E (Spec Kit integration) are excluded from top 3. C is a one-liner with no standalone Day3 value; E has no seam and is deferred.
+**Status:** PARTIAL — catalog entry present; `analyzers/runtime_court.rs` WPM-004 not wired; rendered_surface fixture present but no test file.
+
+**Enabling surfaces:**
+- CICD-WPM-004 catalog entry at `lsp.rs:169`
+- wpm binary present at `/Users/sac/wasm4pm/target/release/wpm` (version 26.5.29)
+- `audit_key_regression_protected=true` implies fitness key shape is known
+
+**Blocking gaps:**
+- `runtime_court.rs` does not emit CICD-WPM-004 on `verdict_key_mismatch`
+- No test file for rendered_surface fixture
+- wpm not in PATH (WPM_PATH env var or known scan path required for CI)
+
+**First step:** Open `analyzers/runtime_court.rs`, add WPM-004 emission branch on `verdict_key_mismatch`, write regression test using the existing rendered_surface fixture, confirm with `cargo test` on that fixture.
 
 ---
 
-## Recommended First Target
+### 3. Publish gate as adjudicated receipt — FruitScore 5.33
 
-**Candidate A: Extend CICD-WPM-004 regression protection to the publish path.**
+**Description:** Replace the boolean cicd.toml publish gate with a receipt that carries wpm verdict + commit hash + timestamp. `cargo publish` readiness is adjudicated by wpm receipt doctor judgment, not a static flag. The receipt must be emitted, persisted, and replayable.
 
-Rationale: highest FruitScore, no prerequisites, all infrastructure already passing, narrowly scoped to one confirmation plus one new fixture test. Candidate B is higher user-visible value but carries a mandatory prerequisite and non-trivial JSON-RPC framing work. Day3 begins with A to secure the publish path key contract, then proceeds to B once Law 5 is fixed.
+**Status:** PARTIAL — `analyzers/publish.rs` fixture present but no test file; wpm binary present but not in PATH.
 
-See `DAY3_RECOMMENDATION.md` for bounded execution steps.
+**Enabling surfaces:**
+- wpm binary at `/Users/sac/wasm4pm/target/release/wpm` (26.5.29)
+- `Wasm4pmShell` shell-out pattern is established
+- `analyzers/publish.rs` fixture present
+
+**Blocking gaps:**
+- No test file for publish analyzer
+- Receipt schema for publish gate not defined
+- wpm receipt doctor `--strict` output contract not documented in cargo-cicd
+
+**First step:** Define the publish receipt struct (`wpm_verdict`, `commit_hash`, `timestamp`, `fitness_at_adjudication`), wire it into `analyzers/publish.rs`, write a test against the existing fixture, confirm receipt is emitted to evidence dir.
+
+---
+
+### 4. Spec Kit integration — FruitScore 0.9
+
+**Description:** Add `.specify` constitution + first spec + task-to-evidence trace mapping. `speckit_present=false`. CICD-SPEC-002 catalog entry exists as forward declaration only. Entirely greenfield.
+
+**Status:** NOT STARTED.
+
+**Blocking gaps:**
+- No `.specify` constitution format defined
+- No spec noun/verb in CLI
+- No task-to-evidence trace mapping schema
+- No test fixtures
+- Entirely greenfield — no existing code to leverage
+
+**First step:** Define the `.specify/constitution.toml` schema (project name, spec format version, required fields), write a parsing module, add `cargo cicd spec show` verb that reads it and emits an evidence event.
+
+---
+
+### 5. Conformance 1.0 feedback closure — FruitScore 0.625
+
+**Description:** Resolve the VARIANCE between internal oracle (fitness 0.9636, TRUTHFUL) and external wpm audit on the same events.xes (fitness 0.8194, VARIANCE). Identify whether the discrepancy is a model mismatch, a XES filter difference, or a replay algorithm difference.
+
+**Status:** VARIANCE — oracle and wpm audit disagree on same XES; root cause unknown.
+
+**Blocking gaps:**
+- Root cause of 0.9636 vs 0.8194 gap is uninvestigated
+- Precision metric absent (null, not documented)
+- No closed-loop model feedback plan exists
+
+**First step:** Run wpm audit on events.xes with verbose trace output; compare the 1 deviating trace (oracle) against the 2 missing traces (wpm) to identify which activities differ between oracle model and wpm replay model.
+
+---
+
+## Recommendation
+
+**Day 3 primary target: LSP editor diagnostics proof (FruitScore 12.0)**
+
+The run logic and CICD_CATALOG lookup are already implemented. The only gap is wiring the `code` positional arg through `build_command()` — a bounded, local fix with no external dependencies, no schema changes, no binary deps, and high user visibility (makes 22 catalog codes externally usable via CLI). Proof is a single JSON receipt from `cargo cicd lsp explain CICD-GIT-001`.
+
+CICD-WPM-004 (6.0) and Publish gate (5.3) are next-tier but both require additional setup (PATH resolution or new receipt schema). Conformance closure (0.625) and Spec Kit (0.9) are low-readiness and should not be Day 3 targets.

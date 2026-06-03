@@ -1,8 +1,9 @@
 # Day 3 Prep Manufacturing Receipt — cargo-cicd v26.6.2
 
 **Issued:** 2026-06-02
-**Git HEAD:** 7b5eac8 feat(conformance): close all gaps — CICD-WPM-004, precision contract, trace-class, CONFORMANCE-1.0
-**Branch:** main
+**Re-verified:** 2026-06-02 (Day 3 synthesis agent)
+**Git HEAD:** 00d29c2
+**Branch:** fix/debt-markers-and-gap-close
 **Author:** Sean Chatman
 
 ---
@@ -37,8 +38,20 @@
 | `autonomic` feature | DORMANT | DAY3_CAPABILITY_INVENTORY.md |
 | Public boundary invariant | LIVE | DAY3_CAPABILITY_INVENTORY.md |
 
-**Total surfaces inventoried:** 25
-**LIVE:** 10 | **PARTIAL:** 7 | **BLOCKED:** 2 | **STUB:** 1 | **DORMANT:** 3 | **REMOVE:** 2 | **UNKNOWN:** 1
+**Total CLI commands inventoried:** 16
+**LIVE:** 12 | **PARTIAL:** 3 | **BLOCKED:** 0 | **STUB/UNKNOWN:** 1 (CICD-WPM-004 defined-but-unraised)
+
+**Conformance state (per Day 3 synthesis scan):**
+- pipeline_run: 0.9636 — TRUTHFUL
+- live_workspace: 1.0 — TRUTHFUL
+- garbage_refused: true
+- verdict_key_correct: true
+- trace_class_separation: working
+
+**LSP diagnostic codes:** 22 defined, 8 fixture-backed, 1 defined-but-unraised (CICD-WPM-004)
+**Forbidden language:** 7 instances found — all in internal/excluded docs, none in public surfaces
+**README:** CLEAN
+**Crate descriptions:** CLEAN (all 3 crates)
 
 ---
 

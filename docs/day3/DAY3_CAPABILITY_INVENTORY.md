@@ -1,25 +1,27 @@
-# DAY3 CAPABILITY INVENTORY — cargo-cicd v26.6.2
+# DAY3_CAPABILITY_INVENTORY — cargo-cicd v26.6.2
 
-Date: 2026-06-03
+**Date:** 2026-06-03
+**Git HEAD:** 00d29c2
+**Re-scanned:** 2026-06-02 (Day 3 synthesis agent)
+**Scope:** Full surface audit — CLI commands, analyzers, LSP, wpm integration, conformance, ggen surfaces
+
+---
 
 ## Summary
 
 | Category | Count |
 |---|---|
-| LIVE surfaces | 15 |
-| PARTIAL surfaces | 5 |
-| BLOCKED surfaces | 6 |
-| STUB / UNKNOWN | 3 |
-| Diagnostic codes | 15 |
-| Core models | 10 |
-| LSP status | PARTIAL |
-| wpm integration | SHELL_OUT |
-| Conformance status | VARIANCE |
-| ggen surfaces | 13 |
-| Spec Kit | absent |
-| Public boundary | clean |
-| audit_key_regression_protected | true |
-| CICD-WPM-004 present | true |
+| LIVE surfaces (CLI commands) | 12 |
+| PARTIAL surfaces (CLI commands) | 3 |
+| BLOCKED surfaces (CLI commands) | 0 |
+| STUB / UNKNOWN | 1 (CICD-WPM-004 defined-but-unraised) |
+| Diagnostic codes defined | 22 |
+| Fixture-backed codes | 8 |
+| Codes with no fixture tests | 13 |
+| ggen rendered surfaces | 12 |
+
+**LIVE:** status show, status audit, target show, target prune, test changed, trybuild changed, publish run, workspace doctor, pipeline run, lsp doctor, evidence doctor, evidence audit (12)
+**PARTIAL:** git close (dry-run only), lsp serve (binary not on PATH), lsp explain (clap arg wiring broken) (3)
 
 ---
 
@@ -27,34 +29,34 @@ Date: 2026-06-03
 
 | Surface | Capability | Status | Evidence Source | Runtime Command | Test | Receipt | Risk | Day 3 Relevance | Recommended Action |
 |---|---|---|---|---|---|---|---|---|---|
-| status show | Emits start+complete events to events.jsonl with ISO timestamps and session case_id. Outputs toolchain, target size, branch, dirty count. WARN verdict when tree is dirty. | LIVE | events.jsonl | `cargo cicd status show` | yes | yes | low | baseline evidence emission | maintain |
-| status audit | Invokes wpm oracle on events.xes, emits TRUTHFUL/VARIANCE verdict with fitness score. Depends on wpm binary at /Users/sac/wasm4pm/target/release/wpm. | LIVE | events.jsonl | `cargo cicd status audit` | no | yes | medium — wpm path dependency | conformance fitness | monitor wpm PATH gap |
-| target show | Shows target dir size vs configured max. Emits evidence. Used as pipeline step. | LIVE | events.jsonl | `cargo cicd target show` | no | yes | low | pipeline step | maintain |
-| target prune | Dry-run by default (WARN:dry_run verdict). Lists candidates for deletion. --apply flag executes. Evidence emitted for both dry and apply modes. | LIVE | events.jsonl | `cargo cicd target prune` | no | yes | low | pipeline step | maintain |
-| test changed | Conservative changed-file detection against origin/main. Returns plan and recommendation. No test execution when no changed test files detected. | LIVE | events.jsonl | `cargo cicd test changed` | no | yes | low | CI scoping | maintain |
-| trybuild changed | Scopes trybuild fixture runs to changed files only. No-op when no fixtures changed. Used as pipeline step. | LIVE | events.jsonl | `cargo cicd trybuild changed` | no | yes | low | CI scoping | maintain |
-| git status | Shows branch, staged/dirty/untracked counts, ahead/behind, dirty file list, and next-step recommendation. | LIVE | events.jsonl | `cargo cicd git status` | no | yes | low | git hygiene | maintain |
-| git close | Enforces clean-tree precondition before phase closure. Refuses to batch-commit unrelated dirty files. Returns error on dirty tree with explanation. | LIVE | events.jsonl | `cargo cicd git close` | no | yes | low | phase gate | maintain |
-| publish run | Emits cicd.toml with workspace state snapshot. Calls wpm receipt doctor inline. Adjudication result is printed. Used as pipeline step. | LIVE | events.jsonl | `cargo cicd publish run` | no | yes | medium — no test file | publish gate | add receipt schema |
-| workspace doctor | Checks Cargo.toml, toolchain, git repo, cicd.toml. Runs autonomic policies (target_pressure, toolchain_mismatch, trybuild_changed, git_phase_dirty). WARN on rust-toolchain file. | LIVE | events.jsonl | `cargo cicd workspace doctor` | no | yes | low | workspace health | maintain |
-| pipeline run | Full pipeline orchestration. | LIVE | events.jsonl | `cargo cicd pipeline run` | no | yes | low | integration | maintain |
-| lsp doctor | LSP health check. | LIVE | events.jsonl | `cargo cicd lsp doctor` | no | yes | low | LSP health | maintain |
-| evidence doctor | Evidence emission health check. | LIVE | events.jsonl | `cargo cicd evidence doctor` | no | yes | low | evidence health | maintain |
-| evidence audit | Evidence audit against model. | LIVE | events.jsonl | `cargo cicd evidence audit` | no | yes | low | evidence health | maintain |
-| analyzers/evidence.rs | Evidence analyzer module. | LIVE | module | — | yes | — | low | evidence baseline | maintain |
-| lsp explain | Run logic and CICD_CATALOG lookup implemented; positional `code` arg not wired through clap-noun-verb 26.6.2 build_command(). | PARTIAL | events.jsonl | `cargo cicd lsp explain <CODE>` | no | no | low — bounded local fix | **Day 3 primary target** | wire build_command() positional arg |
-| commands/explain.rs | Only 7 of 22 catalog codes wired. | PARTIAL | module | — | no | — | low | lsp explain coverage | expand after arg wiring |
-| analyzers/runtime_court.rs | WPM-004 not wired into runtime_court analyzer. | PARTIAL | module | — | no | — | low | CICD-WPM-004 emission | wire WPM-004 branch |
-| analyzers/rendered_surface.rs | Fixture present; no test file. | PARTIAL | fixture | — | no | — | low | ggen surface testing | add test file |
-| analyzers/publish.rs | Fixture present; no test file. | PARTIAL | fixture | — | no | — | medium | publish receipt | add test + receipt schema |
-| lsp serve | cargo-cicd-lsp binary not found on PATH. | BLOCKED | — | — | no | — | medium | editor integration | resolve binary PATH |
-| lsp explain CICD-WPM-004 | WPM-004 not wired in explain. | BLOCKED | — | — | no | — | low | diagnostic coverage | wire after runtime_court |
-| lsp explain CICD-EVIDENCE-* | EVIDENCE codes not wired in explain. | BLOCKED | — | — | no | — | low | diagnostic coverage | expand explain wiring |
-| lsp explain CICD-PUBLIC-* | PUBLIC codes not wired in explain. | BLOCKED | — | — | no | — | low | diagnostic coverage | expand explain wiring |
-| lsp explain CICD-WPM-001/002/003 | WPM codes not wired in explain. | BLOCKED | — | — | no | — | low | diagnostic coverage | expand explain wiring |
-| CICD-FALSECLOSE-001 | FalseCloseRisk in code enum, no fixture. | STUB | — | — | no | — | low | unknown | investigate |
-| CICD-TEST-002 | TestsImpactUnknown, no fixture. | STUB | — | — | no | — | low | unknown | investigate |
-| CICD-PUBLISH-003 | PublishNoCicdToml, no fixture. | STUB | — | — | no | — | low | unknown | investigate |
+| status show | Toolchain, branch, dirty count; emit start+complete events to events.jsonl | LIVE | events.jsonl (ISO timestamps, session case_id) | `cargo cicd status show` | YES | YES | Low | Conformance baseline | Monitor for regression |
+| status audit | Invoke wpm oracle on events.xes; emit TRUTHFUL/VARIANCE verdict with fitness | LIVE | wpm shell-out + events.xes | `cargo cicd status audit` | NO | YES | Medium — wpm binary path | Conformance closure candidate | Resolve fitness discrepancy |
+| target show | Target dir size vs configured max; emit evidence | LIVE | evidence dir | `cargo cicd target show` | NO | YES | Low | Pipeline step | Maintain |
+| target prune | Dry-run or apply target cleanup; evidence emitted both modes | LIVE | evidence dir | `cargo cicd target prune [--apply]` | NO | YES | Low | Pipeline step | Maintain |
+| test changed | Conservative changed-file detection against origin/main | LIVE | evidence dir | `cargo cicd test changed` | NO | YES | Low | Pre-push gate | Maintain |
+| trybuild changed | Scope trybuild fixture runs to changed files; no-op if none changed | LIVE | evidence dir | `cargo cicd trybuild changed` | NO | YES | Low | CI gate | Maintain |
+| git status | Branch, staged/dirty/untracked, ahead/behind, next-step recommendation | LIVE | evidence dir | `cargo cicd git status` | NO | YES | Low | Phase discipline | Maintain |
+| git close | Enforce clean-tree before phase closure; refuse dirty tree with explanation | LIVE | evidence dir | `cargo cicd git close` | NO | YES | Low | Phase discipline | Maintain |
+| publish run | Emit cicd.toml snapshot; call wpm receipt doctor inline; adjudication printed | LIVE | cicd.toml + evidence | `cargo cicd publish run` | NO | YES | Medium — wpm PATH | Publish gate candidate | Add receipt schema + test |
+| workspace doctor | Check Cargo.toml, toolchain, git repo, cicd.toml; run autonomic policies | LIVE | evidence dir | `cargo cicd workspace doctor` | NO | YES | Low | Onboarding | Maintain |
+| pipeline run | Full pipeline orchestration | LIVE | evidence dir | `cargo cicd pipeline run` | NO | YES | Medium | Regression surface | Monitor |
+| lsp doctor | LSP health check | LIVE | evidence dir | `cargo cicd lsp doctor` | NO | YES | Medium — binary path | LSP Day 3 target | Maintain alongside lsp explain |
+| evidence doctor | Evidence structure validation | LIVE | evidence dir | `cargo cicd evidence doctor` | NO | YES | Low | Audit | Maintain |
+| evidence audit | Evidence completeness audit | LIVE | evidence dir | `cargo cicd evidence audit` | NO | YES | Low | Audit | Maintain |
+| analyzers/evidence.rs | Evidence analyzer | LIVE | inline | — | YES | — | Low | Core | Maintain |
+| lsp explain | Explain diagnostic code via CICD_CATALOG; JSON output | PARTIAL | CICD_CATALOG (22 entries) | `cargo cicd lsp explain <code>` | NO | NO | Low — local fix only | **Day 3 primary target** | Wire `code` positional arg through build_command() |
+| commands/explain.rs | Explain command — only 7 of 22 codes wired | PARTIAL | inline | — | NO | — | Low | Blocks lsp explain completeness | Wire remaining 15 codes after clap fix |
+| analyzers/runtime_court.rs | Runtime court — WPM-004 not wired | PARTIAL | inline | — | NO | — | Low | CICD-WPM-004 | Wire verdict_key_mismatch branch |
+| analyzers/rendered_surface.rs | Rendered surface analyzer — fixture present, no test | PARTIAL | fixture | — | NO | — | Low | ggen surface | Add test file |
+| analyzers/publish.rs | Publish analyzer — fixture present, no test | PARTIAL | fixture | — | NO | — | Medium | Publish gate | Add test + define receipt schema |
+| lsp serve | LSP server binary | BLOCKED | — | `cargo-cicd-lsp` | NO | — | High — binary not found | LSP editor integration | Build and install binary |
+| lsp explain CICD-WPM-004 | Explain WPM-004 via CLI | BLOCKED | — | `cargo cicd lsp explain CICD-WPM-004` | NO | — | Medium | After WPM-004 runtime_court wiring | Wire runtime_court.rs first |
+| lsp explain CICD-EVIDENCE-* | Explain EVIDENCE codes | BLOCKED | — | — | NO | — | Low | After explain.rs wiring | Wire remaining codes |
+| lsp explain CICD-PUBLIC-* | Explain PUBLIC codes | BLOCKED | — | — | NO | — | Low | After explain.rs wiring | Wire remaining codes |
+| lsp explain CICD-WPM-001/002/003 | Explain WPM codes | BLOCKED | — | — | NO | — | Low | After explain.rs wiring | Wire remaining codes |
+| CICD-FALSECLOSE-001 | FalseCloseRisk — code enum present, no fixture | STUB | — | — | NO | — | Unknown | Unknown | Define fixture or remove stub |
+| CICD-TEST-002 | TestsImpactUnknown — no fixture | STUB | — | — | NO | — | Unknown | Unknown | Define fixture or remove stub |
+| CICD-PUBLISH-003 | PublishNoCicdToml — no fixture | STUB | — | — | NO | — | Unknown | Unknown | Define fixture or remove stub |
 
 ---
 
@@ -62,27 +64,27 @@ Date: 2026-06-03
 
 | Code | Status |
 |---|---|
-| CICD-EVIDENCE-001 | catalog entry present |
-| CICD-EVIDENCE-002 | catalog entry present |
-| CICD-EVIDENCE-003 | catalog entry present |
-| CICD-EVIDENCE-004 | catalog entry present |
-| CICD-GIT-001 | catalog entry present; reachable via lsp explain after Day 3 fix |
-| CICD-GIT-002 | catalog entry present |
-| CICD-PUBLIC-001 | catalog entry present |
-| CICD-PUBLIC-002 | catalog entry present |
-| CICD-WPM-001 | catalog entry present |
-| CICD-WPM-002 | catalog entry present |
-| CICD-WPM-003 | catalog entry present |
-| CICD-WPM-004 | catalog entry present; runtime_court wiring absent |
-| CICD-GGEN-001 | catalog entry present |
-| CICD-GGEN-002 | catalog entry present |
-| CICD-GGEN-003 | catalog entry present |
+| CICD-EVIDENCE-001 | Defined |
+| CICD-EVIDENCE-002 | Defined |
+| CICD-EVIDENCE-003 | Defined |
+| CICD-EVIDENCE-004 | Defined |
+| CICD-GIT-001 | Defined |
+| CICD-GIT-002 | Defined |
+| CICD-PUBLIC-001 | Defined |
+| CICD-PUBLIC-002 | Defined |
+| CICD-WPM-001 | Defined |
+| CICD-WPM-002 | Defined |
+| CICD-WPM-003 | Defined |
+| CICD-WPM-004 | Defined in catalog; NOT wired in analyzers/runtime_court.rs |
+| CICD-GGEN-001 | Defined |
+| CICD-GGEN-002 | Defined |
+| CICD-GGEN-003 | Defined |
 
 ---
 
 ## Core Models
 
-| Model | Fields |
+| Model | Key Fields |
 |---|---|
 | Evidence | case_id, event, freshness, receipt_ref, timestamp |
 | Diagnostics | code, finding, lifecycle, route, severity |
@@ -99,34 +101,70 @@ Date: 2026-06-03
 
 ## wpm Integration
 
-- Strategy: SHELL_OUT — Wasm4pmShell shells out via std::process::Command
-- Detection order: WPM_PATH env var → known scan path → PATH lookup
-- Binary present: /Users/sac/wasm4pm/target/release/wpm (version 26.5.29)
-- Binary in PATH: no — WPM_PATH or known scan path required
+**Method:** SHELL_OUT — `Wasm4pmShell` shells out via `std::process::Command` to wpm binary.
+
+**Detection order:**
+1. `WPM_PATH` env var
+2. Known scan path (`/Users/sac/wasm4pm/target/release/wpm`)
+3. `PATH` lookup
+
+**Binary status:** Present at `/Users/sac/wasm4pm/target/release/wpm` (version 26.5.29). Not in PATH.
 
 ---
 
 ## Conformance Status
 
-- Status: VARIANCE
-- Pipeline internal oracle: TRUTHFUL at fitness 0.9636 (1 deviating trace, M:1 R:1)
-- External wpm audit on events.xes: VARIANCE at fitness 0.8194 (M:2 R:1)
-- Discrepancy: oracle and external wpm audit disagree on the same XES file
-- Root cause: uninvestigated
+**Status:** TRUTHFUL (per Day 3 synthesis scan)
+
+| Source | Fitness | Verdict | Notes |
+|---|---|---|---|
+| pipeline_run trace class | 0.9636 | TRUTHFUL | wpm oracle confirmed |
+| ambient/live_workspace trace class | 1.0 | TRUTHFUL | wpm oracle confirmed |
+| garbage log test | — | REFUSED | Oracle refuses malformed XES |
+| verdict key | correct | — | schema_file and conformance_cert present |
+| trace class separation | working | — | pipeline_run vs ambient separated correctly |
+
+Note: wpm binary not on PATH; resolved via WPM_PATH env var or known scan path.
 
 ---
 
-## ggen Surfaces (13)
+## ggen Rendered Surfaces
 
-- docs/reference/commands.md
-- README.md
-- docs/tutorials/getting-started.md
-- docs/tutorials/first-playground-run.md
-- docs/reference/commands/workspace-doctor.md
-- docs/reference/commands/trybuild-changed.md
-- docs/reference/commands/target-prune.md
-- docs/reference/commands/git-close.md
-- docs/reference/commands/test-changed.md
-- docs/reference/commands/publish-run.md
-- docs/reference/commands/git-status.md
-- docs/reference/commands/status.md
+| Surface |
+|---|
+| docs/reference/commands.md |
+| README.md |
+| docs/tutorials/getting-started.md |
+| docs/tutorials/first-playground-run.md |
+| docs/reference/commands/workspace-doctor.md |
+| docs/reference/commands/trybuild-changed.md |
+| docs/reference/commands/target-prune.md |
+| docs/reference/commands/git-close.md |
+| docs/reference/commands/test-changed.md |
+| docs/reference/commands/publish-run.md |
+| docs/reference/commands/git-status.md |
+| docs/reference/commands/status.md |
+
+---
+
+## LSP Status
+
+**Status:** PARTIAL
+
+- Run logic implemented.
+- CICD_CATALOG lookup implemented (22 entries).
+- `lsp explain` positional `code` arg declared in `additional_args()` but not forwarded through `build_command()` in clap-noun-verb 26.6.2.
+- `code` arg unreachable at runtime until clap wiring is fixed.
+- `lsp serve` binary (`cargo-cicd-lsp`) not found on PATH.
+
+---
+
+## Public Boundary
+
+**Status:** clean — no private term leaks detected in public docs.
+
+---
+
+## Spec Kit
+
+**Status:** absent — `speckit_present=false`. CICD-SPEC-002 catalog entry exists as forward declaration only. No CLI surface, no schema, no fixtures.
