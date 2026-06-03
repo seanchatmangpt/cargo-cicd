@@ -26,7 +26,7 @@
 //! ```text
 //! cargo-cicd emits: target/cargo-cicd/process/events.jsonl (OCEL-compatible)
 //! wasm4pm consumes: events.jsonl via stable import surface
-//! Prerequisite: wasm4pm-compat nightly ALIVE + receipt ledger schema finalized
+//! Prerequisite: wasm4pm-compat nightly stable + receipt ledger schema finalized
 //! ```
 //!
 //! See: docs/wasm4pm/WASM4PM_INTEGRATION_RECOMMENDATION.md
