@@ -298,37 +298,66 @@ fn is_declared_activity(name: &str) -> bool {
 
 // ── XES emission ──────────────────────────────────────────────────────────────
 
-/// Emit a valid XES event log to `path`, grouping events by `case_id`.
+/// Low-level XES writer: emits all events as-provided, with no activity
+/// filtering, no lifecycle filtering, and timestamp-sorted events per trace.
 ///
-/// Behaviour guarantees:
-/// - Only "complete" lifecycle events are written (start events omit activities
-///   from the token-replay sequence and corrupt token counts — diagnostic finding
-///   `start_complete_affects_fitness = true`).
-/// - Only events whose `concept:name` is in `DECLARED_ACTIVITIES` are included;
-///   noise events such as "git:status" are silently dropped.
-/// - Within each trace, events are sorted by `time:timestamp` ascending so the
-///   DFG-derived Petri net reflects the actual execution order.
-/// - The file is always overwritten (no partial append).
+/// The file is always overwritten (no partial append).
+///
+/// Callers that need production-quality XES (noise-free, complete-only,
+/// declared-activities-only) should use [`emit_xes_filtered`] or
+/// [`append_events`] instead.
 pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
+    emit_xes_impl(events, path, false)
+}
+
+/// Production XES writer for token-replay fitness.
+///
+/// Applies the three quality fixes relative to the raw writer:
+///
+/// 1. **Only "complete" lifecycle events** are written — start events duplicate
+///    activity names in the DFG-derived Petri net and corrupt token counts
+///    (`start_complete_affects_fitness = true`).
+/// 2. **Only declared-model activities** are included — noise events such as
+///    "git:status" are dropped so they do not introduce unmodelled transitions.
+/// 3. **Events are sorted by `time:timestamp` ascending** within each trace so
+///    the DFG reflects the actual execution order.
+///
+/// The file is always overwritten.
+pub fn emit_xes_filtered(events: &[ProcessEvent], path: &Path) -> Result<()> {
+    emit_xes_impl(events, path, true)
+}
+
+/// Emit a fresh XES event log, overwriting any existing file at `path`.
+///
+/// Unlike `append_events` (which accumulates the full session history),
+/// this function writes only the events provided — suitable for writing a
+/// single pipeline run's trace without accumulated noise from prior runs.
+/// Applies the same production filters as [`emit_xes_filtered`].
+pub fn emit_xes_fresh(events: &[ProcessEvent], path: &Path) -> Result<()> {
+    emit_xes_filtered(events, path)
+}
+
+fn emit_xes_impl(events: &[ProcessEvent], path: &Path, filter: bool) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
     // Group events by case_id, preserving insertion order.
-    // Filter: keep only "complete" lifecycle events that belong to declared activities.
     let mut case_order: Vec<String> = Vec::new();
     let mut by_case: std::collections::HashMap<String, Vec<&ProcessEvent>> =
         std::collections::HashMap::new();
 
     for ev in events {
-        // Drop "start" lifecycle events — they duplicate activity names and corrupt
-        // token replay fitness (start_complete_affects_fitness = true).
-        if ev.lifecycle_transition != "complete" {
-            continue;
-        }
-        // Drop noise events not in the declared process model.
-        if !is_declared_activity(&ev.command) {
-            continue;
+        if filter {
+            // Drop "start" lifecycle events — they duplicate activity names and
+            // corrupt token replay fitness (start_complete_affects_fitness = true).
+            if ev.lifecycle_transition != "complete" {
+                continue;
+            }
+            // Drop noise events not in the declared process model.
+            if !is_declared_activity(&ev.command) {
+                continue;
+            }
         }
 
         let key = ev
@@ -349,7 +378,7 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     xml.push_str("  <extension name=\"Lifecycle\" prefix=\"lifecycle\" uri=\"http://www.xes-standard.org/lifecycle.xesext\"/>\n");
 
     for case_id in &case_order {
-        // Sort events within this trace by timestamp ascending.
+        // Always sort events within this trace by timestamp ascending.
         // This ensures the DFG reflects the true execution order and prevents
         // token-replay deviations caused by out-of-order event emission.
         let mut trace_events: Vec<&&ProcessEvent> = by_case[case_id].iter().collect();
@@ -413,15 +442,6 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
 
     std::fs::write(path, xml)?;
     Ok(())
-}
-
-/// Emit a fresh XES event log, overwriting any existing file at `path`.
-///
-/// Unlike `append_events` (which accumulates the full session history),
-/// this function writes only the events provided — suitable for writing a
-/// single pipeline run's trace without accumulated noise from prior runs.
-pub fn emit_xes_fresh(events: &[ProcessEvent], path: &Path) -> Result<()> {
-    emit_xes(events, path)
 }
 
 /// Emit events as newline-delimited JSON to `path`.
@@ -766,7 +786,7 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     }
 
     // Read the full accumulated JSONL back, rebuild XES from all events.
-    // emit_xes applies: noise filter + start-event filter + timestamp sort.
+    // emit_xes_filtered applies: noise filter + start-event filter + timestamp sort.
     let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
     let all_events: Vec<ProcessEvent> = content
         .lines()
@@ -774,7 +794,7 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
         .filter_map(|l| serde_json::from_str(l).ok())
         .collect();
 
-    emit_xes(&all_events, &xes_path)?;
+    emit_xes_filtered(&all_events, &xes_path)?;
 
     // Archive the current XES to history/ for fresh-trace-per-run traceability.
     // Silently ignore archiving errors — archiving is best-effort.

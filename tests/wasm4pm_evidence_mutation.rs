@@ -42,7 +42,7 @@ fn evidence_mutation_empty_xes_refused() {
 fn evidence_mutation_mismatched_tags_refused() {
     let dir = TempDir::new().unwrap();
     let xes_path = dir.path().join("mismatched.xes");
-    let events = vec![ProcessEvent::new("status show", "PASS")];
+    let events = vec![ProcessEvent::new("status:show", "PASS")];
     emit_xes(&events, &xes_path).expect("emit_xes must not fail");
     corrupt_xes_mismatched_tags(&xes_path);
     let oracle = WpmEvidenceOracle::new();
@@ -72,7 +72,7 @@ fn evidence_mutation_binary_garbage_refused() {
 fn evidence_mutation_truncated_xes_refused() {
     let dir = TempDir::new().unwrap();
     let xes_path = dir.path().join("truncated.xes");
-    let events = vec![ProcessEvent::new("status show", "PASS")];
+    let events = vec![ProcessEvent::new("status:show", "PASS")];
     emit_xes(&events, &xes_path).expect("emit_xes must not fail");
     // Truncate to first 20 bytes — cuts off mid-element
     let content = std::fs::read(&xes_path).unwrap();
