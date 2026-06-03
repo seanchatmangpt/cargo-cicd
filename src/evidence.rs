@@ -112,6 +112,15 @@ pub struct ProcessEvent {
     pub verdict_claimed: String,
     /// Elapsed wall-clock milliseconds. `None` for `"start"` events.
     pub duration_ms: Option<u64>,
+    /// Verdict issued by the external wasm4pm oracle after round-trip.
+    /// `None` until adjudication has been performed.
+    pub verdict_adjudicated: Option<String>,
+    /// ISO-8601 UTC timestamp when the oracle responded.
+    /// `None` until adjudication has been performed.
+    pub adjudicated_at: Option<String>,
+    /// Path to the wpm binary used for adjudication.
+    /// `None` until adjudication has been performed.
+    pub oracle_command: Option<String>,
 }
 
 impl ProcessEvent {
@@ -129,6 +138,9 @@ impl ProcessEvent {
             command: command.to_string(),
             verdict_claimed: verdict.to_string(),
             duration_ms: None,
+            verdict_adjudicated: None,
+            adjudicated_at: None,
+            oracle_command: None,
         }
     }
 
@@ -148,6 +160,9 @@ impl ProcessEvent {
             command: command.to_string(),
             verdict_claimed: String::new(),
             duration_ms: None,
+            verdict_adjudicated: None,
+            adjudicated_at: None,
+            oracle_command: None,
         };
         (ev, t0)
     }
@@ -165,6 +180,31 @@ impl ProcessEvent {
             command: command.to_string(),
             verdict_claimed: verdict.to_string(),
             duration_ms: Some(duration_ms),
+            verdict_adjudicated: None,
+            adjudicated_at: None,
+            oracle_command: None,
+        }
+    }
+
+    /// Construct an event that records an oracle adjudication result.
+    ///
+    /// - `command` — the logical event name (e.g. `"evidence:audit"`)
+    /// - `verdict` — the verdict string from the oracle (`"ACCEPT"` or `"REFUSE"`)
+    /// - `oracle` — path to the wpm binary that produced the verdict
+    pub fn new_adjudicated(command: &str, verdict: &str, oracle: &str) -> Self {
+        Self {
+            event_id: new_event_id(command),
+            timestamp_iso: now_iso8601(),
+            case_id: None,
+            lifecycle_transition: "complete".to_string(),
+            workspace_id: "cargo-cicd-workspace".to_string(),
+            repo_path: ".".to_string(),
+            command: command.to_string(),
+            verdict_claimed: "pending_adjudication".to_string(),
+            duration_ms: None,
+            verdict_adjudicated: Some(verdict.to_string()),
+            adjudicated_at: Some(now_iso8601()),
+            oracle_command: Some(oracle.to_string()),
         }
     }
 }
@@ -293,6 +333,24 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
                 xml.push_str(&format!(
                     "      <int key=\"cargo_cicd:duration_ms\" value=\"{}\"/>\n",
                     ms
+                ));
+            }
+            if let Some(ref v) = event.verdict_adjudicated {
+                xml.push_str(&format!(
+                    "      <string key=\"wasm4pm:verdict_adjudicated\" value=\"{}\"/>\n",
+                    escape_xml(v)
+                ));
+            }
+            if let Some(ref ts) = event.adjudicated_at {
+                xml.push_str(&format!(
+                    "      <string key=\"wasm4pm:adjudicated_at\" value=\"{}\"/>\n",
+                    escape_xml(ts)
+                ));
+            }
+            if let Some(ref oracle) = event.oracle_command {
+                xml.push_str(&format!(
+                    "      <string key=\"wasm4pm:oracle_command\" value=\"{}\"/>\n",
+                    escape_xml(oracle)
                 ));
             }
             xml.push_str("    </event>\n");
