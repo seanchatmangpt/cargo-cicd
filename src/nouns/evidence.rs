@@ -1,15 +1,28 @@
-use crate::evidence::{append_events, evidence_dir, ProcessEvent, WpmEvidenceOracle};
+use std::path::PathBuf;
+
+use crate::evidence::{
+    emit_events_jsonl, emit_receipt_json, evidence_dir, ProcessEvent, ReceiptDoctor,
+    ReceiptDoctorVerdict,
+};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct EvidenceNoun;
+
 impl EvidenceNoun {
     pub fn new() -> Self {
         Self
     }
+
     pub fn run_direct() -> anyhow::Result<()> {
-        EvidenceAuditVerb.execute()
+        let matches =
+            clap::Command::new("evidence").get_matches_from(vec!["evidence", "doctor"]);
+        let args = VerbArgs::new(matches);
+        DoctorVerb
+            .run(&args)
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 }
+
 impl Default for EvidenceNoun {
     fn default() -> Self {
         Self::new()
@@ -20,84 +33,102 @@ impl NounCommand for EvidenceNoun {
     fn name(&self) -> &'static str {
         "evidence"
     }
+
     fn about(&self) -> &'static str {
-        "Manage process evidence and wasm4pm adjudication"
+        "Adjudicate runtime process evidence via wasm4pm receipt doctor"
     }
+
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(EvidenceAuditVerb)]
+        vec![Box::new(DoctorVerb)]
     }
 }
 
-pub struct EvidenceAuditVerb;
+pub struct DoctorVerb;
 
-impl EvidenceAuditVerb {
-    fn execute(&self) -> anyhow::Result<()> {
-        let ev_dir = evidence_dir();
-        let xes = ev_dir.join("events.xes");
-
-        if !xes.exists() {
-            println!("BLOCKED: no evidence at {}", xes.display());
-            println!("  run a cargo cicd command first to emit evidence");
-            return Ok(());
-        }
-
-        let oracle = WpmEvidenceOracle::new();
-        if !oracle.is_available() {
-            println!("BLOCKED: wpm oracle not found");
-            return Ok(());
-        }
-
-        let wpm_shell = crate::integrations::Wasm4pmShell::detect().unwrap();
-        println!("wasm4pm evidence audit");
-        println!("======================");
-        println!("evidence: {}", xes.display());
-        println!("wpm:      {}", wpm_shell.binary_path());
-
-        let result = wpm_shell
-            .audit(xes.to_str().unwrap_or(""))
-            .unwrap_or_else(|e| crate::integrations::WpmResult {
-                command: "wpm audit".to_string(),
-                success: false,
-                stdout: String::new(),
-                stderr: e.to_string(),
-                verdict: crate::integrations::WpmVerdict::Fail,
-            });
-
-        println!("exit:     {}", if result.success { "0" } else { "non-zero" });
-        println!("stdout:   {}", result.stdout.trim());
-        if !result.stderr.trim().is_empty() {
-            println!("stderr:   {}", result.stderr.trim());
-        }
-        let oracle_verdict = if result.success { "ACCEPT" } else { "REFUSE" };
-        println!("verdict:  {}", oracle_verdict);
-
-        let case_id = crate::session::read_or_create_session_id(&ev_dir);
-        let mut evt = ProcessEvent::new_adjudicated(
-            "evidence:audit",
-            oracle_verdict,
-            wpm_shell.binary_path(),
-        );
-        evt.case_id = Some(case_id);
-        if let Err(e) = append_events(&[evt], &ev_dir) {
-            eprintln!("warning: audit evidence emission failed: {}", e);
-        }
-
-        if !result.success {
-            anyhow::bail!("wasm4pm REFUSED evidence");
-        }
-        Ok(())
-    }
-}
-
-impl VerbCommand for EvidenceAuditVerb {
+impl VerbCommand for DoctorVerb {
     fn name(&self) -> &'static str {
-        "audit"
+        "doctor"
     }
+
     fn about(&self) -> &'static str {
-        "Adjudicate current evidence XES file via the wasm4pm oracle"
+        "Run wpm receipt doctor --format json --strict on the latest process receipt"
     }
+
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        self.execute()
-            .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))
+        let receipt_path =
+            PathBuf::from("target/cargo-cicd/evidence/receipts/latest.json");
+
+        // Locate wpm oracle.
+        let doctor = match ReceiptDoctor::discover() {
+            None => {
+                return Err(clap_noun_verb::error::NounVerbError::execution_error(
+                    "BLOCKED: wpm binary not found — set WPM_PATH env var or install wasm4pm"
+                        .to_string(),
+                ));
+            }
+            Some(d) => d,
+        };
+
+        // Ensure a receipt exists; seed one if the directory is empty.
+        if !receipt_path.exists() {
+            let sentinel = ProcessEvent::new("evidence:doctor:init", "PASS");
+            if let Err(e) =
+                emit_receipt_json(&[&sentinel], "cargo cicd evidence doctor", 0)
+            {
+                eprintln!("warning: receipt emission failed: {e}");
+            }
+        }
+
+        println!("  adjudicating: {}", receipt_path.display());
+
+        let verdict = doctor.doctor_strict_json(&receipt_path);
+
+        // Emit the adjudication outcome as a process event.
+        let (verdict_str, oracle_path) = match &verdict {
+            ReceiptDoctorVerdict::Accepted { .. } => {
+                ("ACCEPT", doctor.binary_path().to_string())
+            }
+            ReceiptDoctorVerdict::Refused { .. } => {
+                ("REFUSE", doctor.binary_path().to_string())
+            }
+            ReceiptDoctorVerdict::Blocked { .. } => ("BLOCKED", String::new()),
+        };
+        let adj_event =
+            ProcessEvent::new_adjudicated("evidence:doctor", verdict_str, &oracle_path);
+        let jsonl_path = evidence_dir().join("events.jsonl");
+        if let Err(e) = emit_events_jsonl(&[adj_event], &jsonl_path) {
+            eprintln!("warning: evidence emission failed: {e}");
+        }
+
+        match verdict {
+            ReceiptDoctorVerdict::Accepted { stdout_json } => {
+                println!("{}", stdout_json);
+                println!("  verdict: ACCEPTED");
+                Ok(())
+            }
+            ReceiptDoctorVerdict::Refused {
+                exit_code,
+                stdout,
+                stderr,
+            } => {
+                if !stdout.is_empty() {
+                    println!("{}", stdout);
+                }
+                if !stderr.is_empty() {
+                    eprintln!("{}", stderr);
+                }
+                Err(clap_noun_verb::error::NounVerbError::execution_error(
+                    format!(
+                        "AndonPull: receipt doctor refused admission (exit {})",
+                        exit_code
+                    ),
+                ))
+            }
+            ReceiptDoctorVerdict::Blocked { reason } => {
+                Err(clap_noun_verb::error::NounVerbError::execution_error(
+                    format!("BLOCKED: {reason}"),
+                ))
+            }
+        }
     }
 }

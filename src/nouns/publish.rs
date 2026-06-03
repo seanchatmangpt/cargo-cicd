@@ -80,13 +80,8 @@ impl VerbCommand for PublishRunVerb {
             }
             Some(doctor) => {
                 use crate::evidence::ReceiptDoctorVerdict;
-                let git_head = std::process::Command::new("git")
-                    .args(["rev-parse", "--short", "HEAD"])
-                    .output()
-                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                    .unwrap_or_else(|_| "unknown".to_string());
 
-                // Load accumulated events to build receipt
+                // Load accumulated events to build receipt.
                 let jsonl_path = evidence_dir.join("events.jsonl");
                 let events: Vec<crate::evidence::ProcessEvent> = {
                     let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
@@ -98,7 +93,7 @@ impl VerbCommand for PublishRunVerb {
                 };
 
                 let (_receipt_path, verdict) =
-                    doctor.emit_and_adjudicate(&events, &evidence_dir, &git_head);
+                    doctor.emit_and_adjudicate(&events, &evidence_dir, "cargo cicd publish run");
                 match verdict {
                     ReceiptDoctorVerdict::Accepted { ref stdout_json } => {
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(stdout_json) {
