@@ -1,0 +1,16 @@
+# Pre-Publish Receipt: {{ crate.name }} v{{ crate.version }}
+
+Date: {{ receipt.date }}
+
+## Ontology Coverage
+{% for cap in capabilities -%}
+- [x] {{ cap.cli_command }} — {{ cap.description }}
+{% endfor %}
+
+## Playground Matrix
+{% for scenario in scenarios -%}
+- {{ scenario.wasm4pm_expected_verdict | upper }}: {{ scenario.scenario_name }}
+{% endfor %}
+
+## Verdict
+{{ receipt.verdict }}

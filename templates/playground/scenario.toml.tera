@@ -1,0 +1,11 @@
+[scenario]
+name = "{{ scenario.scenario_name }}"
+command = "{{ scenario.command_used }}"
+precondition = "{{ scenario.precondition }}"
+expected_outcome = "{{ scenario.expected_outcome }}"
+evidence_event = "{{ scenario.evidence_event }}"
+wasm4pm_oracle = "{{ scenario.wasm4pm_oracle }}"
+wasm4pm_expected_verdict = "{{ scenario.wasm4pm_expected_verdict }}"
+
+[mutation]
+variant = "{{ scenario.mutation_variant | default(value="none") }}"

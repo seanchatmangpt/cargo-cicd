@@ -1,0 +1,29 @@
+# {{ command.cli_command }}
+
+{{ command.description }}
+
+## Usage
+
+```sh
+{{ command.cli_command }}
+```
+
+<!-- BEGIN ggen:inputs-outputs -->
+## Inputs
+
+{% for input in command.inputs -%}
+- `{{ input }}`
+{% endfor %}
+
+## Outputs
+
+{% for output in command.outputs -%}
+- `{{ output }}`
+{% endfor %}
+<!-- END ggen:inputs-outputs -->
+
+## Evidence
+
+This command emits a `{{ command.evidence_event }}` process event.
+
+Feature flag: `{{ command.feature_required | default(value="default") }}`

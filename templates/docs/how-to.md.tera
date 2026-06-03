@@ -1,0 +1,9 @@
+# How to {{ doc.title }}
+
+{{ doc.task_description }}
+
+## Steps
+
+{% for step in doc.steps -%}
+{{ loop.index }}. {{ step }}
+{% endfor %}

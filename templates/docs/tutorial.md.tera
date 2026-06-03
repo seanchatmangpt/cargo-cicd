@@ -1,0 +1,23 @@
+# Tutorial: {{ doc.title }}
+
+**Audience:** {{ doc.audience }}
+
+## What you will learn
+
+In this tutorial you will:
+{% for cap in doc.capabilities_covered -%}
+- Use `{{ cap.cli_command }}` to {{ cap.description | lower }}
+{% endfor %}
+
+## Steps
+
+{% for step in doc.steps -%}
+### Step {{ loop.index }}: {{ step.title }}
+
+{{ step.body }}
+
+```sh
+{{ step.command }}
+```
+
+{% endfor %}
