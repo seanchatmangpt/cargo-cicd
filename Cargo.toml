@@ -2,9 +2,26 @@
 name = "cargo-cicd"
 version = "26.6.2"
 edition = "2021"
-rust-version = "1.74"
-description = "Local-first CI/CD helpers for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml."
+rust-version = "1.85"
+description = "Local-first CI/CD helper for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml."
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/seanchatmangpt/cargo-cicd"
+homepage = "https://github.com/seanchatmangpt/cargo-cicd"
+readme = "README.md"
+keywords = ["cargo", "ci", "testing", "workspace", "cleanup"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [
+  "/receipts",
+  "/docs/testing",
+  "/docs/release",
+  "/ontology",
+  "/queries",
+  "/templates",
+  "/cicd.toml",
+  "/CLAUDE.md",
+  "/ggen.toml",
+  "/tests/wasm4pm_evidence",
+]
 
 [[bin]]
 name = "cargo-cicd"
@@ -19,7 +36,7 @@ wasm4pm = ["process-data"]  # capability scan complete; integration deferred to 
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-clap-noun-verb = { path = "/Users/sac/clap-noun-verb" }
+clap-noun-verb = { version = "26.5.19" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 anyhow = "1"
