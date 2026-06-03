@@ -1,0 +1,109 @@
+[package]
+name = "cargo-cicd"
+version = "26.6.2"
+edition = "2021"
+rust-version = "1.85"
+description = "Local-first CI/CD helper for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/seanchatmangpt/cargo-cicd"
+homepage = "https://github.com/seanchatmangpt/cargo-cicd"
+readme = "README.md"
+keywords = ["cargo", "ci", "testing", "workspace", "cleanup"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [
+  "/receipts",
+  "/docs/testing",
+  "/docs/release",
+  "/docs/deferred",
+  "/docs/wasm4pm",
+  "/ontology",
+  "/queries",
+  "/templates",
+  "/cicd.toml",
+  "/CLAUDE.md",
+  "/ggen.toml",
+  "/tests/wasm4pm_evidence",
+]
+
+[[bin]]
+name = "cargo-cicd"
+path = "src/main.rs"
+
+[features]
+default = []
+process-data = []
+autonomic = ["process-data"]
+contrib = ["process-data"]
+wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
+
+[dependencies]
+cargo-cicd-core = { path = "../cargo-cicd-core" }
+clap = { version = "4", features = ["derive"] }
+clap-noun-verb = "26.6.2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+anyhow = "1"
+walkdir = "2"
+serde_json = "1"
+
+[[test]]
+name = "feature_projection"
+path = "tests/feature_projection.rs"
+
+[[test]]
+name = "cli"
+harness = true
+path = "tests/cli/command_projection.rs"
+
+[[test]]
+name = "cicd_toml_truth"
+path = "tests/cicd_toml_truth.rs"
+
+[[test]]
+name = "autonomic_policies"
+path = "tests/autonomic_policies.rs"
+
+[[test]]
+name = "changed_tests"
+path = "tests/changed_tests.rs"
+
+[[test]]
+name = "git_phase_closure"
+path = "tests/git_phase_closure.rs"
+
+[[test]]
+name = "invariants"
+path = "tests/invariants.rs"
+
+[[test]]
+name = "wasm4pm_harness"
+path = "tests/wasm4pm_harness.rs"
+harness = true
+
+[[test]]
+name = "wasm4pm_evidence_gate"
+path = "tests/wasm4pm_evidence_gate.rs"
+harness = true
+
+[[test]]
+name = "wasm4pm_evidence_mutation"
+path = "tests/wasm4pm_evidence_mutation.rs"
+harness = true
+
+[[test]]
+name = "wasm4pm_refusal_cases"
+path = "tests/wasm4pm_refusal_cases.rs"
+
+[[test]]
+name = "ggen_customization_guard"
+path = "tests/ggen_customization_guard.rs"
+
+[[test]]
+name = "refusal_calibration"
+path = "tests/refusal_calibration.rs"
+
+[dev-dependencies]
+assert_cmd = "2"
+tempfile = "3"
+predicates = "3"
+toml = "0.8"
