@@ -59,18 +59,6 @@ fn main() -> Result<()> {
     let noun = raw.get(1).map(String::as_str).unwrap_or("").to_string();
     let verb_arg = raw.get(2).map(String::as_str).unwrap_or("").to_string();
 
-    // Intercept `lsp explain <CODE>` before clap so the positional CODE arg is not rejected.
-    if noun == "lsp" && verb_arg == "explain" {
-        let code = raw.get(3).map(String::as_str).unwrap_or("");
-        if code.is_empty() || code.starts_with('-') {
-            println!("Usage: cargo cicd lsp explain <CODE>");
-            println!("Examples:  cargo cicd lsp explain CICD-GIT-001");
-        } else {
-            println!("{}", nouns::lsp::explain_diagnostic_code(code));
-        }
-        return Ok(());
-    }
-
     let is_help_flag = matches!(verb_arg.as_str(), "--help" | "-h");
     let needs_default = matches!(
         noun.as_str(),

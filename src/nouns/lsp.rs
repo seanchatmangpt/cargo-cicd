@@ -241,11 +241,8 @@ impl VerbCommand for LspExplainVerb {
     fn about(&self) -> &'static str {
         "Explain a diagnostic code (e.g. CICD-GIT-001)"
     }
-    fn additional_args(&self) -> Vec<clap::Arg> {
-        vec![clap::Arg::new("CODE")
-            .help("Diagnostic code to explain (e.g. CICD-GIT-001)")
-            .required(true)
-            .index(1)]
+    fn trailing_var_arg(&self) -> bool {
+        true
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();
@@ -254,10 +251,8 @@ impl VerbCommand for LspExplainVerb {
         let (mut start_evt, t0) = ProcessEvent::started("lsp:explain");
         start_evt.case_id = Some(case_id.clone());
 
-        let code = args
-            .get_one_str_opt("CODE")
-            .unwrap_or_default()
-            .to_ascii_uppercase();
+        let codes = args.trailing();
+        let code = codes.first().map(|s| s.to_ascii_uppercase()).unwrap_or_default();
 
         let verdict = match CICD_CATALOG.iter().find(|e| e.code == code) {
             Some(entry) => {
