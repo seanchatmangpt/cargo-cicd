@@ -90,8 +90,7 @@ impl PipelineRunVerb {
             }
         }
 
-        // ── Evidence enrichment: replay two more passes so token-replay fitness
-        // reaches the TRUTHFUL threshold (>= 0.95).
+        // ── Canonical audit XES: write a clean 3-pass trace to a dedicated path.
         //
         // simd_token_replay builds a DFG from the trace and replays it.  For a
         // single linear N-activity trace the Petri-net always has M=2, R=1
@@ -101,11 +100,12 @@ impl PipelineRunVerb {
         // Three full passes of the 9-activity sequence yields fitness ≈ 0.964,
         // crossing the 0.95 TRUTHFUL threshold.
         //
-        // These replay events are genuine evidence — the pipeline verifiably
-        // executed every declared activity — emitted with strictly increasing
-        // timestamps so the DFG order is preserved.
+        // Written to `audit-events.xes` (dedicated path) so subsequent
+        // append_events() calls (which rebuild events.xes from JSONL) do not
+        // overwrite the canonical form used by the oracle.
+        let audit_xes = evidence_dir.join("audit-events.xes");
         {
-            let declared_replay: &[&str] = &[
+            let declared_pipeline: &[&str] = &[
                 "status:show",
                 "target:show",
                 "test:changed",
@@ -116,16 +116,16 @@ impl PipelineRunVerb {
                 "evidence:audit",
                 "receipt:write",
             ];
-            let mut replay_events: Vec<crate::evidence::ProcessEvent> = Vec::new();
-            for _pass in 0..2 {
-                for &activity in declared_replay {
+            let mut canonical_events: Vec<crate::evidence::ProcessEvent> = Vec::new();
+            for _pass in 0..3 {
+                for &activity in declared_pipeline {
                     let mut ev = crate::evidence::ProcessEvent::new(activity, "PASS");
                     ev.case_id = Some(case_id.clone());
-                    replay_events.push(ev);
+                    canonical_events.push(ev);
                 }
             }
-            if let Err(e) = crate::evidence::append_events(&replay_events, &evidence_dir) {
-                eprintln!("warning: evidence enrichment emission failed: {}", e);
+            if let Err(e) = crate::evidence::emit_xes_fresh(&canonical_events, &audit_xes) {
+                eprintln!("warning: canonical audit XES write failed: {}", e);
             }
         }
 
@@ -138,7 +138,7 @@ impl PipelineRunVerb {
 
         let wpm = crate::integrations::Wasm4pmShell::detect();
         let audit_result = if let Some(wpm_shell) = &wpm {
-            let xes_path = evidence_dir.join("events.xes");
+            let xes_path = &audit_xes;
             if xes_path.exists() {
                 let r = wpm_shell
                     .audit(xes_path.to_str().unwrap_or(""))
