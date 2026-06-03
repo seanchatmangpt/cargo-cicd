@@ -59,8 +59,10 @@ fn main() -> Result<()> {
     let noun = raw.get(1).map(String::as_str).unwrap_or("").to_string();
     let verb_arg = raw.get(2).map(String::as_str).unwrap_or("").to_string();
     let is_help_flag = matches!(verb_arg.as_str(), "--help" | "-h");
-    let needs_default = matches!(noun.as_str(), "status" | "publish" | "workspace" | "evidence")
-        && (verb_arg.is_empty() || (verb_arg.starts_with('-') && !is_help_flag));
+    let needs_default = matches!(
+        noun.as_str(),
+        "status" | "publish" | "workspace" | "evidence"
+    ) && (verb_arg.is_empty() || (verb_arg.starts_with('-') && !is_help_flag));
 
     // Inject default verbs into local args (used only for reference, not for cli.run()).
     let _args = inject_default_verbs(raw);

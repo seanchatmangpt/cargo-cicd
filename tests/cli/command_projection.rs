@@ -142,8 +142,7 @@ fn test_evidence_doctor_runs() {
     cmd.args(["evidence", "doctor"]);
     // Exit 0 (wpm present + verdict Accept) or 1 (wpm absent / Refuse) are
     // both valid; any other code signals a panic or clap parse failure.
-    cmd.assert()
-        .code(predicate::in_iter(vec![0i32, 1]));
+    cmd.assert().code(predicate::in_iter(vec![0i32, 1]));
 }
 
 /// Verify that the bare noun `cargo cicd evidence` reaches doctor via the
@@ -152,6 +151,5 @@ fn test_evidence_doctor_runs() {
 fn test_evidence_bare_noun_reaches_doctor() {
     let mut cmd = Command::cargo_bin("cargo-cicd").unwrap();
     cmd.arg("evidence");
-    cmd.assert()
-        .code(predicate::in_iter(vec![0i32, 1]));
+    cmd.assert().code(predicate::in_iter(vec![0i32, 1]));
 }

@@ -18,9 +18,7 @@ impl EvidenceNoun {
         // subcommand parsing — the bare-noun path has no subcommand context.
         let matches = clap::Command::new("evidence").get_matches_from(vec!["evidence"]);
         let args = VerbArgs::new(matches);
-        DoctorVerb
-            .run(&args)
-            .map_err(|e| anyhow::anyhow!("{}", e))
+        DoctorVerb.run(&args).map_err(|e| anyhow::anyhow!("{}", e))
     }
 }
 
@@ -56,8 +54,7 @@ impl VerbCommand for DoctorVerb {
     }
 
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let receipt_path =
-            PathBuf::from("target/cargo-cicd/evidence/receipts/latest.json");
+        let receipt_path = PathBuf::from("target/cargo-cicd/evidence/receipts/latest.json");
 
         // Locate wpm oracle.
         let doctor = match ReceiptDoctor::discover() {
@@ -73,9 +70,7 @@ impl VerbCommand for DoctorVerb {
         // Ensure a receipt exists; seed one if the directory is empty.
         if !receipt_path.exists() {
             let sentinel = ProcessEvent::new("evidence:doctor:init", "PASS");
-            if let Err(e) =
-                emit_receipt_json(&[&sentinel], "cargo cicd evidence doctor", 0)
-            {
+            if let Err(e) = emit_receipt_json(&[&sentinel], "cargo cicd evidence doctor", 0) {
                 eprintln!("warning: receipt emission failed: {e}");
             }
         }
@@ -86,16 +81,11 @@ impl VerbCommand for DoctorVerb {
 
         // Emit the adjudication outcome as a process event.
         let (verdict_str, oracle_path) = match &verdict {
-            ReceiptDoctorVerdict::Accepted { .. } => {
-                ("ACCEPT", doctor.binary_path().to_string())
-            }
-            ReceiptDoctorVerdict::Refused { .. } => {
-                ("REFUSE", doctor.binary_path().to_string())
-            }
+            ReceiptDoctorVerdict::Accepted { .. } => ("ACCEPT", doctor.binary_path().to_string()),
+            ReceiptDoctorVerdict::Refused { .. } => ("REFUSE", doctor.binary_path().to_string()),
             ReceiptDoctorVerdict::Blocked { .. } => ("BLOCKED", String::new()),
         };
-        let adj_event =
-            ProcessEvent::new_adjudicated("evidence:doctor", verdict_str, &oracle_path);
+        let adj_event = ProcessEvent::new_adjudicated("evidence:doctor", verdict_str, &oracle_path);
         let jsonl_path = evidence_dir().join("events.jsonl");
         if let Err(e) = emit_events_jsonl(&[adj_event], &jsonl_path) {
             eprintln!("warning: evidence emission failed: {e}");
@@ -125,11 +115,9 @@ impl VerbCommand for DoctorVerb {
                     ),
                 ))
             }
-            ReceiptDoctorVerdict::Blocked { reason } => {
-                Err(clap_noun_verb::error::NounVerbError::execution_error(
-                    format!("BLOCKED: {reason}"),
-                ))
-            }
+            ReceiptDoctorVerdict::Blocked { reason } => Err(
+                clap_noun_verb::error::NounVerbError::execution_error(format!("BLOCKED: {reason}")),
+            ),
         }
     }
 }

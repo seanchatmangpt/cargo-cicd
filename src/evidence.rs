@@ -271,10 +271,43 @@ impl WpmEvidenceOracle {
 
 // ── Emission ──────────────────────────────────────────────────────────────────
 
+// ── Declared model activities ─────────────────────────────────────────────────
+
+/// The 10 activities declared in cicd-process.powl.json.
+///
+/// Only these activities are written to events.xes for token-replay fitness.
+/// Noise events (e.g. "git:status") are excluded from the XES trace so they
+/// do not corrupt the DFG-derived Petri net with unmodelled transitions.
+const DECLARED_ACTIVITIES: &[&str] = &[
+    "status:show",
+    "status:audit",
+    "target:show",
+    "target:prune",
+    "test:changed",
+    "trybuild:changed",
+    "workspace:doctor",
+    "publish:run",
+    "evidence:audit",
+    "receipt:write",
+];
+
+/// Returns `true` if `name` is one of the 10 declared model activities.
+fn is_declared_activity(name: &str) -> bool {
+    DECLARED_ACTIVITIES.contains(&name)
+}
+
+// ── XES emission ──────────────────────────────────────────────────────────────
+
 /// Emit a valid XES event log to `path`, grouping events by `case_id`.
 ///
-/// - Events that share the same `case_id` (or both have `None`) are placed in
-///   the same `<trace>`.
+/// Behaviour guarantees:
+/// - Only "complete" lifecycle events are written (start events omit activities
+///   from the token-replay sequence and corrupt token counts — diagnostic finding
+///   `start_complete_affects_fitness = true`).
+/// - Only events whose `concept:name` is in `DECLARED_ACTIVITIES` are included;
+///   noise events such as "git:status" are silently dropped.
+/// - Within each trace, events are sorted by `time:timestamp` ascending so the
+///   DFG-derived Petri net reflects the actual execution order.
 /// - The file is always overwritten (no partial append).
 pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
@@ -282,11 +315,22 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     }
 
     // Group events by case_id, preserving insertion order.
+    // Filter: keep only "complete" lifecycle events that belong to declared activities.
     let mut case_order: Vec<String> = Vec::new();
     let mut by_case: std::collections::HashMap<String, Vec<&ProcessEvent>> =
         std::collections::HashMap::new();
 
     for ev in events {
+        // Drop "start" lifecycle events — they duplicate activity names and corrupt
+        // token replay fitness (start_complete_affects_fitness = true).
+        if ev.lifecycle_transition != "complete" {
+            continue;
+        }
+        // Drop noise events not in the declared process model.
+        if !is_declared_activity(&ev.command) {
+            continue;
+        }
+
         let key = ev
             .case_id
             .clone()
@@ -305,14 +349,19 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     xml.push_str("  <extension name=\"Lifecycle\" prefix=\"lifecycle\" uri=\"http://www.xes-standard.org/lifecycle.xesext\"/>\n");
 
     for case_id in &case_order {
-        let trace_events = &by_case[case_id];
+        // Sort events within this trace by timestamp ascending.
+        // This ensures the DFG reflects the true execution order and prevents
+        // token-replay deviations caused by out-of-order event emission.
+        let mut trace_events: Vec<&&ProcessEvent> = by_case[case_id].iter().collect();
+        trace_events.sort_by(|a, b| a.timestamp_iso.cmp(&b.timestamp_iso));
+
         xml.push_str("  <trace>\n");
         xml.push_str(&format!(
             "    <string key=\"concept:name\" value=\"{}\"/>\n",
             escape_xml(case_id)
         ));
 
-        for event in trace_events {
+        for event in &trace_events {
             xml.push_str("    <event>\n");
             xml.push_str(&format!(
                 "      <string key=\"concept:name\" value=\"{}\"/>\n",
@@ -366,6 +415,15 @@ pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Emit a fresh XES event log, overwriting any existing file at `path`.
+///
+/// Unlike `append_events` (which accumulates the full session history),
+/// this function writes only the events provided — suitable for writing a
+/// single pipeline run's trace without accumulated noise from prior runs.
+pub fn emit_xes_fresh(events: &[ProcessEvent], path: &Path) -> Result<()> {
+    emit_xes(events, path)
+}
+
 /// Emit events as newline-delimited JSON to `path`.
 ///
 /// Each line is a JSON object with `event_id`, `command`,
@@ -415,7 +473,11 @@ pub enum ReceiptDoctorVerdict {
     /// `state == "Admitted"` — receipt accepted.
     Accepted { stdout_json: String },
     /// `state == "Refused"` or exit code 1.
-    Refused { exit_code: i32, stdout: String, stderr: String },
+    Refused {
+        exit_code: i32,
+        stdout: String,
+        stderr: String,
+    },
     /// wpm binary unavailable.
     Blocked { reason: String },
 }
@@ -438,13 +500,17 @@ impl ReceiptDoctor {
         ];
         for c in candidates {
             if !c.is_empty() && Path::new(&c).is_file() {
-                return Some(Self { wpm_path: PathBuf::from(c) });
+                return Some(Self {
+                    wpm_path: PathBuf::from(c),
+                });
             }
         }
         if let Ok(output) = std::process::Command::new("which").arg("wpm").output() {
             let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !p.is_empty() && Path::new(&p).is_file() {
-                return Some(Self { wpm_path: PathBuf::from(p) });
+                return Some(Self {
+                    wpm_path: PathBuf::from(p),
+                });
             }
         }
         None
@@ -458,24 +524,40 @@ impl ReceiptDoctor {
 
     pub fn doctor_strict_json(&self, receipt_path: &Path) -> ReceiptDoctorVerdict {
         let output = match std::process::Command::new(&self.wpm_path)
-            .args(["receipt", "doctor", "--format", "json", "--strict",
-                   receipt_path.to_str().unwrap_or("")])
+            .args([
+                "receipt",
+                "doctor",
+                "--format",
+                "json",
+                "--strict",
+                receipt_path.to_str().unwrap_or(""),
+            ])
             .output()
         {
             Ok(o) => o,
-            Err(e) => return ReceiptDoctorVerdict::Blocked { reason: e.to_string() },
+            Err(e) => {
+                return ReceiptDoctorVerdict::Blocked {
+                    reason: e.to_string(),
+                }
+            }
         };
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let exit_code = output.status.code().unwrap_or(-1);
         if exit_code == 0 {
-            ReceiptDoctorVerdict::Accepted { stdout_json: stdout }
+            ReceiptDoctorVerdict::Accepted {
+                stdout_json: stdout,
+            }
         } else {
-            ReceiptDoctorVerdict::Refused { exit_code, stdout, stderr }
+            ReceiptDoctorVerdict::Refused {
+                exit_code,
+                stdout,
+                stderr,
+            }
         }
     }
 
-/// Emit a receipt for `events` and adjudicate it in a single wpm call.
+    /// Emit a receipt for `events` and adjudicate it in a single wpm call.
     ///
     /// Hash fields are intentionally omitted so `CanonicalHashVerifier` is skipped;
     /// adjudication relies on structural correctness only.
@@ -525,7 +607,11 @@ fn simple_hex_hash(data: &[u8]) -> String {
 /// - No `alignment`, `challenge_nonce`, `runtime_observer`, or `all_real` to avoid
 ///   `SelfCertifiedAlignment`, `ChallengeNonceVerifier`, and `ClosureOverclaimDetector`.
 /// - All string values avoid the forbidden evidence markers list.
-pub fn build_receipt_json(events: &[&ProcessEvent], command: &str, exit_code: i32) -> serde_json::Value {
+pub fn build_receipt_json(
+    events: &[&ProcessEvent],
+    command: &str,
+    exit_code: i32,
+) -> serde_json::Value {
     let now = now_iso8601();
 
     // Expected: declared cargo-cicd process model (static, version-stamped).
@@ -546,11 +632,13 @@ pub fn build_receipt_json(events: &[&ProcessEvent], command: &str, exit_code: i3
     let mut obs_events: Vec<serde_json::Value> = events
         .iter()
         .filter(|ev| ev.lifecycle_transition == "complete")
-        .map(|ev| serde_json::json!({
-            "id":        ev.event_id.as_str(),
-            "type":      ev.command.as_str(),
-            "timestamp": ev.timestamp_iso.as_str()
-        }))
+        .map(|ev| {
+            serde_json::json!({
+                "id":        ev.event_id.as_str(),
+                "type":      ev.command.as_str(),
+                "timestamp": ev.timestamp_iso.as_str()
+            })
+        })
         .collect();
 
     // Sentinel ensures events list is never empty.
@@ -624,7 +712,11 @@ fn git_head_short() -> String {
 /// Write a receipt to `target/cargo-cicd/evidence/receipts/latest.json`.
 ///
 /// Returns the path the receipt was written to.
-pub fn emit_receipt_json(events: &[&ProcessEvent], command: &str, exit_code: i32) -> Result<PathBuf> {
+pub fn emit_receipt_json(
+    events: &[&ProcessEvent],
+    command: &str,
+    exit_code: i32,
+) -> Result<PathBuf> {
     let dir = PathBuf::from("target/cargo-cicd/evidence/receipts");
     std::fs::create_dir_all(&dir)?;
     let path = dir.join("latest.json");
@@ -639,6 +731,15 @@ pub fn emit_receipt_json(events: &[&ProcessEvent], command: &str, exit_code: i32
 /// This is the canonical emission path. It is safe to call from multiple
 /// commands in the same session — each call appends rather than overwrites,
 /// so the XES always reflects the complete session history.
+///
+/// The XES written here applies the three quality fixes:
+/// - Noise events excluded (only DECLARED_ACTIVITIES pass through).
+/// - Start lifecycle events excluded (start_complete_affects_fitness = true).
+/// - Events sorted by timestamp within each trace.
+///
+/// Additionally, each invocation archives `events.xes` to
+/// `<evidence_dir>/history/<timestamp>-events.xes` so individual pipeline
+/// runs are preserved for forensic inspection (fresh-trace-per-run).
 pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()> {
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -651,7 +752,8 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     let jsonl_path = evidence_dir.join("events.jsonl");
     let xes_path = evidence_dir.join("events.xes");
 
-    // Append new events to the JSONL file.
+    // Append new events to the JSONL file (full fidelity — includes start and noise events
+    // for debug purposes; filtering happens only in emit_xes).
     {
         let mut f = OpenOptions::new()
             .create(true)
@@ -664,6 +766,7 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     }
 
     // Read the full accumulated JSONL back, rebuild XES from all events.
+    // emit_xes applies: noise filter + start-event filter + timestamp sort.
     let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
     let all_events: Vec<ProcessEvent> = content
         .lines()
@@ -672,6 +775,16 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
         .collect();
 
     emit_xes(&all_events, &xes_path)?;
+
+    // Archive the current XES to history/ for fresh-trace-per-run traceability.
+    // Silently ignore archiving errors — archiving is best-effort.
+    let history_dir = evidence_dir.join("history");
+    if std::fs::create_dir_all(&history_dir).is_ok() {
+        let ts = now_iso8601().replace(['-', ':', '.', 'T', 'Z'], "");
+        let archive_path = history_dir.join(format!("{}-events.xes", ts));
+        let _ = std::fs::copy(&xes_path, archive_path);
+    }
+
     Ok(())
 }
 
@@ -763,7 +876,10 @@ mod tests {
 
         assert!(receipt.get("receipt_id").is_some(), "missing receipt_id");
         assert!(receipt.get("producer").is_some(), "missing producer");
-        assert!(receipt.get("producer_version").is_some(), "missing producer_version");
+        assert!(
+            receipt.get("producer_version").is_some(),
+            "missing producer_version"
+        );
         assert!(receipt.get("created_at").is_some(), "missing created_at");
         assert!(receipt.get("repo_path").is_some(), "missing repo_path");
         assert!(receipt.get("git_head").is_some(), "missing git_head");
@@ -783,7 +899,9 @@ mod tests {
     fn build_receipt_json_algorithms_non_empty() {
         let ev = make_complete_event("evt-003", "cargo cicd build");
         let receipt = build_receipt_json(&[&ev], "cargo cicd build", 0);
-        let algos = receipt["algorithms"].as_array().expect("algorithms must be array");
+        let algos = receipt["algorithms"]
+            .as_array()
+            .expect("algorithms must be array");
         assert!(!algos.is_empty(), "algorithms array must not be empty");
     }
 
@@ -798,21 +916,45 @@ mod tests {
         assert!(algo.get("algorithm_id").is_some(), "missing algorithm_id");
         let expected_path = algo.get("expected_path").expect("missing expected_path");
         let observed_path = algo.get("observed_path").expect("missing observed_path");
-        let boundary = algo.get("boundary_evidence").expect("missing boundary_evidence");
+        let boundary = algo
+            .get("boundary_evidence")
+            .expect("missing boundary_evidence");
 
         // expected_path must have route_id + expected_ocel2 with ocel-version
-        assert!(expected_path.get("route_id").is_some(), "expected_path missing route_id");
-        let exp_ocel = expected_path.get("expected_ocel2").expect("missing expected_ocel2");
-        assert_eq!(exp_ocel["ocel-version"], "2.0", "expected_ocel2 ocel-version must be 2.0");
+        assert!(
+            expected_path.get("route_id").is_some(),
+            "expected_path missing route_id"
+        );
+        let exp_ocel = expected_path
+            .get("expected_ocel2")
+            .expect("missing expected_ocel2");
+        assert_eq!(
+            exp_ocel["ocel-version"], "2.0",
+            "expected_ocel2 ocel-version must be 2.0"
+        );
 
         // observed_path must have route_id + observed_ocel2 with ocel-version
-        assert!(observed_path.get("route_id").is_some(), "observed_path missing route_id");
-        let obs_ocel = observed_path.get("observed_ocel2").expect("missing observed_ocel2");
-        assert_eq!(obs_ocel["ocel-version"], "2.0", "observed_ocel2 ocel-version must be 2.0");
+        assert!(
+            observed_path.get("route_id").is_some(),
+            "observed_path missing route_id"
+        );
+        let obs_ocel = observed_path
+            .get("observed_ocel2")
+            .expect("missing observed_ocel2");
+        assert_eq!(
+            obs_ocel["ocel-version"], "2.0",
+            "observed_ocel2 ocel-version must be 2.0"
+        );
 
         // boundary_evidence must have exit_code and command
-        assert!(boundary.get("exit_code").is_some(), "boundary_evidence missing exit_code");
-        assert!(boundary.get("command").is_some(), "boundary_evidence missing command");
+        assert!(
+            boundary.get("exit_code").is_some(),
+            "boundary_evidence missing exit_code"
+        );
+        assert!(
+            boundary.get("command").is_some(),
+            "boundary_evidence missing command"
+        );
     }
 
     /// boundary_evidence exit_code must reflect the value passed to the function.
@@ -834,7 +976,10 @@ mod tests {
         let obs_events = receipt["algorithms"][0]["observed_path"]["observed_ocel2"]["events"]
             .as_array()
             .expect("observed events must be array");
-        assert!(!obs_events.is_empty(), "observed events must not be empty (sentinel required)");
+        assert!(
+            !obs_events.is_empty(),
+            "observed events must not be empty (sentinel required)"
+        );
     }
 
     /// Only "complete" lifecycle events must appear in the observed OCEL; "start"
@@ -850,12 +995,15 @@ mod tests {
 
         // Should have: 1 complete event + 1 sentinel = 2 total; start must be absent.
         assert_eq!(obs_events.len(), 2, "expected 1 complete + 1 sentinel");
-        let ids: Vec<&str> = obs_events
-            .iter()
-            .filter_map(|e| e["id"].as_str())
-            .collect();
-        assert!(ids.contains(&"evt-complete"), "complete event must be present");
-        assert!(!ids.contains(&"evt-start"), "start event must be filtered out");
+        let ids: Vec<&str> = obs_events.iter().filter_map(|e| e["id"].as_str()).collect();
+        assert!(
+            ids.contains(&"evt-complete"),
+            "complete event must be present"
+        );
+        assert!(
+            !ids.contains(&"evt-start"),
+            "start event must be filtered out"
+        );
     }
 
     /// emit_receipt_json must write a valid JSON file at the expected path.
@@ -872,10 +1020,18 @@ mod tests {
         let path = emit_receipt_json(&[&ev], "cargo cicd status", 0)
             .expect("emit_receipt_json must succeed");
 
-        assert!(path.exists(), "receipt file must exist at {}", path.display());
+        assert!(
+            path.exists(),
+            "receipt file must exist at {}",
+            path.display()
+        );
         let raw = std::fs::read_to_string(&path).expect("read receipt");
-        let parsed: serde_json::Value = serde_json::from_str(&raw).expect("receipt must be valid JSON");
-        assert!(parsed.get("receipt_id").is_some(), "written receipt missing receipt_id");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&raw).expect("receipt must be valid JSON");
+        assert!(
+            parsed.get("receipt_id").is_some(),
+            "written receipt missing receipt_id"
+        );
 
         env::set_current_dir(orig).expect("restore cwd");
     }

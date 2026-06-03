@@ -97,7 +97,10 @@ impl VerbCommand for PublishRunVerb {
                 match verdict {
                     ReceiptDoctorVerdict::Accepted { ref stdout_json } => {
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(stdout_json) {
-                            let state = v.get("state").and_then(|s| s.as_str()).unwrap_or("Admitted");
+                            let state = v
+                                .get("state")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or("Admitted");
                             println!("  receipt doctor: {} (wpm adjudicated)", state);
                         }
                         "RECEIPT_DOCTOR:accepted"
