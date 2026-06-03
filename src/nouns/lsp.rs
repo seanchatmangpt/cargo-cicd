@@ -437,7 +437,10 @@ impl VerbCommand for LspExplainVerb {
         let (mut start_evt, t0) = ProcessEvent::started("lsp:explain");
         start_evt.case_id = Some(case_id.clone());
 
-        let code = args.get_one_str_opt("code").map(|s| s.to_ascii_uppercase()).unwrap_or_default();
+        let code = args
+            .get_one_str_opt("code")
+            .map(|s| s.to_ascii_uppercase())
+            .unwrap_or_default();
 
         let verdict = match CICD_CATALOG.iter().find(|e| e.code == code) {
             Some(entry) => {

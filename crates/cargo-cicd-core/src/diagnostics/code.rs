@@ -24,6 +24,10 @@ pub enum CicdCode {
     WpmCommandUnavailable,
     WpmRuntimeCourtNotInvoked,
     WpmUnconfirmedReceiptCourt,
+    /// CICD-WPM-004: The external court emitted a verdict field that the consuming
+    /// audit surface does not read — e.g. court emits `overall_fitness` but reader
+    /// looks for `fitness`. Verdict silently degrades to zero.
+    WpmVerdictKeyMismatch,
 }
 
 impl CicdCode {
@@ -51,6 +55,7 @@ impl CicdCode {
             Self::WpmCommandUnavailable => "CICD-WPM-001",
             Self::WpmRuntimeCourtNotInvoked => "CICD-WPM-003",
             Self::WpmUnconfirmedReceiptCourt => "CICD-WPM-002",
+            Self::WpmVerdictKeyMismatch => "CICD-WPM-004",
         }
     }
 
@@ -78,6 +83,24 @@ impl CicdCode {
             Self::WpmCommandUnavailable => "wpm command unavailable",
             Self::WpmRuntimeCourtNotInvoked => "Runtime court not invoked",
             Self::WpmUnconfirmedReceiptCourt => "wpm receipt court unconfirmed",
+            Self::WpmVerdictKeyMismatch => {
+                "Verdict key mismatch between court output and audit reader"
+            }
         }
+    }
+
+    /// Return a longer description of what this code means.
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::WpmVerdictKeyMismatch =>
+                "Court emits overall_fitness but reader looks for fitness key — silent zero mismatch",
+            _ => self.title(),
+        }
+    }
+}
+
+impl std::fmt::Display for CicdCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }

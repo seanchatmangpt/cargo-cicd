@@ -5,4 +5,6 @@ pub mod freshness;
 pub mod receipt_ref;
 pub mod timestamp;
 pub use event::EvidenceEvent;
+pub mod trace_class;
 pub use freshness::EvidenceState;
+pub use trace_class::TraceClass;

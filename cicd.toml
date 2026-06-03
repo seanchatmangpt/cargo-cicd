@@ -4,9 +4,9 @@ toolchain = "stable-aarch64-apple-darwin"
 target_dir = "target"
 
 [state]
-dirty = false
-target_size_gb = 2.64
-changed_files = 1
+dirty = true
+target_size_gb = 3.81
+changed_files = 3
 changed_tests = 0
 changed_trybuild_fixtures = 0
 
