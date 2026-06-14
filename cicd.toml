@@ -4,7 +4,7 @@ toolchain = "stable-x86_64-unknown-linux-gnu"
 target_dir = "target"
 
 [state]
-dirty = true
+dirty = false
 target_size_gb = 10.26
 changed_files = 215
 changed_tests = 90
