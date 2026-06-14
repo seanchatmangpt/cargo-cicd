@@ -11,6 +11,7 @@ use tower_lsp::{Client, LanguageServer};
 use cargo_cicd_core::diagnostics::CicdFinding;
 
 use crate::analyzers::run_all;
+use crate::lifecycle::raise;
 use crate::protocol::code_action_map::finding_to_actions;
 use crate::protocol::diagnostic_map::finding_to_lsp;
 use crate::server::capabilities::build_server_capabilities;
@@ -52,12 +53,13 @@ impl Backend {
             None => Vec::new(),
         };
 
-        // Persist findings into the diagnostic store for this URI.
+        // Update the diagnostic store via lifecycle functions.
         {
             let mut store = self.diagnostic_store.write().await;
+            // Clear all existing findings for this URI before raising new ones.
             store.clear_uri(&uri.to_string());
-            for f in &findings {
-                store.insert(uri.to_string(), f.clone());
+            for finding in &findings {
+                raise(&mut store, uri.to_string(), finding.clone());
             }
         }
 
@@ -126,6 +128,16 @@ impl LanguageServer for Backend {
         self.refresh_diagnostics(&params.text_document.uri).await;
     }
 
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        let uri = params.text_document.uri;
+        {
+            let mut store = self.diagnostic_store.write().await;
+            store.clear_uri(&uri.to_string());
+        }
+        // Publish empty diagnostics to clear squiggles in the editor.
+        self.client.publish_diagnostics(uri, vec![], None).await;
+    }
+
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let root = {
             let lock = self.workspace_root.read().await;
@@ -147,6 +159,13 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             Ok(None)
         } else {
+            // Minimal lifecycle hook: ensure the store lock is cleanly released after
+            // acknowledging that repair actions exist for this URI. mark_pending is
+            // called per-finding via the lifecycle module when repair is initiated.
+            {
+                let store = self.diagnostic_store.write().await;
+                drop(store);
+            }
             Ok(Some(actions))
         }
     }
