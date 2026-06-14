@@ -1,0 +1,84 @@
+{
+  "description": "Configuration for release validation and feature testing",
+  "hooks": {
+    "SessionStart": {
+      "description": "Complete release validation suite",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo make build"],
+          "description": "Build release artifact"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test invariants"],
+          "description": "Validate public boundary invariants (7 non-negotiable requirements)"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test feature_projection"],
+          "description": "Verify feature flag surface contract"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --no-default-features"],
+          "description": "Test with no features (minimal surface)"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --all-features"],
+          "description": "Test with all features enabled"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo cicd workspace doctor"],
+          "description": "Run full workspace health diagnostics"
+        }
+      ]
+    },
+    "before-release": {
+      "description": "Final validation before publishing",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --release"],
+          "description": "Run full test suite in release mode",
+          "timeout": 300000
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo clippy --all-targets -- -D warnings"],
+          "description": "Final clippy check with all warnings as errors"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo fmt --all -- --check"],
+          "description": "Verify code formatting"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cargo build",
+        "cargo build --release",
+        "cargo test",
+        "cargo test --all-features",
+        "cargo test --no-default-features",
+        "cargo test --release",
+        "cargo test --test invariants",
+        "cargo test --test feature_projection",
+        "cargo clippy",
+        "cargo fmt",
+        "cargo cicd workspace doctor",
+        "cargo make build"
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "full",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_RELEASE_LTO": "true"
+  }
+}
