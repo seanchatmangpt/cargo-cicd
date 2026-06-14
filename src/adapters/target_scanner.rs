@@ -1,6 +1,9 @@
 use std::path::Path;
 use walkdir::WalkDir;
 
+#[cfg(feature = "advanced")]
+use super::super::advanced::parallel_scan;
+
 pub struct TargetScannerAdapter;
 
 impl TargetScannerAdapter {
@@ -41,8 +44,8 @@ impl TargetScannerAdapter {
 impl TargetScannerAdapter {
     /// Use the parallel_scan module to scan a workspace root and return
     /// detailed scan report. Only available when the `advanced` feature is enabled.
-    pub fn parallel_scan_if_available(&self, root: &Path) -> Option<crate::advanced::parallel_scan::ScanReport> {
-        crate::advanced::parallel_scan::scan(root).ok()
+    pub fn parallel_scan_if_available(&self, root: &Path) -> Option<parallel_scan::ScanReport> {
+        parallel_scan::scan(root).ok()
     }
 }
 

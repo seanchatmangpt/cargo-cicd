@@ -123,3 +123,142 @@ Autonomic policies run in `suggest` mode by default (configured in `cicd.toml [a
 
 ### Tests
 Integration tests in `tests/` use `assert_cmd` + `tempfile` + fixture workspaces under `tests/fixtures/`. The `invariants` test enforces the 7 non-negotiable public boundary invariants. `feature_projection` verifies the feature flag surface contract.
+
+---
+
+## Advanced Capabilities (Feature: advanced)
+
+10 opt-in best-of-breed crates extend cargo-cicd with hyper-fast scanning, observability, caching, metrics, and dependency analysis. All are gated behind the `advanced` feature flag, keeping the default binary lean and fast.
+
+### Quick Reference
+
+| Module | Crate(s) | Use Case |
+|--------|----------|----------|
+| `parallel_scan` | `ignore` + `rayon` | Gitignore-aware, multi-threaded workspace scanning |
+| `fingerprint` | `blake3` | Content-addressed Merkle fingerprinting of artifacts |
+| `observability` | `tracing` + `tracing-subscriber` | Structured span instrumentation & JSON traces |
+| `diagnostics` | `miette` + `thiserror` | Rich, rendered diagnostic error messages |
+| `cache` | `moka` | Concurrent, TTL-aware engine result caching |
+| `snapshot` | `bitcode` | Compact binary serialization of engine state |
+| `dep_graph` | `petgraph` | Workspace dependency graphs & build order |
+| `timeline` | `jiff` | High-precision, zoned process timestamps |
+| `histogram` | `hdrhistogram` | Latency percentiles for pipeline stages |
+| `pattern` | `aho-corasick` | Multi-pattern governance & path scanning |
+
+---
+
+## Advanced Feature Examples
+
+### Using `parallel_scan` in an Adapter
+
+```rust
+use cargo_cicd::advanced::parallel_scan::scan_workspace;
+use std::path::Path;
+
+// In your adapter:
+let report = scan_workspace(Path::new("."))?;
+println!("Total files: {}", report.total_files);
+println!("Total bytes: {}", report.total_bytes);
+println!("Reclaimable (target/): {} bytes", report.reclaimable_bytes());
+
+// Per-extension breakdown is deterministic (BTreeMap):
+for (ext, stats) in report.per_extension.iter() {
+    println!("{}: {} files, {} bytes", ext, stats.count, stats.bytes);
+}
+```
+
+### Instrumenting a Pipeline Stage with `observability`
+
+```rust
+use cargo_cicd::advanced::observability::{init_tracing, PipelineStage, record_event};
+
+// Once per process:
+init_tracing();
+
+// Around a unit of work:
+{
+    let _stage = PipelineStage::enter("my_adapter_scan");
+    // ... populate engine state ...
+    record_event("my_adapter_scan", true);
+} // Drops here; emits elapsed_ms + structured JSON trace
+```
+
+### Caching Adapter Results with `cache`
+
+```rust
+use cargo_cicd::advanced::cache::{EngineCache, CachedEntry};
+use std::time::Duration;
+
+let cache = EngineCache::new(100, Duration::from_secs(300));
+
+// Store a serialized result:
+let entry = CachedEntry::with_label(serialized_bytes, "CargoMetadata");
+cache.insert("workspace_metadata".to_string(), entry);
+
+// Retrieve cheaply (Arc clone):
+if let Some(hit) = cache.get("workspace_metadata") {
+    let bytes = hit.bytes.clone();
+    // deserialize bytes ...
+}
+
+// Force eviction/expiry:
+cache.run_pending_tasks();
+```
+
+### Accessing Timeline Events from `ProcessEventState`
+
+```rust
+use cargo_cicd::advanced::timeline::ProcessTimeline;
+use jiff::Timestamp;
+
+let mut timeline = ProcessTimeline::new();
+
+// Record an event at current time:
+timeline.record("workspace_scan");
+
+// Or at a fixed time (for testing):
+timeline.record_at("workspace_scan", Timestamp::now());
+
+// Iterate in order:
+for event in timeline.iter() {
+    println!("{}: {}", event.label, event.at);
+}
+
+// Measure span between events:
+let elapsed = timeline.span(0, 1); // jiff::Span
+println!("Duration: {}", elapsed);
+```
+
+---
+
+## Testing Advanced Features
+
+```sh
+# Run all tests with advanced capabilities enabled
+cargo test --features advanced
+
+# Quick syntax check (lib + advanced)
+cargo check --lib --features advanced
+
+# Unit tests only
+cargo test --lib --features advanced
+
+# Test feature combinations (advanced + autonomic)
+cargo test --features advanced,autonomic
+
+# Run a specific advanced test
+cargo test --test feature_projection --features advanced
+```
+
+---
+
+## Advanced Adapter Integrations
+
+| Adapter | What It Does | Key Methods | When to Use |
+|---------|--------------|-------------|------------|
+| `cached` | Wraps any adapter result with moka cache hits/misses | `EngineCache::new()`, `insert()`, `get()` | When adapter recomputation is expensive (metadata, toolchain probes) |
+| `fingerprint` | Computes BLAKE3 hashes over artifact byte spans | `fingerprint_bytes()`, `verify_checksum()` | For artifact content-addressing or integrity checks in cicd.toml |
+| `state_snapshot` | Serializes/deserializes `EngineState` to compact binaries | `snapshot_state()`, `restore_state()` | For inter-process checkpointing or distributed cache warm-up |
+| `governance_patterns` | Scans paths/files against multi-pattern rules via aho-corasick | `PatternScanner::new()`, `scan_path()` | For policy-driven path filtering or license/copyright detection |
+
+See `src/advanced/` for full API docs and `src/adapters/` for integration patterns.

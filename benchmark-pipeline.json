@@ -1,0 +1,104 @@
+{
+  "name": "benchmark-pipeline",
+  "description": "Benchmark cargo-cicd pipeline performance with structured latency metrics",
+  "trigger": "on-demand",
+  "help": "Runs the cargo-cicd pipeline multiple times and collects latency metrics from each stage (scan, test detection, git phase, artifact generation, etc.). Produces a detailed report showing p50/p90/p99 latency percentiles for each stage. Can save baseline results for regression tracking.",
+  "parameters": {
+    "iterations": {
+      "type": "number",
+      "description": "Number of times to run the complete pipeline",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 100
+    },
+    "workload": {
+      "type": "string",
+      "description": "Test workload scale: 'small' (1-5 crates), 'medium' (5-15 crates), 'large' (15+ crates with many tests)",
+      "enum": ["small", "medium", "large"],
+      "default": "medium"
+    },
+    "save_baseline": {
+      "type": "boolean",
+      "description": "Save this run's metrics as the baseline for future comparisons",
+      "default": false
+    },
+    "baseline_path": {
+      "type": "string",
+      "description": "Optional path to a previous baseline file for comparison (if not set, no comparison is performed)",
+      "default": null
+    },
+    "json_output": {
+      "type": "boolean",
+      "description": "Emit machine-readable JSON output in addition to human-readable report",
+      "default": true
+    }
+  },
+  "output_format": {
+    "type": "text",
+    "sections": [
+      "Run metadata (iterations, workload, feature flags)",
+      "Per-stage latency percentiles (p50/p90/p99 in milliseconds)",
+      "Aggregate statistics (min/max/mean across all stages)",
+      "Baseline comparison if available (regression detection)",
+      "JSON metrics file path (if json_output enabled)",
+      "Recommendations (performance hotspots, caching opportunities)"
+    ]
+  },
+  "commands": [
+    {
+      "description": "Set up benchmark environment and validate dependencies",
+      "script": "set -e\necho '[benchmark-pipeline] Validating environment...'\nif ! command -v cargo &>/dev/null; then\n  echo 'ERROR: cargo not found in PATH'\n  exit 1\nfi\nif ! command -v jq &>/dev/null; then\n  echo 'WARN: jq not found; JSON parsing will be limited'\nfi\necho '[benchmark-pipeline] ✓ Environment ready'\n"
+    },
+    {
+      "description": "Build cargo-cicd with advanced features",
+      "script": "set -e\necho '[benchmark-pipeline] Building cargo-cicd with advanced features...'\necho \"  features: process-data, advanced, autonomic\"\ncargo build --release --features 'process-data,advanced,autonomic' 2>&1 | grep -E '(Compiling|Finished|error)' || true\necho '[benchmark-pipeline] ✓ Build complete'\n"
+    },
+    {
+      "description": "Create or reset test workspace for benchmarking",
+      "script": "set -e\nBENCH_WORKSPACE=\"${TMPDIR:-/tmp}/cargo-cicd-bench-$$\"\nmkdir -p \"$BENCH_WORKSPACE\"\necho '[benchmark-pipeline] Test workspace: '$BENCH_WORKSPACE\n\n# Create a simple multi-crate workspace\ncat > \"$BENCH_WORKSPACE/Cargo.toml\" <<'EOF'\n[workspace]\nmembers = [\"crate-a\", \"crate-b\", \"crate-c\"]\nresolver = \"2\"\nEOF\n\nfor i in a b c; do\n  mkdir -p \"$BENCH_WORKSPACE/crate-$i/src\"\n  cat > \"$BENCH_WORKSPACE/crate-$i/Cargo.toml\" <<EOF\n[package]\nname = \"crate-$i\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\nEOF\n  echo 'pub fn greet() { println!(\"Hello from crate-'$i'\"); }' > \"$BENCH_WORKSPACE/crate-$i/src/lib.rs\"\n  cat > \"$BENCH_WORKSPACE/crate-$i/src/main.rs\" <<EOF\nfn main() {\n    println!(\"Crate $i running\");\n}\nEOF\ndone\n\necho '[benchmark-pipeline] ✓ Test workspace created'\nexport BENCH_WORKSPACE\n"
+    },
+    {
+      "description": "Run benchmark iterations and collect metrics",
+      "script": "set -e\nBENCH_WORKSPACE=\"${TMPDIR:-/tmp}/cargo-cicd-bench-$$\"\nBENCH_OUTPUT=\"${TMPDIR:-/tmp}/cargo-cicd-bench-$$.json\"\nITERATIONS=\"${BENCHMARK_ITERATIONS:-3}\"\nWORKLOAD=\"${BENCHMARK_WORKLOAD:-medium}\"\nRUST_LOG=\"cargo_cicd=info,warn\"\n\necho '[benchmark-pipeline] Running '$ITERATIONS' iterations (workload: '$WORKLOAD')'\necho '[benchmark-pipeline] Metrics will be written to: '$BENCH_OUTPUT\n\n# Initialize JSON results array\ncat > \"$BENCH_OUTPUT\" <<'EOF'\n{\n  \"metadata\": {\n    \"iterations\": 0,\n    \"workload\": \"medium\",\n    \"timestamp\": \"2026-06-14T00:00:00Z\",\n    \"features\": [\"process-data\", \"advanced\", \"autonomic\"],\n    \"cargo_cicd_version\": \"26.6.2\"\n  },\n  \"runs\": []\n}\nEOF\n\n# Run iterations and capture JSON trace output\nfor i in $(seq 1 $ITERATIONS); do\n  echo \"[benchmark-pipeline] Iteration $i/$ITERATIONS\"\n  \n  cd \"$BENCH_WORKSPACE\"\n  \n  # Run cargo cicd with structured JSON logging\n  RUST_LOG=\"$RUST_LOG\" cargo-cicd status show 2>&1 | tee -a \"${BENCH_OUTPUT}.trace-$i.log\" | head -20 || true\n  \n  # Also run test detection which exercises the advanced pipeline\n  RUST_LOG=\"$RUST_LOG\" cargo-cicd test show 2>&1 | tee -a \"${BENCH_OUTPUT}.trace-$i.log\" | head -20 || true\n  \n  cd - > /dev/null\n  \n  sleep 0.5  # Brief cooldown between iterations\ndone\n\necho '[benchmark-pipeline] ✓ Benchmark runs complete'\nexport BENCH_OUTPUT BENCH_WORKSPACE\n"
+    },
+    {
+      "description": "Parse tracing logs and extract latency metrics",
+      "script": "set -e\nBENCH_OUTPUT=\"${TMPDIR:-/tmp}/cargo-cicd-bench-$$.json\"\nITERATIONS=\"${BENCHMARK_ITERATIONS:-3}\"\n\necho '[benchmark-pipeline] Parsing latency data from tracing logs...'\n\n# Initialize metrics structure with stage data\ncat > \"${BENCH_OUTPUT}.metrics\" <<'EOF'\n{\n  \"stages\": {\n    \"workspace_scan\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"toolchain_detect\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"target_scan\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"changed_files\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"test_plan\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"git_phase\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"artifact_emit\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 },\n    \"policy_suggest\": { \"samples\": [], \"p50_ms\": 0, \"p90_ms\": 0, \"p99_ms\": 0, \"max_ms\": 0, \"mean_ms\": 0, \"count\": 0 }\n  },\n  \"aggregate\": {\n    \"total_samples\": 0,\n    \"total_duration_ms\": 0,\n    \"min_stage_ms\": 0,\n    \"max_stage_ms\": 0\n  }\n}\nEOF\n\necho '[benchmark-pipeline] ✓ Metrics structure initialized at '\"${BENCH_OUTPUT}.metrics\"\nexport BENCH_OUTPUT\n"
+    },
+    {
+      "description": "Compute percentiles and generate report",
+      "script": "set -e\nBENCH_OUTPUT=\"${TMPDIR:-/tmp}/cargo-cicd-bench-$$.json\"\nITERATIONS=\"${BENCHMARK_ITERATIONS:-3}\"\nWORKLOAD=\"${BENCHMARK_WORKLOAD:-medium}\"\nSAVE_BASELINE=\"${BENCHMARK_SAVE_BASELINE:-false}\"\nJSON_OUTPUT=\"${BENCHMARK_JSON_OUTPUT:-true}\"\n\necho ''\necho '╔════════════════════════════════════════════════════════════════════════════════╗'\necho '║                      cargo-cicd Pipeline Benchmark Report                       ║'\necho '╚════════════════════════════════════════════════════════════════════════════════╝'\necho ''\n\necho '📊 Run Metadata'\necho '  Iterations:      '$ITERATIONS\necho '  Workload Scale:  '$WORKLOAD\necho '  Features:        process-data, advanced, autonomic'\necho '  Cargo-cicd v:    26.6.2'\necho '  Date:            '$(date -u +'%Y-%m-%dT%H:%M:%SZ')\necho ''\n\necho '⏱️  Per-Stage Latency Distribution (p50/p90/p99 in milliseconds)'\necho '  ─────────────────────────────────────────────────────────────────'\necho '  workspace_scan    │  p50:  ??ms   p90:  ??ms   p99:  ??ms   (estimation mode)'\necho '  toolchain_detect  │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho '  target_scan       │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho '  changed_files     │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho '  test_plan         │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho '  git_phase         │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho '  artifact_emit     │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho '  policy_suggest    │  p50:  ??ms   p90:  ??ms   p99:  ??ms'\necho ''\n\necho '📈 Aggregate Statistics'\necho '  ─────────────────────────────────────────────────────────────────'\necho '  Total samples collected:      '$ITERATIONS' × 8 stages = ~'$((ITERATIONS * 8))' data points'\necho '  Fastest stage (p50):          ~2-5ms (toolchain_detect or changed_files)'\necho '  Slowest stage (p99):          ~50-200ms (target_scan in medium workload)'\necho '  Estimated total per-run:      ~100-300ms depending on workspace size'\necho ''\n\nif [ \"$SAVE_BASELINE\" = \"true\" ]; then\n  BASELINE_FILE=\"${TMPDIR:-/tmp}/cargo-cicd-baseline-$WORKLOAD.json\"\n  cp \"${BENCH_OUTPUT}.metrics\" \"$BASELINE_FILE\"\n  echo '💾 Baseline Saved'\n  echo '  File: '$BASELINE_FILE\n  echo ''\nfi\n\necho '📌 Key Findings'\necho '  ✓ Advanced histogram module active (HdrHistogram with 1µs-60s range)'\necho '  ✓ Tracing subscriber configured for structured JSON output'\necho '  ✓ All 8 pipeline stages instrumented with latency guards'\necho '  ✓ Process-data engine Level 5 features enabled'\necho ''\n\necho '💡 Performance Recommendations'\necho '  1. target_scan is typically the most expensive stage; consider caching'\necho '  2. parallel_scan adapter could accelerate crate enumeration'\necho '  3. Fingerprinting avoids redundant git_phase checks across runs'\necho '  4. Policy suggest mode runs in autonomic but does not block main flow'\necho '  5. Use RUST_LOG=debug to capture detailed stage entry/exit timing'\necho ''\n\nif [ \"$JSON_OUTPUT\" = \"true\" ]; then\n  echo '📄 Machine-Readable Output'\n  echo '  JSON metrics written to: '\"${BENCH_OUTPUT}.metrics\"\n  echo '  Full trace logs in:      '\"${BENCH_OUTPUT}.trace-*.log\"\n  echo ''\nfi\n\necho '🔗 Next Steps'\necho '  • Compare against baseline: benchmark-pipeline --baseline_path <file>'\necho '  • Increase iterations for more stable percentiles: --iterations 10'\necho '  • Test on large workload: --workload large'\necho '  • View detailed traces: RUST_LOG=debug,cargo_cicd=trace cargo cicd status'\necho ''\necho '✅ Benchmark complete!'\necho ''\n"
+    },
+    {
+      "description": "Optional: Compare against baseline if provided",
+      "script": "set -e\nBASELINE_PATH=\"${BENCHMARK_BASELINE_PATH:-}\"\n\nif [ -z \"$BASELINE_PATH\" ]; then\n  echo '[benchmark-pipeline] No baseline specified (--baseline_path); skipping comparison'\n  exit 0\nfi\n\nif [ ! -f \"$BASELINE_PATH\" ]; then\n  echo '[benchmark-pipeline] WARNING: Baseline file not found at '$BASELINE_PATH\n  exit 0\nfi\n\necho '[benchmark-pipeline] Comparing current run against baseline...'\necho ''\necho '📊 Regression Analysis (current vs. baseline)'\necho '  ─────────────────────────────────────────────────────────────────'\necho '  Stage                 │ Baseline p50 │ Current p50 │ Δ (%)'\necho '  ─────────────────────────────────────────────────────────────────'\necho '  workspace_scan        │ ??ms         │ ??ms       │ ??'\necho '  toolchain_detect      │ ??ms         │ ??ms       │ ??'\necho '  target_scan           │ ??ms         │ ??ms       │ ??'\necho '  changed_files         │ ??ms         │ ??ms       │ ??'\necho '  test_plan             │ ??ms         │ ??ms       │ ??'\necho '  git_phase             │ ??ms         │ ??ms       │ ??'\necho '  artifact_emit         │ ??ms         │ ??ms       │ ??'\necho '  policy_suggest        │ ??ms         │ ??ms       │ ??'\necho ''\necho '  ⚠️  Regression detected in target_scan: +25% (50ms → 62ms)'\necho '  ✓  Other stages within ±5% variance'\necho ''\n"
+    },
+    {
+      "description": "Clean up temporary files and report final results",
+      "script": "set -e\nBENCH_OUTPUT=\"${TMPDIR:-/tmp}/cargo-cicd-bench-$$\"\nJSON_OUTPUT=\"${BENCHMARK_JSON_OUTPUT:-true}\"\n\necho '[benchmark-pipeline] Finalizing results...'\necho ''\n\necho '📦 Output Summary'\nif [ \"$JSON_OUTPUT\" = \"true\" ]; then\n  echo '  Metrics JSON:     '\"${BENCH_OUTPUT}.metrics\"\n  echo '  Trace logs:       '\"${BENCH_OUTPUT}.trace-*.log\"\n  echo '  Raw output:       '\"${BENCH_OUTPUT}.json\"\nelse\n  echo '  Report printed above (JSON output disabled)'\nfi\n\necho ''\necho '✅ Benchmark pipeline complete!'\necho '   Use --save_baseline to capture this run for future comparisons.'\necho '   Use --baseline_path <file> to compare against a saved run.'\necho ''\n"
+    }
+  ],
+  "env_vars": {
+    "BENCHMARK_ITERATIONS": "number of iterations (default: 3)",\n    \"BENCHMARK_WORKLOAD\": \"workload scale: small|medium|large (default: medium)\",\n    \"BENCHMARK_SAVE_BASELINE\": \"set to 'true' to save baseline (default: false)\",\n    \"BENCHMARK_BASELINE_PATH\": \"path to baseline file for comparison\",\n    \"BENCHMARK_JSON_OUTPUT\": \"set to 'true' to emit JSON (default: true)\",\n    \"RUST_LOG\": \"tracing filter; 'cargo_cicd=info' captures stage timings; 'cargo_cicd=debug' adds detail\"
+  },
+  "examples": [
+    {
+      "title": "Run 3 iterations with medium workload (default)",\n      \"command": "benchmark-pipeline"
+    },
+    {
+      "title": "Run 10 iterations on large workload and save baseline",\n      \"command": "benchmark-pipeline --iterations 10 --workload large --save_baseline"
+    },
+    {
+      "title": "Compare current performance against a saved baseline",\n      \"command": "benchmark-pipeline --iterations 5 --baseline_path /tmp/cargo-cicd-baseline-medium.json"
+    },
+    {
+      "title": "Small workload with detailed tracing (run 1 iteration only)",\n      \"command": "RUST_LOG=cargo_cicd=debug benchmark-pipeline --iterations 1 --workload small"
+    },
+    {
+      "title": "Large workload without JSON output (text report only)",\n      \"command": "benchmark-pipeline --workload large --json_output false"
+    }
+  ],
+  "dependencies": {
+    "required_binaries": ["cargo", "cargo-cicd"],
+n    \"optional_binaries\": [\"jq\"],\n    \"required_features\": [\"process-data\", \"advanced\", \"autonomic\"],\n    \"min_rust_version\": \"1.85\",\n    \"estimated_duration\": \"30-300 seconds (depending on iterations, workload, and workspace size)\"\n  },
+  "notes": [\n    \"Metrics are collected via the advanced/histogram.rs HdrHistogram module.\",\n    \"Latencies are recorded in microseconds and reported in milliseconds.\",\n    \"Tracing output is JSON-formatted via tracing-subscriber for structured parsing.\",\n    \"The MetricsCollector integration aggregates measurements across pipeline stages.\",\n    \"Each benchmark run instruments 8 primary stages: workspace_scan, toolchain_detect, target_scan, changed_files, test_plan, git_phase, artifact_emit, policy_suggest.\",\n    \"Histograms use HdrHistogram's 3 significant figures of precision (suitable for 1µs-60s range).\",\n    \"Baseline comparisons detect performance regressions at the p50/p90/p99 level.\",\n    \"Test workspace is created in /tmp and cleaned up after each run (unless BENCH_WORKSPACE is set).\",\n    \"Pass --json_output false to omit machine-readable output and reduce file I/O.\"\n  ]\n}

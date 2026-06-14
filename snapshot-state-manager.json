@@ -1,0 +1,344 @@
+{
+  "id": "snapshot-state-manager",
+  "name": "Snapshot State Manager",
+  "version": "1.0.0",
+  "description": "Manage engine state checkpoints for quick recovery and comparison. Save, load, list, compare, and clean engine state snapshots captured via StateSnapshotAdapter. Essential for CI/CD workflows, regression testing, and before/after feature validation.",
+  "author": "cargo-cicd maintainers",
+  "license": "MIT",
+  "keywords": [
+    "snapshot",
+    "state-management",
+    "recovery",
+    "checkpoint",
+    "ci/cd",
+    "regression-testing",
+    "engine-state"
+  ],
+  "categories": [
+    "ci-cd",
+    "state-management",
+    "development-tools"
+  ],
+  "commands": {
+    "list": {
+      "name": "list",
+      "description": "Display all saved engine state snapshots with metadata",
+      "usage": "snapshot-state-manager list [--verbose]",
+      "examples": [
+        "snapshot-state-manager list",
+        "snapshot-state-manager list --verbose"
+      ],
+      "parameters": {
+        "verbose": {
+          "type": "boolean",
+          "description": "Show full snapshot contents including changed files and stage records",
+          "default": false
+        }
+      },
+      "output_format": {
+        "default": {
+          "description": "Tabular list of snapshots",
+          "format": "Plain text table with columns: Name, Timestamp, Workspace Root, Toolchain, Changed Files, Size, Schema Version",
+          "example": "snapshot-main-2024-01-15-143022 | 2024-01-15 14:30:22 | /home/user/cargo-cicd | stable | 3 files | 2.4 KB | v1"
+        },
+        "verbose": {
+          "description": "Detailed snapshot dump",
+          "format": "Full YAML or formatted text with all fields expanded",
+          "example": "Snapshot: snapshot-main-2024-01-15-143022\n  Created: 2024-01-15 14:30:22\n  Workspace Root: /home/user/cargo-cicd\n  Toolchain: stable (1.75.0)\n  Changed Files: [src/lib.rs, src/adapters/state_snapshot.rs, tests/cli.rs]\n  Target Bytes: 523,890,432 (500 MB)\n  Git Phase: dirty (ahead 3 commits)\n  Stages: build (✓ 2345ms), test (✓ 5678ms), publish (✗ failure)\n  Schema Version: 1"
+        }
+      },
+      "use_cases": [
+        "Review saved state checkpoints before deciding which to restore",
+        "Track snapshot history over time to identify trends or regressions",
+        "Audit what state was captured at each checkpoint"
+      ]
+    },
+    "save": {
+      "name": "save",
+      "description": "Force a snapshot save with an optional label or auto-generated timestamp",
+      "usage": "snapshot-state-manager save [--label <name>] [--tag <tag>]",
+      "examples": [
+        "snapshot-state-manager save",
+        "snapshot-state-manager save --label pre-feature-x",
+        "snapshot-state-manager save --label post-merge --tag production-rc"
+      ],
+      "parameters": {
+        "label": {
+          "type": "string",
+          "description": "Descriptive label for the snapshot (e.g., 'pre-refactor', 'stable-build'). If not provided, auto-generates timestamp-based name like 'snapshot-2024-01-15-143022'.",
+          "default": null,
+          "required": false,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Optional semantic tag for grouping (e.g., 'production-rc', 'feature-branch', 'regression-baseline')",
+          "default": null,
+          "required": false
+        }
+      },
+      "output_format": {
+        "success": {
+          "description": "Confirmation of snapshot saved",
+          "format": "Plain text confirmation with snapshot name and path",
+          "example": "✓ Snapshot saved: snapshot-pre-feature-x\n  Location: /home/user/cargo-cicd/.cargo/cicd_state.snapshot\n  Size: 2.4 KB\n  Timestamp: 2024-01-15 14:30:22"
+        },
+        "error": {
+          "description": "Error if save fails",
+          "format": "Error message with diagnostic details",
+          "example": "✗ Failed to save snapshot: Permission denied writing to .cargo/cicd_state.snapshot"
+        }
+      },
+      "use_cases": [
+        "Checkpoint state before attempting risky refactors or major changes",
+        "Create baseline snapshots for regression testing",
+        "Save state at known good points in CI/CD pipeline for later recovery",
+        "Track before/after state for feature flag experiments"
+      ]
+    },
+    "load": {
+      "name": "load",
+      "description": "Restore engine state from a saved snapshot back into the workspace",
+      "usage": "snapshot-state-manager load <snapshot-name> [--force] [--backup]",
+      "examples": [
+        "snapshot-state-manager load snapshot-pre-feature-x",
+        "snapshot-state-manager load snapshot-main-2024-01-15-143022 --force",
+        "snapshot-state-manager load snapshot-stable --backup"
+      ],
+      "parameters": {
+        "snapshot_name": {
+          "type": "string",
+          "description": "Name or path of the snapshot to restore. Can be a short name (matched from .cargo/cicd_snapshots/) or full path.",
+          "required": true
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Skip confirmation prompt and force restore even if current state has uncommitted changes",
+          "default": false
+        },
+        "backup": {
+          "type": "boolean",
+          "description": "Save current engine state to backup before restoring snapshot",
+          "default": true
+        }
+      },
+      "output_format": {
+        "confirmation_prompt": {
+          "description": "Prompt user to confirm state restore",
+          "format": "Interactive prompt with diff preview",
+          "example": "Restore from snapshot 'snapshot-pre-feature-x'?\n  Current workspace root: /home/user/cargo-cicd\n  Restore toolchain: stable → stable-1.79.0\n  Restore changed files: 3 files → 5 files\n  Git phase: dirty → clean\n\n  Backup current state? [y/N]: "
+        },
+        "success": {
+          "description": "Confirmation of successful restore",
+          "format": "Summary of restored state",
+          "example": "✓ State restored from snapshot 'snapshot-pre-feature-x'\n  Workspace: /home/user/cargo-cicd\n  Toolchain: stable-1.79.0\n  Changed Files: 5 files (src/lib.rs, src/adapters/state_snapshot.rs, ...)\n  Backup saved to: .cargo/cicd_state.snapshot.backup-2024-01-15-143022"
+        }
+      },
+      "use_cases": [
+        "Quickly revert to a known good state after failed experiment",
+        "Restore workspace state from CI/CD run for local reproduction",
+        "Jump between regression baselines for comparative testing"
+      ]
+    },
+    "compare": {
+      "name": "compare",
+      "description": "Diff two snapshots to identify what changed between them",
+      "usage": "snapshot-state-manager compare <snapshot1> <snapshot2> [--format <format>]",
+      "examples": [
+        "snapshot-state-manager compare snapshot-pre-feature-x snapshot-post-feature-x",
+        "snapshot-state-manager compare snapshot-main-stable snapshot-main-2024-01-15-143022 --format json",
+        "snapshot-state-manager compare snapshot-baseline snapshot-current --format diff"
+      ],
+      "parameters": {
+        "snapshot1": {
+          "type": "string",
+          "description": "Name or path of first snapshot (baseline for comparison)",
+          "required": true
+        },
+        "snapshot2": {
+          "type": "string",
+          "description": "Name or path of second snapshot (compared against baseline)",
+          "required": true
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json",
+            "diff",
+            "csv"
+          ],
+          "description": "Output format for the comparison",
+          "default": "text"
+        }
+      },
+      "output_format": {
+        "text": {
+          "description": "Human-readable side-by-side comparison",
+          "format": "Organized by state dimension with color-coded changes",
+          "example": "Workspace State:\n  root: /home/user/cargo-cicd (unchanged)\n  name: cargo-cicd (unchanged)\n\nToolchain State:\n  active: stable → stable-1.79.0 [CHANGED]\n  rust_version: 1.75.0 → 1.79.0 [CHANGED]\n  override_path: (none) → /usr/local/rust [ADDED]\n\nChanged Files:\n  [REMOVED] src/workspace/snapshot.rs\n  [ADDED] src/adapters/state_snapshot.rs\n  [ADDED] tests/invariants.rs\n  [MODIFIED] src/lib.rs\n\nTarget State:\n  target_bytes: 500 MB → 523 MB [CHANGED]\n  build_cache: 45% → 52% [CHANGED]\n\nGit Phase State:\n  phase: dirty → clean [CHANGED]\n  commits_ahead: 3 → 0 [CHANGED]\n  modified_files: 5 → 0 [CHANGED]\n\nTest Plan:\n  total_tests: 45 → 48 [CHANGED]\n  skipped: 2 → 0 [CHANGED]\n\nStage Records (timing changes):\n  build: 2345ms → 2198ms [-147ms, 6.3% faster]\n  test: 5678ms → 6234ms [+556ms, 9.8% slower]\n  publish: FAILED → SUCCESS [STATUS CHANGE]"
+        },
+        "json": {
+          "description": "Machine-readable JSON diff format",
+          "format": "Structured JSON with from/to values for each changed field",
+          "example": "{\"changes\": {\"toolchain.active\": {\"from\": \"stable\", \"to\": \"stable-1.79.0\"}, \"changed_files\": {\"added\": [\"src/adapters/state_snapshot.rs\"], \"removed\": [\"src/workspace/snapshot.rs\"]}, \"stages\": {\"build\": {\"duration_ms\": {\"from\": 2345, \"to\": 2198}}}}}"
+        },
+        "diff": {
+          "description": "Unified diff-style format",
+          "format": "Line-based diff with +/- prefixes",
+          "example": "--- snapshot-pre-feature-x\n+++ snapshot-post-feature-x\n@@ Toolchain @@\n-active: stable\n+active: stable-1.79.0\n@@ Changed Files @@\n-src/workspace/snapshot.rs\n+src/adapters/state_snapshot.rs"
+        },
+        "csv": {
+          "description": "CSV export for spreadsheet analysis",
+          "format": "Field, Snapshot1, Snapshot2, Change Type, Details",
+          "example": "Field,snapshot-pre-feature-x,snapshot-post-feature-x,Change Type,Details\ntoolchain.active,stable,stable-1.79.0,CHANGED,Version bumped\nchanged_files.count,5,4,CHANGED,-1 file\nbuild_stage.duration_ms,2345,2198,CHANGED,-147ms"
+        }
+      },
+      "use_cases": [
+        "Quantify impact of a refactor or feature on workspace/toolchain state",
+        "Identify unexpected side-effects (e.g., extra changed files after a 'simple' PR)",
+        "Track build time or test suite size changes across regression baselines",
+        "Generate reports showing before/after of CI/CD runs for audit or review",
+        "Detect toolchain drift or build cache degradation over time"
+      ]
+    },
+    "clean": {
+      "name": "clean",
+      "description": "Remove old snapshots beyond a specified retention count",
+      "usage": "snapshot-state-manager clean [--keep <count>] [--older-than <days>] [--dry-run]",
+      "examples": [
+        "snapshot-state-manager clean --keep 5",
+        "snapshot-state-manager clean --keep 10 --dry-run",
+        "snapshot-state-manager clean --older-than 30"
+      ],
+      "parameters": {
+        "keep_count": {
+          "type": "integer",
+          "description": "Number of most recent snapshots to retain. Older snapshots are deleted. Default 5.",
+          "default": 5,
+          "minimum": 1,
+          "required": false
+        },
+        "older_than": {
+          "type": "integer",
+          "description": "Delete snapshots older than this many days. If both --keep and --older-than are specified, delete if EITHER condition is met.",
+          "unit": "days",
+          "required": false
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Show which snapshots would be deleted without actually deleting them",
+          "default": false
+        }
+      },
+      "output_format": {
+        "dry_run_output": {
+          "description": "List of snapshots that would be deleted",
+          "format": "Numbered list with snapshot name, age, and size",
+          "example": "Dry run: would delete 3 snapshots, freeing 7.8 MB\n\n  1. snapshot-old-baseline (89 days old) - 2.4 KB\n  2. snapshot-feature-x-v1 (45 days old) - 1.8 KB\n  3. snapshot-regression-2023-11-01 (31 days old) - 3.6 KB\n\nRetained snapshots (5 most recent):\n  ✓ snapshot-main-2024-01-15-143022 (0 days old)\n  ✓ snapshot-pre-merge-fix (3 days old)\n  ✓ snapshot-stable-v1.0 (7 days old)\n  ✓ snapshot-feature-y (14 days old)\n  ✓ snapshot-production-baseline (21 days old)"
+        },
+        "success": {
+          "description": "Confirmation of deleted snapshots",
+          "format": "Summary of cleanup operation",
+          "example": "✓ Cleaned up snapshots\n  Deleted: 3 snapshots\n  Space freed: 7.8 MB\n  Retained: 5 snapshots\n  Total remaining size: 12.4 KB"
+        }
+      },
+      "use_cases": [
+        "Prevent snapshot directory from consuming excessive disk space",
+        "Maintain a rolling window of regression baselines (e.g., keep last 5)",
+        "Archive old snapshots by deleting those older than a date threshold",
+        "Cleanup after completing a feature branch or experiment"
+      ]
+    }
+  },
+  "workflow_examples": {
+    "before_refactor": {
+      "title": "Before/After Refactor Comparison",
+      "description": "Snapshot before a major refactor, make changes, then compare to quantify impact",
+      "steps": [
+        "snapshot-state-manager save --label pre-refactor-component-x",
+        "# ... perform refactor, run tests, etc ...",
+        "snapshot-state-manager save --label post-refactor-component-x",
+        "snapshot-state-manager compare snapshot-pre-refactor-component-x snapshot-post-refactor-component-x --format text"
+      ],
+      "use_case": "Verify that refactor didn't introduce unexpected side-effects like extra changed files or build time regression"
+    },
+    "regression_baseline": {
+      "title": "Regression Testing with Baselines",
+      "description": "Establish known-good baseline snapshots and jump between them for testing",
+      "steps": [
+        "# On stable branch: create baseline",
+        "snapshot-state-manager save --label stable-v1.0 --tag production",
+        "# On feature branch: test against baseline",
+        "snapshot-state-manager list",
+        "snapshot-state-manager compare snapshot-stable-v1.0 snapshot-current --format json > regression-report.json"
+      ],
+      "use_case": "Detect regressions by comparing feature branch state to a known-good production baseline"
+    },
+    "ci_cd_recovery": {
+      "title": "CI/CD Failure Recovery",
+      "description": "Save state at pipeline checkpoints, restore if later stage fails",
+      "steps": [
+        "# Step 1: build & test pass",
+        "snapshot-state-manager save --label ci-checkpoint-build-passed",
+        "# Step 2: publish stage fails for some reason",
+        "# Developer reproduces locally by restoring checkpoint",
+        "snapshot-state-manager load ci-checkpoint-build-passed --backup",
+        "# Now developer can debug publish stage in exact CI state"
+      ],
+      "use_case": "Reproduce CI/CD environment and state locally for debugging without re-running full pipeline"
+    },
+    "feature_flag_experiment": {
+      "title": "Feature Flag A/B Testing",
+      "description": "Compare state with different feature flags enabled/disabled",
+      "steps": [
+        "snapshot-state-manager save --label feature-x-disabled",
+        "# Enable feature-x flag and rebuild",
+        "cargo build --features feature-x",
+        "snapshot-state-manager save --label feature-x-enabled",
+        "snapshot-state-manager compare snapshot-feature-x-disabled snapshot-feature-x-enabled"
+      ],
+      "use_case": "Quantify the cost/benefit of a feature flag: what files change, does toolchain shift, does build time increase?"
+    }
+  },
+  "snapshot_structure": {
+    "description": "Internal structure of stored engine state snapshots",
+    "location": ".cargo/cicd_state.snapshot or .cargo/cicd_snapshots/",
+    "format": "Bitcode-encoded binary (compact, self-describing)",
+    "fields": {
+      "workspace_root": "Absolute path to workspace root (e.g., /home/user/cargo-cicd)",
+      "toolchain": "Active toolchain identifier (e.g., stable, 1.79.0)",
+      "changed_files": "List of Rust source files detected as changed relative to workspace root",
+      "target_bytes": "Total bytes occupied by target/ directory (cache footprint)",
+      "git_phase": "Current git status label (e.g., clean, dirty, ahead, behind)",
+      "schema_version": "Version of snapshot format (for forward compatibility)",
+      "stages": "Array of per-stage timing and outcome records {name, ok, elapsed_ms}"
+    }
+  },
+  "integration": {
+    "adapter": "StateSnapshotAdapter (src/adapters/state_snapshot.rs)",
+    "engine_component": "EngineState (src/engine/mod.rs) — all state dimensions",
+    "snapshot_module": "advanced::snapshot (src/advanced/snapshot.rs) — encode/decode",
+    "feature_flag": "advanced — required to enable snapshot functionality",
+    "storage": "Uses Rust bitcode serialization for compact storage"
+  },
+  "error_handling": {
+    "snapshot_not_found": "If snapshot name doesn't exist, list available snapshots and suggest matches",
+    "permissions_denied": "If unable to write/read snapshots, explain required .cargo/ directory permissions",
+    "schema_mismatch": "If loading snapshot with incompatible schema version, show schema version in snapshot and current version, offer upgrade path",
+    "corrupt_snapshot": "If bitcode decode fails, show file path and size, suggest deleting and re-saving",
+    "disk_full": "If unable to save due to disk space, show required space and current free space on volume"
+  },
+  "safety_features": {
+    "no_destructive_load": "Loading snapshot does not overwrite workspace files; it only restores EngineState metadata. User files remain untouched.",
+    "backup_on_load": "By default, saves current state to .backup file before loading snapshot (--backup flag)",
+    "dry_run_on_clean": "Clean command supports --dry-run to preview deletions before committing",
+    "confirmation_prompts": "Interactive confirmation before destructive operations (load, clean)",
+    "immutable_snapshots": "Snapshots are read-only; compare and list operate safely without modifying stored data"
+  },
+  "performance_notes": {
+    "encoding": "Bitcode is ~5-10x more compact than JSON for typical engine state",
+    "io_bound": "Snapshot I/O is bounded by disk speed; compare operations are CPU-bound (diff computation)",
+    "scalability": "Snapshot size grows with number of changed files and stages tracked; typically 1-5 KB per snapshot"
+  }
+}

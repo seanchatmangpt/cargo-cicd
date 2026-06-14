@@ -1,0 +1,106 @@
+{
+  "name": "run-advanced-tests",
+  "version": "1.0.0",
+  "description": "Run cargo-cicd tests with the advanced feature flag enabled",
+  "help": "Execute the cargo-cicd test suite with advanced features (ignore, rayon, blake3, tracing, miette, etc.) enabled. Supports running all tests, library tests only, integration tests, or specific named tests.",
+  "examples": [
+    "/run-advanced-tests scope:all release:true",
+    "/run-advanced-tests scope:integration nocapture:true",
+    "/run-advanced-tests scope:invariants nocapture:true show-summary:true"
+  ],
+  "parameters": [
+    {
+      "name": "scope",
+      "description": "Which tests to run: 'all' (everything), 'lib' (library unit tests), 'integration' (integration tests only), or a specific test name (e.g., 'invariants', 'cli', 'feature_projection')",
+      "type": "string",
+      "default": "all",
+      "allowed_values": [
+        "all",
+        "lib",
+        "integration",
+        "invariants",
+        "cli",
+        "cicd_toml_truth",
+        "autonomic_policies",
+        "changed_tests",
+        "git_phase_closure",
+        "feature_projection",
+        "wasm4pm_harness",
+        "wasm4pm_evidence_gate",
+        "wasm4pm_evidence_mutation",
+        "wasm4pm_refusal_cases",
+        "ggen_customization_guard",
+        "refusal_calibration",
+        "lsp_explain"
+      ],
+      "required": false
+    },
+    {
+      "name": "release",
+      "description": "Build and run tests in release mode for performance testing (slower build, faster test execution)",
+      "type": "boolean",
+      "default": false,
+      "required": false
+    },
+    {
+      "name": "nocapture",
+      "description": "Show all output from tests, including println! and eprintln! statements",
+      "type": "boolean",
+      "default": false,
+      "required": false
+    },
+    {
+      "name": "threads",
+      "description": "Number of test threads to use (e.g., '1' for single-threaded, '4' for 4 threads, or leave empty for default)",
+      "type": "string",
+      "default": "",
+      "required": false
+    },
+    {
+      "name": "show-summary",
+      "description": "Display a summary report at the end showing pass/fail counts and execution time",
+      "type": "boolean",
+      "default": true,
+      "required": false
+    }
+  ],
+  "execution": {
+    "type": "bash",
+    "timeout_seconds": 600,
+    "working_directory": "{WORKSPACE_ROOT}",
+    "environment": {
+      "RUST_BACKTRACE": "1"
+    }
+  },
+  "scripts": [
+    {
+      "name": "build_cargo_args",
+      "language": "bash",
+      "content": "#!/bin/bash\n# Build the cargo test command with appropriate flags\n\n# Start with base command\nCARGO_CMD=\"cargo test\"\n\n# Add features flag (always required for advanced)\nCARGO_CMD=\"$CARGO_CMD --features advanced\"\n\n# Add scope (test selection)\nSCOPE=\"{{scope}}\"\ncase \"$SCOPE\" in\n  lib)\n    CARGO_CMD=\"$CARGO_CMD --lib\"\n    ;;\n  integration)\n    CARGO_CMD=\"$CARGO_CMD --test '*'\"\n    ;;\n  all)\n    # no filter, run everything\n    ;;\n  \"\")\n    # Default to all\n    ;;\n  *)\n    # Specific test name - use --test flag\n    CARGO_CMD=\"$CARGO_CMD --test $SCOPE\"\n    ;;\nesac\n\n# Add release flag if requested\n{% if release %}CARGO_CMD=\"$CARGO_CMD --release\"{% endif %}\n\n# Add nocapture if requested\n{% if nocapture %}CARGO_CMD=\"$CARGO_CMD -- --nocapture\"{% endif %}\n\n# Add thread count if specified\n{% if threads and threads != \"\" %}CARGO_CMD=\"$CARGO_CMD -- --test-threads={{threads}}\"{% endif %}\n\necho \"$CARGO_CMD\"\n"
+    },
+    {
+      "name": "run_tests",
+      "language": "bash",
+      "content": "#!/bin/bash\nset -o pipefail\n\n# Build the command\nCARGO_CMD=$(bash -c \"$BUILD_CMD\")\n\necho \"[run-advanced-tests] Running: $CARGO_CMD\"\necho \"[run-advanced-tests] Advanced features enabled: ignore, rayon, blake3, tracing, miette, moka, petgraph, etc.\"\necho \"---\"\n\n# Run tests and capture output\nTEST_OUTPUT=$(mktemp)\nTEST_STATUS=0\n\nif eval \"$CARGO_CMD\" 2>&1 | tee \"$TEST_OUTPUT\"; then\n  TEST_STATUS=0\nelse\n  TEST_STATUS=$?\nfi\n\n# Parse results if summary requested\n{% if show_summary %}\necho \"\"\necho \"---\"\necho \"[run-advanced-tests] Test Summary:\"\n\n# Extract test counts from output\nPASSED=$(grep -c \"test.*ok\" \"$TEST_OUTPUT\" || echo \"0\")\nFAILED=$(grep -c \"test.*FAILED\" \"$TEST_OUTPUT\" || echo \"0\")\n\nif [ \"$TEST_STATUS\" -eq 0 ]; then\n  echo \"Status: ✓ ALL TESTS PASSED\"\nelse\n  echo \"Status: ✗ SOME TESTS FAILED\"\nfi\n\necho \"Exit code: $TEST_STATUS\"\necho \"\"\n\n# Show failures if any\nif [ \"$FAILED\" -gt 0 ] || [ \"$TEST_STATUS\" -ne 0 ]; then\n  echo \"[run-advanced-tests] Failures detected:\"\n  grep -A 5 \"test.*FAILED\" \"$TEST_OUTPUT\" || grep -A 10 \"error\\[\" \"$TEST_OUTPUT\" || echo \"(Details in output above)\"\nfi\n{% endif %}\n\nrm -f \"$TEST_OUTPUT\"\nexit $TEST_STATUS\n"
+    }
+  ],
+  "output": {
+    "format": "text",
+    "includes": [
+      "test results",
+      "pass/fail counts",
+      "failure details with context",
+      "execution time",
+      "summary statistics"
+    ]
+  },
+  "notes": [
+    "The 'advanced' feature gate includes: ignore, rayon, blake3, tracing, tracing-subscriber, miette, thiserror, moka, bitcode, petgraph, jiff, hdrhistogram, aho-corasick",
+    "Available named tests: invariants, cli, cicd_toml_truth, autonomic_policies, changed_tests, git_phase_closure, feature_projection, wasm4pm_harness, wasm4pm_evidence_gate, wasm4pm_evidence_mutation, wasm4pm_refusal_cases, ggen_customization_guard, refusal_calibration, lsp_explain",
+    "Use 'scope: invariants' to run just the 7 public boundary invariants tests",
+    "Use 'nocapture: true' to see all println!/eprintln! output from tests",
+    "Use 'threads: 1' to run tests serially (useful for debugging flaky tests)",
+    "Use 'release: true' for performance-sensitive testing (slower compile, faster execution)",
+    "The skill adds RUST_BACKTRACE=1 automatically for better error diagnostics"
+  ]
+}

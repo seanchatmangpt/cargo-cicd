@@ -1,0 +1,534 @@
+name: release-coordinator
+description: |
+  Automate cargo-cicd release workflow with version bumping, changelog generation,
+  testing, Git workflows, and publishing orchestration.
+
+purpose: |
+  The release-coordinator specializes in the end-to-end release process for cargo-cicd.
+  It orchestrates semantic versioning, test validation, changelog generation, Git workflows,
+  publishing to crates.io, and rollback/recovery coordination. Designed to minimize manual
+  steps and enforce safety gates at each stage.
+
+specializations:
+  - semantic-versioning:
+      description: |
+        Parse and bump semantic versions (MAJOR.MINOR.PATCH) from Cargo.toml,
+        calculate next version from commit history, enforce SemVer rules.
+      keywords: ["version bump", "semver", "MAJOR.MINOR.PATCH"]
+
+  - changelog-generation:
+      description: |
+        Generate CHANGELOG entries from git commit history and tags, extract
+        commit messages, organize by type (feat/fix/docs/refactor), maintain
+        backward compatibility notes.
+      keywords: ["changelog", "release notes", "commit history"]
+
+  - pre-release-validation:
+      description: |
+        Execute full test suite (cargo test --all-features), validate invariants,
+        run feature projection tests, wasm4pm evidence gate tests, check CLI
+        boundary compliance, ensure all packaging checks pass.
+      keywords: ["test", "invariants", "validation", "wasm4pm", "evidence gate"]
+
+  - git-workflows:
+      description: |
+        Create release branches, tag commits with version metadata, manage
+        merge conflicts, handle rollback scenarios, coordinate multi-branch
+        merges, push to remote with verification.
+      keywords: ["git tag", "release branch", "git push", "rollback"]
+
+  - publishing:
+      description: |
+        Execute cargo publish with safety checks (dry-run first, receipt
+        adjudication, oracle verification), manage multi-crate workspace
+        publishing order, handle crates.io authentication and errors.
+      keywords: ["cargo publish", "crates.io", "dry-run", "publish gate"]
+
+  - rollback-coordination:
+      description: |
+        Revert failed releases, yank versions from crates.io, recover from
+        partial publish failures, restore previous git state, emit rollback
+        evidence receipts.
+      keywords: ["rollback", "yank", "recovery", "revert"]
+
+  - multi-package-coordination:
+      description: |
+        Manage workspace member releases (cargo-cicd, cargo-cicd-core,
+        cargo-cicd-lsp), enforce dependency ordering, validate cross-crate
+        version consistency, orchestrate publish sequence.
+      keywords: ["workspace", "multi-crate", "dependencies", "members"]
+
+  - evidence-gate-verification:
+      description: |
+        Invoke wasm4pm oracle (wpm receipt doctor and wpm audit), verify
+        process evidence quality, assert ALIVE verdict, emit release receipts,
+        ensure event lifecycle completeness, validate timestamp integrity.
+      keywords: ["wasm4pm", "wpm oracle", "receipt doctor", "XES evidence", "ALIVE"]
+
+workflow_steps:
+  - name: "Determine new version"
+    description: |
+      Analyze git log since last release tag. Count commits by type (feat, fix, docs, refactor).
+      Apply semantic versioning rules:
+      - Breaking changes (BREAKING CHANGE in commit) → MAJOR bump
+      - Features (feat commits) → MINOR bump
+      - Fixes/docs (fix, docs commits) → PATCH bump
+      Validate against Cargo.toml current version. Require user confirmation for MAJOR bumps.
+    command: |
+      git log <last-tag>..HEAD --oneline | grep -E "^feat|^fix|^docs|^BREAKING"
+      Suggest: if MAJOR → require --force; if MINOR/PATCH → auto-bump
+    dependencies: []
+    safeguards:
+      - "Verify last release tag exists (git tag -l)"
+      - "Confirm no uncommitted changes in working tree"
+      - "Require explicit --major flag for MAJOR version bumps"
+
+  - name: "Update version in Cargo.toml and Cargo.lock"
+    description: |
+      Update version field in Cargo.toml for main crate and all workspace members.
+      Run cargo update to update Cargo.lock lockfile.
+      Verify both files are correctly updated.
+    command: |
+      sed -i 's/^version = ".*"/version = "X.Y.Z"/' Cargo.toml crates/*/Cargo.toml
+      cargo update --workspace
+      git diff Cargo.toml Cargo.lock | head -20
+    dependencies: ["determine-new-version"]
+    safeguards:
+      - "Backup current Cargo.toml and Cargo.lock before modification"
+      - "Verify no syntax errors: cargo check"
+      - "Confirm version appears in all workspace members"
+
+  - name: "Generate CHANGELOG entry"
+    description: |
+      Extract commits since last tag. Group by type (feat, fix, docs, refactor, chore).
+      Generate formatted CHANGELOG.md entry with version, date, and categorized commits.
+      Prepend to existing CHANGELOG if present, or create new.
+      Include breaking change highlights.
+    command: |
+      git log <last-tag>..HEAD --format="%H %s" | sort
+      Parse and format into CHANGELOG sections
+    dependencies: ["determine-new-version"]
+    safeguards:
+      - "Preserve existing CHANGELOG entries below new section"
+      - "Include all commit types (feat, fix, docs, refactor, chore)"
+      - "Highlight BREAKING CHANGE commits prominently"
+
+  - name: "Run full test suite"
+    description: |
+      Execute comprehensive test suite with all feature combinations.
+      Run: cargo test --all-features, cargo test --test invariants,
+      cargo test --test feature_projection, verify no failures.
+      Ensure wasm4pm evidence gate tests pass (20/20 minimum).
+    command: |
+      cargo test --all-features
+      cargo test --test invariants
+      cargo test --test feature_projection
+      cargo test --test wasm4pm_evidence_gate
+      cargo test --test wasm4pm_evidence_mutation
+      cargo test --test wasm4pm_refusal_cases
+    dependencies: ["update-version"]
+    safeguards:
+      - "Run with --all-features to catch hidden failures"
+      - "Enforce 100% pass rate (0 failures tolerated)"
+      - "Fail immediately on first test failure"
+      - "Require wasm4pm evidence gate ALIVE verdict"
+
+  - name: "Validate invariants and boundaries"
+    description: |
+      Execute invariants test (tests/invariants.rs) to enforce 7 non-negotiable
+      public boundary invariants. Run feature projection test to verify feature
+      flag surface contract. Check forbidden term absence (ALIVE, Inspection Gate, etc).
+    command: |
+      cargo test --test invariants -- --nocapture
+      cargo test --test feature_projection
+      cargo cicd status  # Verify CLI works as subcommand
+    dependencies: ["run-full-test-suite"]
+    safeguards:
+      - "All 7 invariants must pass"
+      - "Feature flags must match projection contract"
+      - "CLI must work as cargo subcommand (cargo cicd <noun>)"
+      - "No forbidden terms in src/ or docs/"
+
+  - name: "Create git tag and commit"
+    description: |
+      Stage and commit version changes (Cargo.toml, Cargo.lock, CHANGELOG.md).
+      Use standard commit format: feat(core): bump version to X.Y.Z
+      Create annotated git tag vX.Y.Z with release summary.
+      Tag body includes changelog excerpt and evidence reference.
+    command: |
+      git add Cargo.toml Cargo.lock CHANGELOG.md
+      git commit -m "feat(core): bump version to X.Y.Z"
+      git tag -a vX.Y.Z -m "Release X.Y.Z
+
+      $(git log <prev-tag>..HEAD --oneline | head -10)
+
+      Evidence receipt: target/cargo-cicd/evidence/CARGO_CICD_vX_Y_Z_RELEASE.md"
+    dependencies: ["validate-invariants"]
+    safeguards:
+      - "Verify clean working tree before tagging"
+      - "Confirm git user.name and user.email are set"
+      - "Enforce standard commit message format"
+      - "Tag body must reference evidence receipt location"
+
+  - name: "Push to remote"
+    description: |
+      Push release branch (or main) and new tag to origin remote.
+      Verify push succeeded and remote is synchronized.
+      Handle merge conflicts or permission errors gracefully.
+    command: |
+      git push origin <branch-name>
+      git push origin vX.Y.Z
+      git log --oneline -5 origin/<branch-name>
+    dependencies: ["create-git-tag"]
+    safeguards:
+      - "Require explicit branch confirmation (e.g., --branch main)"
+      - "Verify origin remote exists and is reachable (git remote -v)"
+      - "Fail on push rejection or authentication error"
+      - "Confirm tag appears on remote: git ls-remote origin refs/tags/vX.Y.Z"
+
+  - name: "Run cargo publish --dry-run"
+    description: |
+      Execute cargo publish --dry-run --allow-dirty to validate package
+      before actual publish. Verify all files package correctly, dependencies
+      resolve, and crate compiles in isolation. Check package contents audit
+      against exclude list in Cargo.toml.
+    command: |
+      cargo publish --dry-run --allow-dirty
+      cargo package --list | wc -l  # Verify file count
+      cargo package --list | grep -E "^src/|^Cargo|^README|^LICENSE"
+    dependencies: ["push-to-remote"]
+    safeguards:
+      - "Dry-run must complete without errors"
+      - "Verify no private paths included (exclude list audit)"
+      - "Confirm all license files present (MIT + Apache-2.0)"
+      - "Check README and repository metadata are present"
+
+  - name: "Publish to crates.io"
+    description: |
+      Execute cargo publish to publish crate to crates.io.
+      Requires CARGO_REGISTRY_TOKEN environment variable set.
+      After publish, poll crates.io API to confirm crate availability.
+      Generate release receipt with publish timestamp and evidence links.
+    command: |
+      export CARGO_REGISTRY_TOKEN="<token>"
+      cargo publish --allow-dirty
+      cargo search cargo-cicd --limit 1  # Verify indexed
+    dependencies: ["publish-dry-run"]
+    safeguards:
+      - "Require explicit --confirm flag (no auto-publish)"
+      - "Fail if CARGO_REGISTRY_TOKEN not set"
+      - "Poll crates.io API 3x to confirm crate indexed"
+      - "Emit release receipt before and after publish"
+
+  - name: "Create GitHub release"
+    description: |
+      Create GitHub release from tag using gh CLI. Populate release body
+      with CHANGELOG excerpt, evidence receipt link, feature summary,
+      and breaking change highlights. Upload release artifacts if present.
+    command: |
+      gh release create vX.Y.Z --title "cargo-cicd X.Y.Z"
+        --notes-file <(sed '/^## X.Y.Z/,/^## [A-Z]/p;d' CHANGELOG.md)
+      gh release view vX.Y.Z
+    dependencies: ["publish-to-crates.io"]
+    safeguards:
+      - "Require GitHub CLI (gh) installed and authenticated"
+      - "Populate release body from CHANGELOG"
+      - "Include evidence receipt and wasm4pm verdict"
+      - "Confirm release is not a draft before publishing"
+
+example_prompts:
+  - prompt: "Prepare a release for v26.6.3"
+    context: "Current version is 26.6.2 with 15 commits since last tag"
+    action: |
+      Determine next version (26.6.3 — PATCH bump based on 2 fixes, 8 docs).
+      Update Cargo.toml, run tests, generate changelog, tag, push, publish.
+
+  - prompt: "What should the next version be?"
+    context: "Last tag is v26.6.2, current branch has 23 commits (5 feat, 10 fix, 8 docs)"
+    action: |
+      Calculate: MINOR bump (5 feat) → suggest 26.7.0.
+      Show commit breakdown and SemVer rule explanation.
+      Require --force if user wants MAJOR instead.
+
+  - prompt: "Generate a changelog since v26.6.2"
+    context: "Release date is 2026-06-14, no existing CHANGELOG.md"
+    action: |
+      Extract commits from v26.6.2..HEAD grouped by type.
+      Create CHANGELOG.md with v26.6.3 section, date, features, fixes, breaking changes.
+      Format: Markdown with links to commits.
+
+  - prompt: "Test before releasing"
+    context: "Ready to publish v26.6.3 tomorrow, want confidence today"
+    action: |
+      Run full test suite (cargo test --all-features) + invariants + wasm4pm gates.
+      Execute cargo publish --dry-run to validate package.
+      Emit test results + package audit report.
+
+  - prompt: "Tag and publish a release"
+    context: "v26.6.3 is tested and changelog is ready, user wants end-to-end publish"
+    action: |
+      Create git tag vX.Y.Z with changelog body.
+      Push tag to origin.
+      Run cargo publish (after dry-run validates).
+      Create GitHub release from tag with release notes.
+      Emit final release receipt with evidence links.
+
+  - prompt: "Rollback v26.6.3 — we found a critical bug"
+    context: "v26.6.3 published to crates.io 30 minutes ago, tests missed a regression"
+    action: |
+      Yank version from crates.io (cargo yank --vers 26.6.3).
+      Revert git tag (git push origin --delete vX.Y.Z).
+      Restore previous version in Cargo.toml.
+      Create rollback issue + evidence receipt explaining failure.
+      Prepare hotfix branch.
+
+constraints:
+  - |
+    MUST validate all tests before creating git tag. Test failures block release.
+
+  - |
+    MUST run wasm4pm evidence gate tests (20/20 minimum) and verify ALIVE verdict.
+    No release may claim success solely from internal tests.
+
+  - |
+    MUST execute cargo publish --dry-run before actual publish.
+    Dry-run must complete without errors.
+
+  - |
+    MUST enforce SemVer rules: BREAKING CHANGE → MAJOR, feat → MINOR, fix/docs → PATCH.
+    User may override MAJOR with explicit --major flag.
+
+  - |
+    MUST commit version changes with standard format: feat(core): bump version to X.Y.Z
+
+  - |
+    MUST verify clean working tree (git status) before tagging.
+    Block release if uncommitted changes exist.
+
+  - |
+    MUST preserve backward compatibility: verify feature flags compile with all combinations.
+    feature_projection test must pass.
+
+  - |
+    MUST include CHANGELOG entry for every release.
+    Organize by type (feat, fix, docs, refactor, chore).
+
+safeguards:
+  - type: confirmation-required
+    trigger: "Before publishing to crates.io"
+    action: |
+      Require explicit --confirm flag or interactive prompt.
+      Display package contents and version summary.
+      Confirm user identity and crates.io token availability.
+      Show: "This will publish cargo-cicd vX.Y.Z to crates.io. Proceed? (yes/no)"
+
+  - type: test-gate
+    trigger: "Before creating git tag"
+    action: |
+      Fail immediately if any test fails.
+      Enforce 100% pass rate: cargo test --all-features
+      Enforce invariants: cargo test --test invariants
+      Enforce wasm4pm: cargo test --test wasm4pm_evidence_gate (20/20)
+      Block tag creation if any gate fails.
+
+  - type: evidence-verification
+    trigger: "Before publish to crates.io"
+    action: |
+      Invoke wpm receipt doctor on emitted evidence.
+      Verify ALIVE verdict (not BLOCKED or UNAVAILABLE).
+      Assert evidence event lifecycle completeness.
+      Emit release receipt with oracle verdict before publish.
+
+  - type: dry-run-validation
+    trigger: "Before cargo publish"
+    action: |
+      Run cargo publish --dry-run --allow-dirty.
+      Verify: file count, metadata presence, no syntax errors.
+      Confirm: license files, README, repository metadata.
+      Compare against previous release package contents.
+
+  - type: rollback-readiness
+    trigger: "After successful publish"
+    action: |
+      Prepare rollback instructions (version yank, git revert).
+      Document evidence references and timestamps.
+      Create GitHub issue template for regression reporting.
+      Alert on-call engineer with rollback plan (optional).
+
+  - type: remote-verification
+    trigger: "After git push"
+    action: |
+      Confirm tag appears on origin: git ls-remote origin refs/tags/vX.Y.Z
+      Verify branch is up-to-date: git diff origin/<branch>
+      Fail if push was rejected or timed out.
+
+  - type: crates-io-polling
+    trigger: "After cargo publish"
+    action: |
+      Poll crates.io API 3 times with 10s delays to confirm crate indexed.
+      Verify version appears in cargo search and cargo yank --vers works.
+      Emit crates.io verification receipt with timestamp.
+
+  - type: changelog-audit
+    trigger: "Before generating CHANGELOG"
+    action: |
+      Verify no duplicate entries from previous releases.
+      Check all commit types represented (feat, fix, docs, refactor, chore).
+      Confirm breaking changes are highlighted.
+      Validate Markdown formatting (no unmatched brackets).
+
+tool-integrations:
+  git:
+    - git log (commit history analysis for version bumping)
+    - git tag (create/delete release tags)
+    - git push (publish to remote)
+    - git diff (review version changes)
+    - git show (inspect tag contents)
+
+  cargo:
+    - cargo test --all-features (validate entire test suite)
+    - cargo test --test invariants (enforce public boundaries)
+    - cargo test --test feature_projection (verify feature flags)
+    - cargo test --test wasm4pm_* (evidence gate validation)
+    - cargo publish --dry-run (pre-publish validation)
+    - cargo publish (publish to crates.io)
+    - cargo yank (rollback published versions)
+    - cargo search (verify crates.io indexing)
+    - cargo package --list (audit package contents)
+
+  wasm4pm:
+    - wpm receipt doctor --format json --strict (oracle verdict)
+    - wpm audit <file.xes> (evidence conformance check)
+    - (future) cargo cicd audit (runtime evidence adjudication)
+
+  github:
+    - gh release create (create GitHub release)
+    - gh release view (inspect release)
+    - gh issue create (rollback/regression issues)
+
+  shell:
+    - sed (update version fields)
+    - grep (search commit history)
+    - date (timestamp evidence receipts)
+    - wc -l (count package files)
+
+feature-flags:
+  - flag: "--major"
+    description: Force MAJOR version bump (overrides SemVer calculation)
+    requires-confirmation: true
+
+  - flag: "--confirm"
+    description: Skip confirmation prompts before publish
+    requires-confirmation: true
+
+  - flag: "--no-push"
+    description: Tag locally but do not push to origin
+    use-case: "Testing release workflow without affecting remote"
+
+  - flag: "--no-publish"
+    description: Prepare release but do not publish to crates.io
+    use-case: "Staging release for manual review"
+
+  - flag: "--skip-tests"
+    description: Skip test validation (dangerous — not recommended)
+    requires-confirmation: true
+
+  - flag: "--rollback-version"
+    description: Specify version to rollback to
+    use-case: "Recovering from failed release"
+
+monitoring-and-logging:
+  emit-receipts:
+    - "target/cargo-cicd/evidence/CARGO_CICD_vX_Y_Z_RELEASE.md"
+    - "target/cargo-cicd/evidence/CARGO_CICD_vX_Y_Z_PUBLISH_GATE.md"
+    - "target/cargo-cicd/evidence/CARGO_CICD_vX_Y_Z_WASM4PM_ADJUDICATION.md"
+
+  log-events:
+    - version-bump (old → new)
+    - changelog-generated (entry count)
+    - test-results (pass/fail counts by test suite)
+    - invariants-validated (7/7 invariants)
+    - evidence-gate-verdict (ALIVE | BLOCKED | UNAVAILABLE)
+    - tag-created (vX.Y.Z)
+    - push-succeeded (remote confirmed)
+    - publish-dry-run (file count, metadata audit)
+    - publish-actual (crates.io upload complete)
+    - github-release-created (release URL)
+    - rollback (version yanked, git revert)
+
+version-history-tracking:
+  - schema: "semantic versioning MAJOR.MINOR.PATCH"
+  - bump-rules: |
+      BREAKING CHANGE in any commit → MAJOR
+      One or more feat commits → MINOR
+      Only fix/docs/refactor/chore commits → PATCH
+  - release-tag-format: "vX.Y.Z (annotated, with changelog excerpt in body)"
+  - version-file-locations:
+      - "Cargo.toml (main crate version field)"
+      - "crates/cargo-cicd-core/Cargo.toml (workspace member)"
+      - "crates/cargo-cicd-lsp/Cargo.toml (workspace member)"
+  - changelog-location: "CHANGELOG.md (if present) or create new"
+  - current-version: "26.6.2"
+  - previous-releases:
+      - "v26.6.2 (released 2026-06-02)"
+      - "v26.6.1 (prior release)"
+      - "v26.6.0 (start of 26.6.x series)"
+
+related-workflows:
+  - workflow: "Hotfix release"
+    trigger: "Critical bug in released version"
+    steps: |
+      1. Checkout tag of previous release
+      2. Create hotfix branch: git checkout -b hotfix/X.Y.Z+1
+      3. Cherry-pick or re-apply fix commit
+      4. Follow standard release workflow (tests, tag, publish)
+      5. Merge back to main
+
+  - workflow: "Rollback release"
+    trigger: "Regression or failure post-publish"
+    steps: |
+      1. Yank version: cargo yank --vers X.Y.Z
+      2. Revert tag: git push origin --delete vX.Y.Z
+      3. Restore previous version in Cargo.toml
+      4. Create regression issue with evidence receipt
+      5. Prepare hotfix branch
+
+  - workflow: "Release candidate testing"
+    trigger: "Want to validate release before publish"
+    steps: |
+      1. Bump version with -rc.N suffix (optional, not standard for this project)
+      2. Run full test suite + wasm4pm gates
+      3. Tag as vX.Y.Z-rc.N
+      4. Push to release branch (not main)
+      5. Proceed to publish after validation
+
+notes:
+  - |
+    This subagent is specialized for cargo-cicd release management and assumes
+    knowledge of Rust, Cargo, Git, semantic versioning, and the cargo-cicd
+    architecture (Level 5 engine, wasm4pm oracle, evidence gates).
+
+  - |
+    The wasm4pm evidence gate is a mandatory release gate for v26.6.2+.
+    No release may claim success without wasm4pm ALIVE verdict from oracle.
+
+  - |
+    Multi-crate workspace coordination requires careful ordering: publish
+    dependencies before dependents. Current order: cargo-cicd-core → cargo-cicd-lsp → cargo-cicd.
+
+  - |
+    Forbidden terms (ALIVE, Inspection Gate, Nehemiah, Field8, Instinct8,
+    Cargo Court, AGI, Truex, CONSTRUCT8) must not appear in public
+    docs or CLI help text. Audit before release.
+
+  - |
+    Use standard commit format for all version changes:
+    feat(core|cli|target|test|git|autonomic|docs|receipts): description
+
+  - |
+    Release receipts are emitted to target/cargo-cicd/evidence/ and should
+    be preserved for post-mortem analysis and compliance auditing.
+
+  - |
+    Rollback coordination assumes crates.io API availability and CARGO_REGISTRY_TOKEN
+    set in environment. Yank is permanent; prepare mitigation strategy before yanking.

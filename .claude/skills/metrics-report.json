@@ -1,0 +1,409 @@
+{
+  "name": "metrics-report",
+  "version": "1.0.0",
+  "description": "Analyzes and reports on pipeline metrics collected by MetricsCollector during cargo-cicd execution. Extracts stage latencies (p50, p90, p99, mean, max), generates formatted performance reports, and tracks trends over time.",
+  "author": "cargo-cicd metrics integration",
+  "category": "performance-monitoring",
+  "tags": ["metrics", "performance", "pipeline", "latency", "histogram"],
+  "parameters": [
+    {
+      "name": "output_format",
+      "type": "string",
+      "description": "Output format for the metrics report",
+      "enum": ["text", "json", "html"],
+      "default": "text",
+      "example": "json"
+    },
+    {
+      "name": "compare_to",
+      "type": "string",
+      "description": "Path to a previous metrics file for trend analysis and comparison. If provided, generates delta analysis showing improvements/regressions.",
+      "default": null,
+      "example": "/tmp/metrics-2026-06-14.json"
+    },
+    {
+      "name": "save_to",
+      "type": "string",
+      "description": "File path to save the metrics report for tracking over time. Useful for building a historical metrics database.",
+      "default": null,
+      "example": "/tmp/metrics-report.json"
+    },
+    {
+      "name": "threshold_ms",
+      "type": "integer",
+      "description": "Alert threshold in milliseconds. Any stage exceeding this value will be flagged in recommendations.",
+      "default": 5000,
+      "example": 3000
+    },
+    {
+      "name": "log_level",
+      "type": "string",
+      "description": "RUST_LOG level for capturing tracing output (debug, info, trace)",
+      "enum": ["debug", "info", "trace"],
+      "default": "info"
+    }
+  ],
+  "command": {
+    "description": "Execute cargo-cicd pipeline with metrics collection enabled",
+    "steps": [
+      {
+        "name": "setup_environment",
+        "description": "Configure Rust logging to capture metrics tracing output",
+        "environment": {
+          "RUST_LOG": "${log_level}",
+          "RUST_BACKTRACE": "1"
+        }
+      },
+      {
+        "name": "run_pipeline",
+        "description": "Run cargo-cicd with advanced feature (enables MetricsCollector)",
+        "command": "cargo run --features advanced --quiet",
+        "capture_output": true,
+        "timeout_seconds": 300
+      },
+      {
+        "name": "extract_metrics",
+        "description": "Parse structured metric events from output",
+        "processor": "parse_metrics_output"
+      },
+      {
+        "name": "aggregate_histograms",
+        "description": "Aggregate histogram data by stage",
+        "processor": "aggregate_stage_metrics"
+      },
+      {
+        "name": "calculate_deltas",
+        "description": "If compare_to provided, calculate trend analysis",
+        "condition": "${compare_to != null}",
+        "processor": "calculate_trend_deltas"
+      },
+      {
+        "name": "generate_report",
+        "description": "Format metrics into selected output format",
+        "processor": "format_report"
+      },
+      {
+        "name": "save_report",
+        "description": "Persist report if save_to path provided",
+        "condition": "${save_to != null}",
+        "processor": "persist_report"
+      }
+    ]
+  },
+  "processors": {
+    "parse_metrics_output": {
+      "description": "Extract stage latency metrics from MetricsCollector.report() output format",
+      "input": "stdout from cargo run",
+      "pattern": "^([a-z_]+):\\s+p50=([0-9]+)µs,\\s+p90=([0-9]+)µs,\\s+p99=([0-9]+)µs",
+      "output": {
+        "stage_events": [
+          {
+            "stage": "string - pipeline stage name (e.g., 'scan', 'test', 'publish')",
+            "elapsed_ms": "integer - converted from microseconds to milliseconds",
+            "percentiles": {
+              "p50": "integer - 50th percentile latency in ms",
+              "p90": "integer - 90th percentile latency in ms",
+              "p99": "integer - 99th percentile latency in ms"
+            }
+          }
+        ]
+      }
+    },
+    "aggregate_stage_metrics": {
+      "description": "Compute aggregate statistics for each stage from histogram data",
+      "logic": "For each stage histogram: extract count, p50, p90, p99, mean, max. Convert from microseconds to milliseconds for readability.",
+      "output": {
+        "stages": [
+          {
+            "name": "string - stage name",
+            "count": "integer - number of measurements recorded",
+            "p50_ms": "number - median latency",
+            "p90_ms": "number - 90th percentile latency",
+            "p99_ms": "number - 99th percentile latency",
+            "mean_ms": "number - arithmetic mean latency",
+            "max_ms": "number - maximum recorded latency",
+            "min_ms": "number - minimum recorded latency"
+          }
+        ],
+        "summary": {
+          "total_pipeline_ms": "number - sum of mean latencies across all stages",
+          "slowest_stage": "string - stage name with highest p99 latency",
+          "fastest_stage": "string - stage name with lowest p99 latency",
+          "total_measurements": "integer - sum of count across all stages",
+          "timestamp": "ISO 8601 timestamp of report generation"
+        }
+      }
+    },
+    "calculate_trend_deltas": {
+      "description": "Compare current metrics to previous baseline file",
+      "logic": "For each stage in current metrics: lookup stage in previous metrics and compute (current - previous) / previous * 100 for percent change. Mark regressions (>10% slower) and improvements (>10% faster).",
+      "input": {
+        "current_metrics": "object from aggregate_stage_metrics",
+        "previous_metrics": "JSON file from compare_to parameter"
+      },
+      "output": {
+        "trends": [
+          {
+            "stage": "string - stage name",
+            "p50_delta_pct": "number - percent change in p50 latency",
+            "p90_delta_pct": "number - percent change in p90 latency",
+            "p99_delta_pct": "number - percent change in p99 latency",
+            "status": "enum - 'regression' (>10% slower), 'stable' (-10% to +10%), 'improved' (>10% faster)",
+            "previous_p99_ms": "number - baseline p99 from previous run",
+            "current_p99_ms": "number - current p99"
+          }
+        ]
+      }
+    },
+    "format_report": {
+      "description": "Render aggregated metrics in requested output format",
+      "output_formats": {
+        "text": {
+          "description": "Human-readable text report with aligned columns",
+          "example": "=== CARGO-CICD Pipeline Metrics Report ===\nGenerated: 2026-06-14T10:45:22Z\n\nPer-Stage Latency Distribution:\n  Stage      Count  P50(ms)  P90(ms)  P99(ms)  Mean(ms)  Max(ms)\n  ─────────────────────────────────────────────────────────────\n  scan         42    12.5     18.2     22.8     13.1      45.0\n  test         42    285.0    510.0    680.0    315.2     920.0\n  publish       8     45.0     75.0     95.0     52.3      120.0\n\nSummary:\n  Total Pipeline Time: 380.6 ms (sum of means)\n  Slowest Stage: test (p99=680.0ms)\n  Fastest Stage: scan (p99=22.8ms)\n  Total Measurements: 92\n\nRecommendations:\n  - Stage 'test' exceeds threshold (5000ms): 680.0ms p99\n    Investigate: High variance between p50 (285ms) and p99 (680ms) suggests outlier tests"
+        },
+        "json": {
+          "description": "Structured JSON for programmatic consumption and storage",
+          "example": {
+            "report_version": "1.0",
+            "generated_at": "2026-06-14T10:45:22Z",
+            "stages": [
+              {
+                "name": "scan",
+                "count": 42,
+                "p50_ms": 12.5,
+                "p90_ms": 18.2,
+                "p99_ms": 22.8,
+                "mean_ms": 13.1,
+                "max_ms": 45.0,
+                "min_ms": 8.0
+              }
+            ],
+            "summary": {
+              "total_pipeline_ms": 380.6,
+              "slowest_stage": "test",
+              "fastest_stage": "scan",
+              "total_measurements": 92
+            },
+            "trends": null,
+            "recommendations": [
+              {
+                "severity": "info",
+                "stage": "test",
+                "message": "High variance detected (cv=0.45)"
+              }
+            ]
+          }
+        },
+        "html": {
+          "description": "Rendered HTML with charts and interactive tables",
+          "features": [
+            "Responsive table of per-stage metrics",
+            "Bar chart comparing p50/p90/p99 across stages",
+            "Trend sparklines if compare_to provided",
+            "Color-coded alerts for threshold exceedances",
+            "Exportable as PDF or PNG"
+          ]
+        }
+      }
+    },
+    "persist_report": {
+      "description": "Write metrics report to file for historical tracking",
+      "logic": "Format report as JSON (regardless of output_format parameter) and write to save_to path. Create parent directories if needed. Overwrite existing file.",
+      "output": {
+        "file_path": "string - absolute path where report was saved",
+        "file_size_bytes": "integer - size of written file",
+        "timestamp": "ISO 8601 when file was persisted"
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether metrics collection and report generation succeeded"
+      },
+      "report": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Text-formatted report when output_format='text'"
+          },
+          {
+            "type": "object",
+            "description": "Structured report object when output_format='json'"
+          },
+          {
+            "type": "string",
+            "description": "HTML markup when output_format='html'"
+          }
+        ]
+      },
+      "metrics": {
+        "type": "object",
+        "properties": {
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "count": {"type": "integer"},
+                "p50_ms": {"type": "number"},
+                "p90_ms": {"type": "number"},
+                "p99_ms": {"type": "number"},
+                "mean_ms": {"type": "number"},
+                "max_ms": {"type": "number"},
+                "min_ms": {"type": "number"}
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total_pipeline_ms": {"type": "number"},
+              "slowest_stage": {"type": "string"},
+              "fastest_stage": {"type": "string"},
+              "total_measurements": {"type": "integer"}
+            }
+          }
+        }
+      },
+      "trends": {
+        "type": "object",
+        "description": "Present only if compare_to was provided",
+        "properties": {
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stage": {"type": "string"},
+                "p50_delta_pct": {"type": "number"},
+                "p90_delta_pct": {"type": "number"},
+                "p99_delta_pct": {"type": "number"},
+                "status": {"type": "string", "enum": ["regression", "stable", "improved"]}
+              }
+            }
+          }
+        }
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": {
+              "type": "string",
+              "enum": ["info", "warning", "alert"],
+              "description": "Severity level of the recommendation"
+            },
+            "stage": {"type": "string", "description": "Stage name if specific to one stage"},
+            "message": {"type": "string", "description": "Recommendation message with actionable guidance"},
+            "metric": {
+              "type": "string",
+              "description": "Which metric triggered the recommendation (e.g., 'p99_ms', 'variance', 'regression')"
+            }
+          }
+        }
+      },
+      "saved_to": {
+        "type": "string",
+        "description": "File path if save_to parameter was provided and report was persisted"
+      },
+      "errors": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Any errors encountered during metrics collection or report generation"
+      }
+    },
+    "required": ["success", "report", "metrics"]
+  },
+  "examples": [
+    {
+      "name": "Basic metrics report in text format",
+      "command": "Run metrics collection with default settings",
+      "invocation": "cargo run --features advanced 2>&1 | metrics-report",
+      "parameters": {
+        "output_format": "text",
+        "threshold_ms": 5000
+      }
+    },
+    {
+      "name": "JSON report saved for historical tracking",
+      "command": "Generate JSON report and save to timestamped file",
+      "invocation": "metrics-report --output-format json --save-to metrics/$(date +%Y-%m-%d).json",
+      "parameters": {
+        "output_format": "json",
+        "save_to": "metrics/2026-06-14.json"
+      }
+    },
+    {
+      "name": "Trend analysis with previous baseline",
+      "command": "Compare current run against yesterday's metrics",
+      "invocation": "metrics-report --compare-to metrics/2026-06-13.json --output-format text",
+      "parameters": {
+        "output_format": "text",
+        "compare_to": "metrics/2026-06-13.json"
+      }
+    },
+    {
+      "name": "Strict performance monitoring with low threshold",
+      "command": "Alert on any stage exceeding 2 seconds",
+      "invocation": "metrics-report --threshold-ms 2000 --output-format text",
+      "parameters": {
+        "threshold_ms": 2000,
+        "output_format": "text"
+      }
+    },
+    {
+      "name": "Complete workflow: run, analyze, track, and alert",
+      "command": "Collect metrics, save report, compare to baseline, generate recommendations",
+      "invocation": "metrics-report --output-format json --save-to metrics/latest.json --compare-to metrics/baseline.json --threshold-ms 3000",
+      "parameters": {
+        "output_format": "json",
+        "save_to": "metrics/latest.json",
+        "compare_to": "metrics/baseline.json",
+        "threshold_ms": 3000
+      }
+    }
+  ],
+  "notes": {
+    "feature_flag_required": "advanced",
+    "architecture": "MetricsCollector (src/integrations/metrics_collector.rs) wraps StageLatencies (src/advanced/histogram.rs) which uses HdrHistogram for accurate percentile tracking. Each stage records latencies in microseconds (range: 1µs to 60s) at 3 significant figures precision.",
+    "metric_units": "Internal metrics use microseconds; reports display milliseconds for readability",
+    "integration_points": [
+      "MetricsCollector::record_stage(stage_name, micros) - invoked by instrumented pipeline code",
+      "MetricsCollector::report() - generates text summary",
+      "StageLatencies::percentiles() - snapshot of stage distribution"
+    ],
+    "performance_impact": "Minimal - HdrHistogram uses fixed small memory footprint (~32KB per stage histogram). Thread-safe merge() allows parallel collection.",
+    "future_extensions": [
+      "XES (XML Event Stream) format for wasm4pm evidence integration",
+      "Prometheus metrics export for monitoring dashboards",
+      "Percentile heatmaps for visualizing latency distributions",
+      "Anomaly detection and automatic outlier flagging",
+      "Budget-based alerts (e.g., 'test stage should complete in <500ms')"
+    ]
+  },
+  "defaults": {
+    "output_format": "text",
+    "threshold_ms": 5000,
+    "log_level": "info",
+    "compare_to": null,
+    "save_to": null
+  },
+  "exit_codes": {
+    "0": "Metrics collection and report generation succeeded",
+    "1": "Pipeline execution failed or metrics collection error",
+    "2": "Invalid parameters provided",
+    "3": "Output file could not be written",
+    "4": "Comparison file (compare_to) not found or invalid"
+  },
+  "related_skills": [
+    "run - Launch cargo-cicd to gather metrics",
+    "verify - Confirm performance changes work as expected",
+    "code-review - Review optimization PRs alongside metrics baseline"
+  ]
+}
