@@ -67,8 +67,27 @@ impl StatusShowVerb {
             eprintln!("warning: evidence emission failed: {}", e);
         }
 
+        // Build real engine state from adapters.
+        let engine = EngineState::from_workspace();
+
+        // Show key engine state dimensions.
+        println!();
+        println!("engine state:");
+        if !engine.workspace.root_path.is_empty() {
+            println!("  workspace root: {}", engine.workspace.root_path);
+        }
+        if !engine.workspace.name.is_empty() {
+            println!("  workspace name: {}", engine.workspace.name);
+        }
+        println!("  branch:         {}", engine.git_phase.branch);
+        println!("  dirty files:    {}", engine.git_phase.dirty_files.len());
+        println!(
+            "  target size:    {:.2} GB",
+            engine.target.total_size_bytes as f64 / 1_073_741_824.0
+        );
+        println!("  toolchain:      {}", engine.toolchain.active);
+
         // Run autonomic policies and display suggestions.
-        let engine = EngineState::default();
         let suggestions = policy_engine::run_suggestions(&engine);
         if !suggestions.is_empty() {
             println!();
