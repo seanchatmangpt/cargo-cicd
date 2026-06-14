@@ -2,11 +2,15 @@
 
 ## Overview
 
-This guide covers the complete testing strategy for cargo-cicd v26.6.2. cargo-cicd is a process-data engine with three test tiers:
+This comprehensive guide documents the complete testing strategy for **cargo-cicd v26.6.2**, a process-data engine exposed as a boring Rust CI/CD helper. The guide covers test organization, fixture design, test writing patterns, mocking strategies, evidence-gate integration, and CI/CD workflows.
 
-1. **Smoke Tests** — Public boundary invariants and parsing
-2. **Integration Tests** — Noun-verb CLI behavior using `assert_cmd` and isolated fixture workspaces
-3. **Evidence-Gate Tests** — wasm4pm acceptance verdicts (release closure requirement)
+cargo-cicd implements a **three-tier testing strategy**:
+
+1. **Smoke Tests** — Public boundary invariants, CLI parsing, schema validation (non-closing)
+2. **Integration Tests** — Noun-verb CLI behavior against isolated fixture workspaces (non-closing)
+3. **Evidence-Gate Tests** — XES emission and wasm4pm verdicts (release closure requirement)
+
+**Key Principle:** Tests assert on observable CLI behavior and process evidence, never on internal engine state. Internal state belongs in unit tests; process conformance assertions belong in evidence-gate tests.
 
 ---
 
@@ -154,37 +158,79 @@ fn evidence_gate_status_show_accepted() {
 
 ```
 tests/
-├── invariants.rs                    # Smoke: 7 invariants (public boundary, safety, etc.)
-├── feature_projection.rs            # Smoke: feature flag surface
-├── cli/
-│   ├── test_status.rs              # Integration: status command
-│   ├── test_target.rs              # Integration: target command
-│   ├── test_git.rs                 # Integration: git command
-│   ├── test_publish.rs             # Integration: publish command
-│   ├── test_workspace.rs           # Integration: workspace command
-│   ├── test_evidence.rs            # Integration: evidence command
-│   └── command_projection.rs        # Harness: all commands
-├── changed_tests.rs                # Integration: test changed, trybuild changed
-├── cicd_toml_truth.rs              # Integration: toml schema
-├── autonomic_policies.rs           # Integration: policy verdicts
-├── git_phase_closure.rs            # Integration: git state
-├── wasm4pm_evidence_gate.rs        # Evidence-gate: positive cases (Release Closure)
-├── wasm4pm_evidence_mutation.rs    # Evidence-gate: negative cases
-├── wasm4pm_refusal_cases.rs        # Evidence-gate: edge cases
-├── wasm4pm_harness.rs              # Evidence-gate: harness
-├── fixtures/
-│   ├── mod.rs                      # FixtureWorkspace helpers
-│   ├── clean_workspace/            # Pre-built fixture
-│   ├── dirty_workspace/            # Pre-built fixture
-│   ├── missing_manifest/           # Pre-built fixture
-│   ├── corrupted_cicd_toml/        # Pre-built fixture
-│   └── ...
-└── [other integration tests]
+├── SMOKE TESTS (Fast, deterministic, no external deps)
+│   ├── invariants.rs                # 7 non-negotiable invariants
+│   │   ├── invariant_public_boundary_no_forbidden_terms_in_all_help()
+│   │   ├── invariant_no_false_close_git_close_help_mentions_safety()
+│   │   ├── invariant_no_destructive_default_target_prune_is_safe()
+│   │   ├── invariant_no_full_trybuild_by_default()
+│   │   └── invariant_wasm4pm_scan_or_documented_absence()
+│   └── feature_projection.rs        # Feature flag surface contract
+│
+├── INTEGRATION TESTS (Fixture-based, CLI behavior, <30 sec total)
+│   ├── cli/
+│   │   ├── command_projection.rs    # Harness: all commands parse
+│   │   ├── test_status.rs           # status command
+│   │   ├── test_target.rs           # target command
+│   │   ├── test_git.rs              # git command
+│   │   ├── test_publish.rs          # publish command
+│   │   ├── test_workspace.rs        # workspace command
+│   │   ├── test_evidence.rs         # evidence command
+│   │   └── mod.rs                   # Shared CLI test utils
+│   ├── changed_tests.rs             # test changed, trybuild changed selection
+│   ├── cicd_toml_truth.rs           # cicd.toml schema round-trip
+│   ├── autonomic_policies.rs        # Policy verdicts (unit-level)
+│   ├── git_phase_closure.rs         # Git state verification
+│   ├── fixture_workspaces.rs        # Fixture construction verification
+│   ├── interactions.rs              # Cross-command interactions
+│   ├── publish_gate.rs              # Publish command safety
+│   ├── refusal_calibration.rs       # Command refusal edge cases
+│   └── fixtures/
+│       ├── mod.rs                   # FixtureWorkspace impl + helpers
+│       ├── clean_workspace/         # Pre-built: valid, clean, committed
+│       ├── dirty_workspace/         # Pre-built: clean + untracked file
+│       ├── missing_manifest/        # Pre-built: no Cargo.toml
+│       ├── corrupted_cicd_toml/     # Pre-built: invalid TOML syntax
+│       ├── stale_cicd_toml/         # Pre-built: dirty cache state
+│       ├── toolchain_mismatch/      # Pre-built: old rust-toolchain.toml
+│       ├── target_over_limit/       # Pre-built: 1 MB artifact
+│       ├── trybuild_changed_only/   # Pre-built: 10 unchanged + 1 changed
+│       └── trybuild_huge_set/       # Pre-built: 50 fixtures
+│
+├── EVIDENCE-GATE TESTS (XES/wpm adjudication, release closure)
+│   ├── wasm4pm_evidence_gate.rs     # Positive: accepted cases
+│   ├── wasm4pm_evidence_mutation.rs # Negative: corrupted evidence
+│   ├── wasm4pm_refusal_cases.rs     # Edge cases: oracle absent, etc.
+│   ├── wasm4pm_harness.rs           # Test harness
+│   ├── wpm_verdict_key_contract.rs  # Oracle contract verification
+│   └── wasm4pm_evidence/
+│       └── fixtures/                # XES/JSONL reference files
+│
+├── SPECIALIZED TESTS
+│   ├── ggen_customization_guard.rs  # ggen ontology invariant
+│   ├── lsp_explain.rs               # LSP integration
+│   └── [others]
+└── Other utils
+    └── fixtures.rs (imports)
 ```
+
+**Test Count by Tier:**
+- **Smoke:** ~10 tests (~5 sec)
+- **Integration:** ~50+ tests (~30 sec)
+- **Evidence-Gate:** ~20+ tests (~60 sec with wpm oracle)
+- **Total:** ~80+ tests (~2 min full suite)
 
 ---
 
 ## Fixture Design
+
+### Overview: Why Fixtures Matter
+
+Fixtures are the foundation of integration testing in cargo-cicd. They provide:
+- **Isolation:** Each test gets its own temporary directory (via `tempfile::TempDir`)
+- **Repeatability:** Fixture state is deterministic and reproducible
+- **Safety:** No test can affect another test or the development machine
+- **Clarity:** Fixture names clearly indicate what workspace state they represent
 
 ### FixtureWorkspace API
 
@@ -295,36 +341,187 @@ fn run_git(cwd: &std::path::Path, args: &[&str]) -> Result<(), String> {
 
 ### Pre-Built Fixture Directories
 
-Located in `/tests/fixtures/*/`, each pre-built fixture includes a `README.md` describing its state:
+Located in `/tests/fixtures/*/`, each pre-built fixture includes a `README.md` describing its state and expected command verdicts.
 
-- `clean_workspace/` — Minimal valid workspace, clean git tree
-- `dirty_workspace/` — Clean baseline + untracked file
-- `missing_manifest/` — Empty directory
-- `corrupted_cicd_toml/` — Clean baseline + invalid cicd.toml
-- `stale_cicd_toml/` — Clean baseline + cicd.toml with dirty=false but actual dirty state
-- `toolchain_mismatch/` — Clean baseline + rust-toolchain.toml (unlikely channel)
-- `target_over_limit/` — Clean baseline + 1 MB fake artifact in target/debug/
-- `trybuild_changed_only/` — 10 unchanged fixtures + 1 changed (for trybuild testing)
-- `trybuild_huge_set/` — 50 fixture files (for performance testing)
-- `wasm4pm_missing/` — Evidence-gate fixture with no wpm oracle
+**Standard Fixtures:**
+
+| Fixture | State | Use Case |
+|---------|-------|----------|
+| `clean_workspace/` | Minimal valid workspace, clean git tree, no artifacts | Happy-path testing |
+| `dirty_workspace/` | Clean baseline + untracked file | Git dirty detection |
+| `missing_manifest/` | Empty directory, no Cargo.toml | Refusal handling |
+| `corrupted_cicd_toml/` | Clean baseline + invalid TOML in cicd.toml | Error handling |
+| `stale_cicd_toml/` | Clean baseline + cicd.toml claiming dirty=false but workspace is actually dirty | Cache invalidation |
+| `toolchain_mismatch/` | Clean baseline + rust-toolchain.toml with old channel | Toolchain detection |
+| `target_over_limit/` | Clean baseline + 1 MB binary in target/debug/ | Size threshold testing |
+| `trybuild_changed_only/` | 10 pre-existing fixtures + 1 changed (not committed) | Changed-file selection |
+| `trybuild_huge_set/` | 50 fixture files across tests/ui/ | Performance testing |
+| `wasm4pm_missing/` | Clean baseline + no wpm binary | Oracle absence fallback |
+
+**Fixture Characteristics:**
+- All fixtures except `missing_manifest/` have valid `Cargo.toml`
+- All fixtures with valid manifests have initialized git repos
+- Fixtures are minimal: only files necessary to trigger the condition
+- Pre-built fixtures save setup time and ensure consistency
+
+### Fixture Construction Patterns
+
+**Pattern 1: Programmatic Construction (One-Off)**
+
+For unique test conditions, build directly in the test:
+
+```rust
+#[test]
+fn test_custom_condition() {
+    use tempfile::TempDir;
+    
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    
+    // Create minimal valid workspace
+    std::fs::write(root.join("Cargo.toml"), r#"
+[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#).unwrap();
+    
+    // Initialize git
+    let _ = std::process::Command::new("git")
+        .args(["init", "-b", "main"])
+        .current_dir(root)
+        .output();
+    
+    // Create custom condition
+    std::fs::write(root.join("custom_marker.txt"), "marker").unwrap();
+    
+    // Run test
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(root)
+        .args(["status", "show"])
+        .output()
+        .unwrap();
+    
+    // Assertions
+    assert!(output.status.code().is_some());
+}
+```
+
+**Pattern 2: Extend FixtureWorkspace (Reusable)**
+
+For fixture types used in multiple tests, extend `FixtureWorkspace` in `/tests/fixtures/mod.rs`:
+
+```rust
+impl FixtureWorkspace {
+    /// Clean workspace plus a custom marker file.
+    pub fn with_custom_marker() -> Self {
+        let fixture = Self::clean();
+        std::fs::write(fixture.root.join("marker.txt"), "marker").unwrap();
+        fixture
+    }
+}
+```
+
+Then use in tests:
+```rust
+#[test]
+fn test_with_marker() {
+    let fixture = FixtureWorkspace::with_custom_marker();
+    // Test runs...
+}
+```
+
+**Pattern 3: Pre-Built Fixture Directory (High-Reuse)**
+
+For fixture sets used in many tests or CI/CD pipelines:
+
+1. Create the fixture directory structure under `/tests/fixtures/<name>/`
+2. Include a `README.md` describing state and expected verdicts
+3. Commit the fixture to the repo
+4. Load via `std::fs::read_dir()` in tests or CI scripts
+
+Example pre-built fixture structure:
+```
+tests/fixtures/my_workspace/
+├── README.md
+├── Cargo.toml
+├── src/
+│   └── lib.rs
+├── Cargo.lock
+└── .git/
+    └── (initialized git repo, committed state)
+```
+
+### Fixture Lifecycle and Cleanup
+
+`FixtureWorkspace` wraps a `TempDir`, which automatically cleans up when dropped:
+
+```rust
+#[test]
+fn test_with_auto_cleanup() {
+    let fixture = FixtureWorkspace::clean();  // Creates temp dir
+    
+    // Test runs...
+    
+    // When fixture is dropped (test ends), temp dir is automatically deleted
+}
+```
+
+**Key Points:**
+- Never manually delete fixture directories
+- Never use hardcoded paths like `/tmp/my-test`
+- Let `TempDir` manage cleanup
+- If a test panics, `TempDir` still cleans up (drop is called)
 
 ---
 
 ## Writing New Tests
 
+### Decision Tree: Which Tier?
+
+```
+Does the test verify CLI parsing or public output?
+  YES → Smoke Test (invariants.rs or feature_projection.rs)
+  NO → Continue...
+
+Does the test verify a command against workspace state?
+  YES → Integration Test (tests/cli/ or domain-specific file)
+  NO → Continue...
+
+Does the test verify wasm4pm evidence and verdicts?
+  YES → Evidence-Gate Test (tests/wasm4pm_*.rs)
+  NO → Continue...
+
+Does the test verify internal engine logic?
+  YES → Unit Test (src/*/tests/ or inline #[cfg(test)])
+  NO → Check again or ask for guidance
+```
+
 ### Step 1: Identify the Test Tier
 
-**Smoke Test?** → Use `invariants.rs` or `feature_projection.rs`
-- Testing public output, CLI parsing, feature flags
-- No fixture needed; just invoke the binary
+**Smoke Test** → Use `invariants.rs` or `feature_projection.rs`
+- **What it tests:** Public output, CLI parsing, feature flags, schema validity
+- **How to run:** `cargo test --test invariants`, `cargo test --test feature_projection`
+- **Fixture needed:** No; invoke binary directly
+- **Key assertion:** Exit codes, help text, output patterns
+- **Duration:** < 5 sec total for all smoke tests
 
-**Integration Test?** → Create a new file in `tests/cli/` or existing integration test
-- Testing noun-verb behavior with various workspace states
-- Use `FixtureWorkspace`; assert on exit codes and output
+**Integration Test** → Create in `tests/cli/<noun>` or domain file
+- **What it tests:** Noun-verb commands against various workspace conditions
+- **How to run:** `cargo test --test cli`, `cargo test --test changed_tests`, etc.
+- **Fixture needed:** Yes; use `FixtureWorkspace::*()` constructors
+- **Key assertion:** Exit code, output patterns, file side effects
+- **Duration:** < 30 sec total for all integration tests
+- **Scope:** Observable CLI behavior only (no internal state assertions)
 
-**Evidence-Gate Test?** → Add to `tests/wasm4pm_evidence_*.rs`
-- Testing process evidence emission and wpm verdict
-- Emit XES; invoke oracle; assert on verdict
+**Evidence-Gate Test** → Add to `tests/wasm4pm_*.rs`
+- **What it tests:** XES emission correctness, wpm oracle verdicts
+- **How to run:** `cargo test --test wasm4pm_evidence_gate`, or `REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate`
+- **Fixture needed:** TempDir for XES output, no workspace fixtures
+- **Key assertion:** `assert_wpm_verdict()` against expected verdict
+- **Duration:** < 60 sec total (oracle invocation is slow)
+- **Scope:** Process evidence flow; release-closure requirement
 
 ### Step 2: Choose Dependencies
 
@@ -409,9 +606,18 @@ REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate
 
 ## Mocking and Isolation
 
+### Philosophy: Test Independence
+
+Each test must:
+1. **Not depend on other tests** — no shared state or sequential ordering
+2. **Not affect the development machine** — isolate to temporary directories
+3. **Be reproducible** — running 10 times should give the same result
+4. **Clean itself up** — no leftover files after success or failure
+5. **Tolerate missing external tools** — gracefully handle missing `git`, `cargo`, etc.
+
 ### Temporary Filesystems with `tempfile`
 
-All integration tests use `tempfile::TempDir` for isolation. Never use `/tmp` or fixed paths.
+All integration tests use `tempfile::TempDir` for isolation. **Never** use `/tmp`, hardcoded paths, or workspace-relative directories in tests.
 
 ```rust
 use tempfile::TempDir;
@@ -481,6 +687,84 @@ fn test_git_commands() {
 let _ = std::process::Command::new("git")...  // Ignore errors if git is not in PATH
 ```
 
+### External Tool Handling
+
+cargo-cicd depends on external tools: `git`, `cargo`, `cargo metadata`, and optionally `wpm` (the wasm4pm oracle).
+
+**Strategy 1: Graceful Absence (Most Tests)**
+
+Make tests robust to tool absence:
+
+```rust
+#[test]
+fn test_git_command_with_fallback() {
+    let fixture = FixtureWorkspace::clean();
+    
+    // Attempt to run git command
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(fixture.root)
+        .args(["git", "status"])
+        .output()
+        .unwrap();
+    
+    // Accept both success and failure (git may be absent)
+    let status_ok = output.status.success();
+    assert!(
+        output.status.code().is_some(),
+        "Command must not panic, git absence is ok"
+    );
+}
+```
+
+**Strategy 2: Skip if Tool Absent**
+
+For tests that absolutely require a tool:
+
+```rust
+#[test]
+fn test_requires_git() {
+    // Check if git is available
+    let git_available = std::process::Command::new("git")
+        .args(["--version"])
+        .output()
+        .is_ok();
+    
+    if !git_available {
+        eprintln!("SKIP: git not available");
+        return;  // Skip test gracefully
+    }
+    
+    let fixture = FixtureWorkspace::clean();
+    // Test runs...
+}
+```
+
+**Strategy 3: Environment Variable Control**
+
+For tests that need control over behavior:
+
+```rust
+#[test]
+fn test_with_environment_control() {
+    let fixture = FixtureWorkspace::clean();
+    
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(fixture.root)
+        .env("CARGO_CICD_DRY_RUN", "1")  // Set env variable
+        .args(["target", "prune"])
+        .output()
+        .unwrap();
+    
+    // Verify dry-run behavior (no actual deletion)
+    assert!(
+        fixture.root.join("target").exists(),
+        "Dry-run must not delete target/"
+    );
+}
+```
+
 ### Mocking Cargo Metadata
 
 cargo-cicd adapters read from `cargo metadata`. To mock:
@@ -508,6 +792,54 @@ fn test_target_scanning() {
         text.contains("target") || !output.status.success(),
         "target show must succeed or indicate missing cargo"
     );
+}
+```
+
+### Controlling Time and Timestamps
+
+For tests involving time-based logic (e.g., event timestamps in evidence):
+
+**Option 1: Accept real time (most tests)**
+
+```rust
+#[test]
+fn test_event_emission() {
+    let events = vec![ProcessEvent::new("status show", "PASS")];
+    // ProcessEvent::new() captures current real time
+    assert!(!events[0].timestamp_iso.is_empty());
+}
+```
+
+**Option 2: Mock time in unit tests**
+
+For policy tests with time-dependent logic, call policy functions directly:
+
+```rust
+#[test]
+fn test_policy_direct() {
+    use cargo_cicd::autonomic::policies::{check_target_pressure, PolicyVerdict};
+    
+    // Call policy function with known values (no time dependency)
+    let result = check_target_pressure(25.0, 20.0);
+    assert!(matches!(result.verdict, PolicyVerdict::Suggest));
+}
+```
+
+**Option 3: Environment-based control**
+
+For integration tests, accept that event timestamps reflect real time:
+
+```rust
+#[test]
+fn test_evidence_timestamps() {
+    let dir = TempDir::new().unwrap();
+    let events = vec![ProcessEvent::new("test", "PASS")];
+    let xes_path = dir.path().join("events.xes");
+    emit_xes(&events, &xes_path).unwrap();
+    
+    // Verify timestamp is valid ISO-8601 (not checking specific time)
+    let content = std::fs::read_to_string(&xes_path).unwrap();
+    assert!(content.contains("T"));  // ISO-8601 includes 'T' separator
 }
 ```
 
@@ -561,58 +893,219 @@ fn test_policy_direct_unit() {
 
 ## Evidence-Gate Testing
 
+### Introduction: Why Evidence Gates Matter
+
+cargo-cicd is a **process-data engine**. It doesn't adjudicate its own correctness; it emits evidence (XES logs) and an external oracle (wasm4pm) issues verdicts. This separation ensures:
+
+- **No Self-Judging:** cargo-cicd cannot claim it passed (wasm4pm does)
+- **Audit Trail:** All process events are recorded in standard XES format
+- **Reproducibility:** Evidence can be re-audited at any time
+- **Certification:** Release closure requires wasm4pm Accept verdict
+
+**Release Closure Requirement:**
+> No release may claim "ALIVE" solely from cargo-cicd internal tests. wasm4pm verdict (Accept/Refuse) is the source of truth for release closure.
+
+### Evidence Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ cargo-cicd (Emitter)                                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ProcessEvent::new("status show", "PASS")                  │
+│      ↓                                                       │
+│  emit_xes([events], "events.xes")                          │
+│      ↓                                                       │
+│  events.xes (on disk)  ──────────────────────┐             │
+│                                               │             │
+└─────────────────────────────────────────────────────────────┘
+                                                │
+                                                ↓
+                                    ┌──────────────────────┐
+                                    │ wasm4pm Oracle       │
+                                    ├──────────────────────┤
+                                    │ wpm audit events.xes │
+                                    ├──────────────────────┤
+                                    │ ACCEPT / REFUSE      │
+                                    └──────────────────────┘
+                                                │
+                                                ↓
+                                        Verdict recorded
+```
+
+**Key Invariants (Evidence Architecture):**
+
+- **E1:** cargo-cicd NEVER adjudicates its own process conformance (wasm4pm does)
+- **E2:** Evidence must exist on disk BEFORE oracle invocation
+- **E3:** If oracle is unavailable and expected verdict is not `Blocked`, test panics
+- **E4:** Tests assert only wasm4pm verdict, never internal cargo-cicd state
+- **E5:** XES emission groups events by `case_id` into separate traces
+- **E6:** JSONL emission mirrors XES for downstream tooling
+- **E7:** `Blocked` is a first-class expected verdict (oracle absent is not an error)
+
 ### XES (XML Event Stream) Format
 
-cargo-cicd emits process logs in XES format. XES is a standard XML-based format for event logs.
+cargo-cicd emits process logs in XES format, an industry-standard XML format for event logs defined at http://www.xesstandard.org/.
 
-**Basic Structure:**
+**Minimal XES Example:**
 ```xml
 <?xml version="1.0"?>
 <log xes:version="1.0" xmlns:xes="http://www.xesstandard.org/">
-  <event>
-    <string key="concept:name" value="status show"/>
-    <string key="lifecycle:transition" value="PASS"/>
-  </event>
+  <trace>
+    <event>
+      <string key="concept:name" value="status show"/>
+      <string key="lifecycle:transition" value="PASS"/>
+      <date key="time:timestamp" value="2026-06-14T12:34:56.789Z"/>
+    </event>
+  </trace>
 </log>
 ```
+
+**Full ProcessEvent Fields:**
+```xml
+<event>
+  <string key="event_id" value="evt-status-show-20260614123456789"/>
+  <date key="timestamp_iso" value="2026-06-14T12:34:56.789Z"/>
+  <string key="case_id" value="pipeline-run-001"/>  <!-- optional, groups events -->
+  <string key="lifecycle:transition" value="complete"/>  <!-- "start" or "complete" -->
+  <string key="workspace_id" value="cargo-cicd-workspace"/>
+  <string key="repo_path" value="."/>
+  <string key="concept:name" value="status show"/>  <!-- The command -->
+  <string key="verdict:claimed" value="PASS"/>  <!-- PASS, WARN, FAIL, DRY-RUN -->
+  <int key="duration_ms" value="123"/>  <!-- only for "complete" -->
+  <string key="verdict:adjudicated" value="ACCEPT"/>  <!-- filled by oracle -->
+  <date key="adjudicated_at" value="2026-06-14T12:34:56.890Z"/>  <!-- filled by oracle -->
+  <string key="trace_class" value="live_workspace"/>  <!-- "pipeline_run" or "live_workspace" -->
+</event>
+```
+
+**Verdict Values:**
+- **Claimed by cargo-cicd:** `"PASS"`, `"WARN"`, `"FAIL"`, `"DRY-RUN"`, or custom strings
+- **Issued by wasm4pm oracle:** `"ACCEPT"` (process conforms), `"REFUSE"` (violation detected)
 
 **ProcessEvent API:**
 ```rust
 use cargo_cicd::evidence::ProcessEvent;
 
+// Simple: completed event with PASS verdict
 let event = ProcessEvent::new("status show", "PASS");
-// Fields: concept:name (the command), lifecycle:transition (result: PASS, FAIL, DRY-RUN, etc.)
+
+// With timing: start and complete events
+let (start_event, t0) = ProcessEvent::started("target prune");
+// ... do work ...
+let complete_event = ProcessEvent::completed("target prune", t0, "PASS");
 ```
 
 ### WpmEvidenceOracle
 
-The `WpmEvidenceOracle` discovers and invokes the wpm binary.
+The `WpmEvidenceOracle` type discovers, invokes, and interprets the wpm binary (from the wasm4pm project).
 
-**Discovery:**
+**Oracle Binary Location:**
+```
+/Users/sac/wasm4pm/target/release/wpm
+```
+
+If this path is inaccessible (CI environment, missing installation, etc.), the oracle is unavailable and tests gracefully fall back to `Blocked` verdict.
+
+**Oracle API:**
 ```rust
 use cargo_cicd::evidence::WpmEvidenceOracle;
 
 let oracle = WpmEvidenceOracle::new();
 
-// Check if the oracle is available
+// Check availability
 if oracle.is_available() {
-    // The wpm binary exists at the known path; oracle is ready
+    // Binary found; oracle can issue verdicts
+    let verdict = oracle.audit_xes(Path::new("events.xes"))?;
+    match verdict {
+        WpmVerdict::Accept => println!("Process conforms"),
+        WpmVerdict::Refuse => println!("Process violates"),
+        WpmVerdict::Blocked => println!("Oracle unavailable"),
+    }
 } else {
-    // The wpm binary is missing; gracefully degrade to Blocked verdict
+    // Binary not found; gracefully degrade
+    println!("wpm binary not available; tests will use Blocked verdict");
+}
+```
+
+**Oracle Commands:**
+
+The oracle issues verdicts via two pathways:
+
+1. **XES Audit (Primary):**
+   ```bash
+   wpm audit <file.xes>
+   # Emits JSON verdict: { "verdict": "ACCEPT" } or { "verdict": "REFUSE" }
+   ```
+
+2. **Receipt Doctor (Secondary - for receipts):**
+   ```bash
+   wpm receipt doctor --format json --strict <receipt.json>
+   # Emits JSON verdict for receipt validation
+   ```
+
+**Verdict Types:**
+```rust
+pub enum WpmVerdict {
+    Accept,  // Process conforms; release closure OK
+    Refuse,  // Process violates; release closure blocked
+    Blocked, // Oracle unavailable; graceful degradation
 }
 ```
 
 **Oracle Invocation:**
 ```rust
-use cargo_cicd::evidence::{assert_wpm_verdict, ExpectedWpmVerdict};
+use cargo_cicd::evidence::{assert_wpm_verdict, ExpectedWpmVerdict, WpmEvidenceOracle};
 
+let oracle = WpmEvidenceOracle::new();
+let xes_path = Path::new("events.xes");
+
+// Invoke and assert verdict
 assert_wpm_verdict(
     &oracle,
     &xes_path,
     &ExpectedWpmVerdict::Accept,  // Expected verdict
 );
-// Panics if the actual verdict differs from expected
+// Panics with clear message if actual verdict differs from expected
 ```
+
+**Oracle Graceful Degradation:**
+```rust
+let oracle = WpmEvidenceOracle::new();
+
+if oracle.is_available() {
+    // Oracle present: assert on actual verdict
+    assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Accept);
+} else {
+    // Oracle absent: assert Blocked (not Accept, not Refuse)
+    assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Blocked);
+}
+```
+
+**Forcing Oracle Availability (CI):**
+
+For CI pipelines that have the wpm binary installed, require its presence:
+
+```rust
+fn absent_oracle_verdict(test_name: &str) -> ExpectedWpmVerdict {
+    if std::env::var("REQUIRE_WPM_ORACLE").as_deref() == Ok("1") {
+        panic!(
+            "REQUIRE_WPM_ORACLE=1 set but wpm oracle is absent. \
+             Test '{}' cannot exercise Accept assertion. \
+             Ensure /Users/sac/wasm4pm/target/release/wpm exists.",
+            test_name
+        );
+    }
+    ExpectedWpmVerdict::Blocked
+}
+```
+
+Then in CI:
+```bash
+REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate
+```
+
+This panics if the oracle is absent, preventing silent test skips in release CI.
 
 ### Evidence-Gate Test Pattern
 

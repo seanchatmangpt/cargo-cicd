@@ -1,275 +1,256 @@
 # Pull Request Workflow
 
-How to create, structure, and get your changes merged.
+This guide covers branch naming, commit messages, code review expectations, and the merge process.
 
-## Branch Naming Convention
+## Branch Naming
 
-Use one of these patterns:
+Use descriptive branch names that reflect the type and scope of work:
 
 ```
-feat/noun-description          # New feature
-fix/issue-number-description   # Bug fix
-refactor/scope-description     # Code refactoring
-test/scenario-description      # Test additions or fixes
-docs/topic-description         # Documentation updates
-chore/task-description         # Build, CI, deps
+feat/noun-verb-action         # New feature: e.g., feat/target-prune
+fix/scope-description          # Bug fix: e.g., fix/git-dirty-detection
+refactor/scope-change          # Refactoring: e.g., refactor/adapter-patterns
+docs/section-improvement       # Documentation: e.g., docs/setup-guide
+test/feature-coverage          # Tests: e.g., test/policy-scenarios
+ci/build-improvement           # CI/build: e.g., ci/github-actions
 ```
 
-### Examples
-
-- `feat/status-show-detailed-output`
-- `fix/1234-handle-missing-toolchain`
-- `refactor/engine-state-composition`
-- `test/invariants-boundary-case`
-- `docs/cli-noun-verb-grammar`
-- `chore/bump-clap-version`
+Examples:
+- `feat/status-audit-policy` — new status audit policy
+- `fix/target-size-calculation` — fix how target size is computed
+- `refactor/engine-state-layout` — reorganize EngineState
+- `docs/adapter-lifecycle` — document adapter patterns
 
 ## Commit Message Format
 
-All commits must follow the format defined in [CLAUDE.md](../../CLAUDE.md):
+Follow the format from `CLAUDE.md`:
 
 ```
-<type>(<scope>): <subject>
+<type>(<scope>): <description>
 
-<body>
-<blank line>
-<optional footer>
+<detailed explanation (optional)>
+
+<link to Claude Code session (optional)>
 ```
 
-### Type
-One of: `feat`, `fix`, `refactor`, `test`, `docs`, `ci`, `chore`
+### Types
 
-### Scope
-One of: `core`, `cli`, `target`, `test`, `git`, `autonomic`, `docs`, `receipts`
+- **feat** — new feature or capability
+- **fix** — bug fix
+- **refactor** — code refactoring (no behavior change)
+- **test** — test additions or fixes
+- **docs** — documentation updates
+- **ci** — CI/build configuration changes
 
-### Subject
-- Imperative mood ("add" not "added" or "adds")
-- No period at the end
-- Under 50 characters
-- Lowercase
+### Scopes
 
-### Body
-- Explain **what** and **why**, not how
-- Wrap at 72 characters
-- Blank line between subject and body
-- Reference issues: `Closes #123`
+Valid scopes (from CLAUDE.md):
+- **core** — core engine logic (EngineState, adapters, policies)
+- **cli** — CLI commands and nouns/verbs
+- **target** — target/ directory scanning and pruning
+- **test** — test infrastructure and test detection
+- **git** — git integration and phase closure
+- **autonomic** — autonomic policies and suggest mode
+- **docs** — documentation and guides
+- **receipts** — evidence emission and XES handling
 
-### Example
-
-```
-feat(core): add workspace diagnostics to engine state
-
-Extend EngineState with WorkspaceDiagnostics struct to capture
-structural health checks (duplicate dependencies, version skew,
-toolchain mismatch). This enables the `workspace doctor` noun to
-read diagnosis data from the engine rather than computing it
-inline.
-
-Includes new WorkspaceDiagnosticAdapter to populate the field
-during engine initialization.
-
-Closes #456
-```
-
-## Creating a Pull Request
-
-### Step 1: Create and Push Your Branch
-
-```bash
-# Create a feature branch from main
-git checkout -b feat/your-feature-name
-
-# Make your changes, test locally
-cargo test
-
-# Stage and commit
-git add src/your_file.rs tests/your_test.rs
-git commit -m "feat(core): your feature description
-
-Description of what and why.
-
-Closes #issue-number"
-
-# Push to your fork
-git push -u origin feat/your-feature-name
-```
-
-### Step 2: Open the PR on GitHub
-
-Use the GitHub web interface or `gh` CLI:
-
-```bash
-gh pr create --title "Brief description of your change" \
-  --body "$(cat <<'EOF'
-## Summary
-- What this change does
-- Why it's needed
-- Any relevant context
-
-## Testing
-- [ ] Added unit tests for new code
-- [ ] Ran `cargo test` successfully
-- [ ] Tested the feature manually (if applicable)
-- [ ] Updated CLAUDE.md if architecture changed (if applicable)
-
-## Checklist
-- [ ] Commit message follows format: `type(scope): subject`
-- [ ] No forbidden terms in public docs/help text
-- [ ] All tests pass
-- [ ] Code follows project style guidelines
-EOF
-)"
-```
-
-### Step 3: Code Review
-
-Expect feedback on:
-- **Correctness** — Does it actually work?
-- **Architecture** — Does it fit the design?
-- **Tests** — Are there adequate tests?
-- **Docs** — Is it documented?
-- **Style** — Does it follow conventions?
-
-Address feedback by:
-1. Making changes locally
-2. Committing with a new commit (don't amend previous commits; the reviewer sees the history)
-3. Pushing: `git push`
-4. Replying to comments in the PR
-
-### Step 4: Merge
-
-Once approved:
-- Maintainers will merge using **squash** or **rebase** strategy
-- Your PR branch will be deleted automatically
-- Your changes are live on main
-
-## Common PR Patterns
-
-### Feature PR
+### Examples
 
 ```
-Title: "Add workspace diagnostics noun"
+feat(core): add WorkspaceState::member_crates()
 
-Body:
-## Summary
-- Adds `cargo cicd workspace doctor` command
-- Displays duplicate dependencies, version skew, toolchain mismatch
-
-## Testing
-- [x] Tests pass: `cargo test --test cli`
-- [x] Manual test on fixture workspace
-
-## Related
-- Closes #456
+Extract crate membership logic to a dedicated method
+to reduce duplication in ChangedFileDetector and TestPlanState.
 ```
 
-### Bug Fix PR
-
 ```
-Title: "Fix panic when cicd.toml is corrupted"
+fix(git): handle detached HEAD in git phase state
 
-Body:
-## Summary
-- Handles malformed TOML gracefully
-- Returns helpful error message instead of panicking
-
-## Testing
-- [x] Regression test added: `tests/corrupted_cicd_toml_handling.rs`
-- [x] All tests pass
-
-## Validation
-- Tested with fixture: `tests/fixtures/corrupted_cicd_toml/`
+When HEAD is detached, GitPhaseState.branch should return
+"HEAD" instead of panicking.
 ```
 
-### Refactoring PR
-
 ```
-Title: "Simplify EngineState initialization"
+refactor(adapters): consolidate metadata queries
 
-Body:
-## Summary
-- Consolidates initialization logic into a builder
-- Reduces duplication across adapters
-
-## Testing
-- [x] All existing tests pass
-- [x] No behavioral changes
-
-## Notes
-- Pure refactor, no new features
-- Tests verify no regressions
+Use cargo metadata once per invocation, cache in a thread-local,
+and have all adapters query the cache. Reduces subprocess calls
+by 60% on large monorepos.
 ```
 
-## Before You Push
+```
+docs(docs): add feature flag gating matrix
 
-### Checklist
+Document which features gate which dimensions, with examples
+of how to feature-gate new code.
 
-- [ ] Tests pass: `cargo test`
-- [ ] Build is clean: `cargo build`
-- [ ] Lint is clean: `cargo clippy -- -D warnings` (if using stable Rust)
-- [ ] Formatting is correct: `cargo fmt -- --check`
-- [ ] Commit message follows format (see above)
-- [ ] No forbidden terms in public-facing code or docs
-- [ ] Feature flag changes documented (if applicable)
-- [ ] CLAUDE.md updated if architecture changed (if applicable)
-
-### Run Full Checks Locally
-
-```bash
-# Check all at once
-cargo fmt -- --check
-cargo clippy -- -D warnings
-cargo test
-cargo build --release
+https://claude.ai/code/session_01GTNEZYe16QF5TzVZUZSvsA
 ```
 
-Or with cargo-make:
+## Before Opening a PR
 
-```bash
-cargo make check
-cargo make test
-cargo make build
-```
+1. **Update and build:**
+   ```bash
+   git fetch origin
+   git rebase origin/main
+   cargo build
+   ```
 
-## Review Expectations
+2. **Run all tests:**
+   ```bash
+   cargo test
+   ```
 
-### As an Author
-- Respond to feedback promptly
-- Explain your reasoning, don't just accept suggestions blindly
-- Push new commits for review; don't rewrite history
-- Keep PRs focused: one feature or fix per PR
+3. **Format code:**
+   ```bash
+   cargo fmt
+   ```
 
-### As a Reviewer (if you review others' PRs)
-- Check for correctness, not just style
-- Ask questions if logic is unclear
-- Suggest, don't dictate (use "consider" language)
-- Approve when confident; request changes when needed
+4. **Lint code:**
+   ```bash
+   cargo clippy -- -D warnings
+   ```
 
-## Merging Strategy
+5. **Check for forbidden terms** (if modifying public-facing code):
+   ```bash
+   cargo test --test invariants invariant_public_boundary
+   ```
 
-The project uses:
-- **Squash merges** for single-commit features
-- **Rebase merges** for multi-commit features where history matters
-- **Merge commits** are avoided to keep history clean
+## Opening a PR
 
-You don't need to do anything; maintainers choose the strategy when merging.
+1. **Push your branch:**
+   ```bash
+   git push -u origin feat/my-feature
+   ```
 
-## After Your PR is Merged
+2. **Create PR on GitHub:**
+   - Title: brief description (under 70 chars)
+   - Description: what, why, how; reference any issues
+   - Link to CLAUDE.md if architectural questions
 
-1. Delete your local branch: `git branch -d feat/your-feature-name`
-2. Sync main: `git checkout main && git pull`
-3. Start your next contribution!
+3. **PR title format:**
+   - Start with the commit type and scope: `feat(core): ...`, `fix(git): ...`
+   - Keep it short and scannable
 
-## Getting Help with a PR
+4. **PR description template:**
+   ```markdown
+   ## Summary
+   - Brief one-liner of what this PR does
+   - Why it's needed (user impact or tech debt)
+   - How it solves the problem
 
-If you're stuck:
-- Ask in the PR comments for guidance
-- Reference related issues or discussions
-- Look at similar PRs in the history for patterns
-- Check [CLAUDE.md](../../CLAUDE.md) for architecture clarification
+   ## Changes
+   - [ ] New feature: describe the API/behavior
+   - [ ] Bug fix: describe the symptom and root cause
+   - [ ] Refactoring: describe what moved/changed
+   - [ ] Tests: describe test coverage added
 
-## Related Guides
+   ## Testing
+   - [ ] All integration tests pass (`cargo test`)
+   - [ ] No forbidden terms in help text (if public-facing)
+   - [ ] Existing fixtures cover new code paths
+   - [ ] New fixtures added if needed
 
-- [Code Style & Patterns](./04-code-style.md) — conventions to follow
-- [Documentation Standards](./05-documentation-standards.md) — when to update docs
-- [Adding Features](./03-adding-features.md) — how to structure new capabilities
+   ## Checklist
+   - [ ] Commit message follows `feat(scope): description` format
+   - [ ] Code formatted with `cargo fmt`
+   - [ ] Lints pass with `cargo clippy -- -D warnings`
+   - [ ] Feature flag containment verified (if adding features)
+   - [ ] CLAUDE.md updated (if architectural changes)
+
+   Closes #<issue_number> (if applicable)
+   ```
+
+## Code Review Expectations
+
+### What Reviewers Will Check
+
+1. **Correctness**
+   - Does the code do what it claims?
+   - Are edge cases handled?
+   - Is error handling adequate?
+
+2. **Architecture**
+   - Does it follow adapter → noun pattern?
+   - Is EngineState mutation restricted to adapters?
+   - Is state immutable where it should be?
+   - Are feature flags correctly gated?
+
+3. **Testing**
+   - Is there test coverage for the main paths?
+   - Are fixtures used appropriately?
+   - Do tests isolate from external state?
+
+4. **Documentation**
+   - Are public APIs documented (doc comments)?
+   - Is the purpose clear from code structure?
+   - Does CLAUDE.md need updates?
+
+5. **Style**
+   - Does code follow Rust conventions?
+   - Are variable names clear and consistent?
+   - Are comments helpful (not redundant)?
+
+6. **Forbidden Terms**
+   - Does the PR introduce any forbidden terms in public output?
+   - (List: ALIVE, Nehemiah, CONSTRUCT8, Instinct8, Inspection Gate, Cargo Court, AGI, Truex, Field8, wall)
+
+### Common Review Comments
+
+**"Adapter pattern"**
+- This logic should move to an adapter in `src/adapters/`
+- Adapters own external data translation; nouns consume state
+
+**"State mutation"**
+- EngineState fields are immutable snapshots
+- Mutations flow through adapters → CicdTomlWriter
+- Nouns should read state, not modify it
+
+**"Feature gating"**
+- New level-5 engine code should gate behind `#[cfg(feature = "process-data")]`
+- Autonomic policies should gate behind `#[cfg(feature = "autonomic")]`
+
+**"Public boundary"**
+- This string is user-visible; check it against the forbidden term list
+- Help text should be clear without internal jargon
+
+**"Test isolation"**
+- Tests must not depend on external state (previous test run, git commits, etc.)
+- Use `FixtureWorkspace` to create isolated test environments
+
+## After Review
+
+1. **Address feedback:**
+   - Push new commits (don't force-push during review)
+   - Reply to each comment
+   - Suggest re-review if major changes
+
+2. **Approvals:**
+   - Two approvals required (or maintainer discretion for small changes)
+   - All CI checks must pass
+
+3. **Merge:**
+   - Maintainer will squash & rebase or fast-forward merge
+   - Commit message will be validated against format
+
+## Release Considerations
+
+If your PR includes:
+- **New public verbs** → update help text, add to invariants test
+- **New EngineState dimension** → document in CLAUDE.md, add tests
+- **New adapter** → document source and invariants in CLAUDE.md
+- **Policy changes** → test against wasm4pm evidence gate
+- **Evidence format changes** → coordinate with wasm4pm team
+
+## Revert Policy
+
+If a PR is merged and later causes issues:
+- Maintainer will revert with a message: `revert: <original title> (#<PR>)`
+- Reopened PR must address the root cause before re-merge
+- Failures in release validation are grounds for immediate revert
+
+## Further Reading
+
+- [CLAUDE.md](../../CLAUDE.md) — architecture details referenced in reviews
+- [03-adding-features.md](./03-adding-features.md) — patterns for common changes
+- [04-code-style.md](./04-code-style.md) — style expectations in detail

@@ -1,541 +1,460 @@
 # Code Style & Patterns
 
-Conventions and patterns used throughout cargo-cicd.
+This guide covers Rust conventions, naming patterns, comment guidelines, and module organization used in cargo-cicd.
 
-## Rust Style Guide
+## Rust Conventions
 
-cargo-cicd follows standard Rust conventions:
+cargo-cicd follows standard Rust idioms. Key rules:
 
 ### Formatting
 
+- Use `cargo fmt` before committing (non-negotiable)
+- Line length: soft limit 100 chars, hard limit 120 chars
+- Indentation: 4 spaces
+- No trailing whitespace
+
 ```bash
-# Format all code
 cargo fmt
-
-# Check formatting (don't modify)
-cargo fmt -- --check
 ```
-
-The project uses `.rustfmt.toml` defaults (if present) or Rust stable defaults.
 
 ### Linting
 
+- Use `cargo clippy -- -D warnings` to catch common mistakes
+- Fix all clippy warnings before committing
+
 ```bash
-# Run clippy
 cargo clippy -- -D warnings
-
-# Or with cargo-make
-cargo make check
 ```
 
-Fix warnings before submitting PRs; don't suppress them with `#[allow]` unless there's good reason.
+### Type Annotations
 
-## Naming Conventions
-
-### Modules
-
-- **Plural for collections:** `src/adapters/`, `src/policies/`, `src/nouns/`
-- **Singular for singletons:** `src/engine/`, `src/session.rs`
-- **Snake_case:** `my_module_name`
+- Explicit where clarity matters (public APIs, complex logic)
+- Implicit for obvious local bindings
 
 ```rust
-// Good
-mod adapters;
-mod engine;
-mod state;
-mod nouns;
-
-// Bad
-mod adapter;      // should be plural for a dir of adapters
-mod Engine;       // should be snake_case
-```
-
-### Types (Structs, Enums, Traits)
-
-- **PascalCase**
-- **Descriptive names** — avoid abbreviations unless obvious
-- **Suffix with type category** when helpful:
-  - `*State` — state types
-  - `*Adapter` — adapter types
-  - `*Event` — event types
-  - `*Error` — error types (rarely needed; prefer `anyhow::Error`)
-
-```rust
-// Good
-pub struct EngineState;
-pub struct GitStatusAdapter;
-pub struct TestChangedEvent;
-pub enum WorkspaceError;
-
-// Avoid
-pub struct ES;            // Too abbreviated
-pub struct Adapter;       // Too generic
-pub struct ev;            // Wrong case
-```
-
-### Functions and Methods
-
-- **snake_case**
-- **Verb-based for actions:** `scan()`, `validate()`, `emit()`
-- **Adjective/noun-based for queries:** `is_clean()`, `has_changes()`, `latest_receipt()`
-- **Prefix `try_` for fallible operations** that can fail gracefully
-
-```rust
-// Good
-pub fn scan(root: &Path) -> anyhow::Result<LintState> { }
-pub fn is_healthy(&self) -> bool { }
-pub fn try_load_cicd_toml(root: &Path) -> anyhow::Result<CicdToml> { }
-
-// Avoid
-pub fn Scan();          // Wrong case
-pub fn scan_or_error(); // Use Result<T> instead
-pub fn process();       // Too vague; what process?
-```
-
-### Constants
-
-- **SCREAMING_SNAKE_CASE**
-- **Define at module level or in `const` blocks**
-
-```rust
-// Good
-const DEFAULT_THREAD_COUNT: usize = 4;
-const EVIDENCE_DIR: &str = "target/cargo-cicd/evidence/";
-
-// Avoid
-const default_count: usize = 4;  // Wrong case
-const DEFLT_THRD_CNT: usize = 4; // Abbreviated
-```
-
-### Lifetimes
-
-- **Use descriptive names when ambiguous** (rare; most lifetimes are elided)
-- **Single quotes** prefix: `'a`, `'static`
-
-```rust
-// Good
-fn parse<'input>(input: &'input str) { }
-
-// Common case (lifetime elision is fine)
-fn parse(input: &str) { }
-```
-
-## Module Organization
-
-### Standard Module Structure
-
-```
-src/
-├── main.rs                  # Binary entry point, CLI setup
-├── lib.rs                   # Public library interface
-├── nouns/                   # CLI commands (plural)
-│   ├── mod.rs               # Re-exports
-│   ├── status.rs
-│   ├── target.rs
-│   └── ...
-├── adapters/                # External source adapters
-│   ├── mod.rs
-│   ├── git_status_adapter.rs
-│   ├── target_scanner_adapter.rs
-│   └── ...
-├── engine/                  # Core state engine (singular)
-│   ├── mod.rs
-│   └── state.rs
-├── state/                   # State type definitions
-│   ├── mod.rs
-│   ├── workspace_state.rs
-│   ├── git_state.rs
-│   └── ...
-├── policies/                # Autonomic policies (if enabled)
-│   ├── mod.rs
-│   └── ...
-├── cicd_toml.rs             # cicd.toml schema and I/O
-└── evidence.rs              # Process evidence (XES format)
-```
-
-### Module Re-exports
-
-In `src/adapters/mod.rs`:
-```rust
-pub mod git_status_adapter;
-pub mod target_scanner_adapter;
-
-pub use git_status_adapter::GitStatusAdapter;
-pub use target_scanner_adapter::TargetScannerAdapter;
-```
-
-This allows:
-```rust
-// Instead of
-use crate::adapters::git_status_adapter::GitStatusAdapter;
-
-// You can do
-use crate::adapters::GitStatusAdapter;
-```
-
-### File Organization Within a Module
-
-```rust
-// src/adapters/git_status_adapter.rs
-use anyhow::{Context, Result};
-use std::path::Path;
-
-// 1. Type definitions and structs
-pub struct GitStatusAdapter;
-
-#[derive(Debug)]
-pub struct GitStatus {
-    pub branch: String,
-    pub ahead: usize,
+// Good: public API
+pub fn query() -> anyhow::Result<MySourceState> {
+    // ...
 }
 
-// 2. Implementation blocks (impl YourType)
-impl GitStatusAdapter {
-    pub fn scan(root: &Path) -> Result<GitStatus> {
-        // Implementation
-    }
-}
+// Good: obvious binding
+let count = items.len();  // Could also be `let count: usize = ...`
 
-// 3. Tests (if module tests exist)
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_scan_clean_repo() {
-        // Test code
-    }
-}
+// Bad: unnecessary annotation
+let items: Vec<Item> = vec![];  // Vec::new() is clearer
 ```
 
-## Comments and Documentation
+### Error Handling
 
-### Public API Documentation
-
-Use `///` doc comments for public items. Include examples for complex types.
-
-```rust
-/// Scans the workspace for git status information.
-///
-/// Returns a `GitStatus` containing the current branch,
-/// number of commits ahead/behind the upstream, and
-/// dirty/untracked file counts.
-///
-/// # Arguments
-/// * `root` - Path to the workspace root
-///
-/// # Returns
-/// * `Ok(GitStatus)` - Successfully scanned
-/// * `Err(...)` - Failed to read git metadata
-///
-/// # Examples
-/// ```ignore
-/// let status = GitStatusAdapter::scan(Path::new("."))?;
-/// println!("Branch: {}", status.branch);
-/// ```
-pub fn scan(root: &Path) -> anyhow::Result<GitStatus> {
-    // Implementation
-}
-```
-
-### Internal Comments
-
-Use `//` for implementation details that need explanation.
+- Use `anyhow::Result<T>` for fallible operations
+- Propagate errors with `?` operator
+- Add context with `.context("message")?` for crucial errors
+- No panics in library code; only in main() or tests as needed
 
 ```rust
-// If we're on a detached HEAD, branch name is empty
-if branch.is_empty() {
-    return Err(anyhow!("Cannot publish from detached HEAD"));
-}
+use anyhow::Result;
 
-// Adapters must be called in order: git status first,
-// then workspace state (depends on git status),
-// then engine state (depends on all others).
-```
-
-### Avoid Over-Commenting
-
-Don't comment the obvious:
-
-```rust
-// BAD: Comment is redundant with code
-// Increment counter
-counter += 1;
-
-// GOOD: No comment needed for obvious code
-counter += 1;
-
-// GOOD: Comment explains *why*, not *what*
-// Skip the current crate if it's already been analyzed
-// (prevents double-counting in workspace with duplicates)
-if analyzed.contains(&crate_name) {
-    continue;
-}
-```
-
-### TODO and FIXME Comments
-
-Use for known issues, but include context:
-
-```rust
-// TODO: Replace with async I/O when Tokio is available (Issue #123)
-// Currently blocking all workspace scans while reading target/ directory
-
-// FIXME: This panics on invalid UTF-8 in filenames; use OsStr instead
-```
-
-## Error Handling
-
-Use `anyhow::Result<T>` for fallible functions:
-
-```rust
-use anyhow::{Context, Result};
-
-pub fn load_config(path: &Path) -> Result<Config> {
+pub fn parse_config(path: &str) -> Result<Config> {
     let content = std::fs::read_to_string(path)
-        .context("Failed to read config file")?;
-    
-    let config = toml::from_str(&content)
-        .context("Invalid TOML syntax in config")?;
-    
+        .context("failed to read config file")?;
+    let config: Config = toml::from_str(&content)?;
     Ok(config)
 }
 ```
 
-**Pattern: context() chains**
-```rust
-std::fs::read_to_string(path)
-    .context("Failed to read config")?
+### Ownership & Borrowing
 
-// vs
-
-std::fs::read_to_string(path)
-    .map_err(|e| anyhow!("Failed to read config: {}", e))?
-```
-
-Prefer `.context()` — it's cleaner.
-
-## Type Aliases and Type Bounds
-
-### When to Use Type Aliases
+- Prefer owned values (`String`, `Vec<T>`) in structs
+- Use references (`&str`, `&[T]`) in function parameters
+- Avoid excessive cloning; use references when possible
 
 ```rust
-// For complex generic types
-pub type BoxedAdapter = Box<dyn SomeAdapterTrait>;
-
-// For error types (though anyhow::Result is preferred)
-pub type Result<T> = std::result::Result<T, anyhow::Error>;
-
-// For legibility in bounds
-pub type StringError = String;
-```
-
-### Avoid
-
-```rust
-// Too many single-use aliases
-pub type MyNumber = i32;  // Just use i32
-
-// Misleading aliases
-pub type Percentage = u32;  // Use a newtype instead if semantics matter
-pub struct Percentage(u32);
-```
-
-## Trait Design
-
-### Nouns as Traits
-
-Each noun implements `NounCommand`:
-
-```rust
-pub trait NounCommand {
-    fn name() -> &'static str;
-    fn about() -> &'static str;
+// Good: struct owns its data
+pub struct Config {
+    name: String,
+    items: Vec<String>,
 }
 
-impl NounCommand for StatusNoun {
-    fn name() -> &'static str { "status" }
-    fn about() -> &'static str { "Display workspace status" }
+// Good: function borrows
+pub fn process(config: &Config, name: &str) -> Result<()> {
+    // ...
+}
+
+// Avoid: unnecessary cloning
+pub fn bad(config: Config) {
+    let name = config.name.clone();  // ← unnecessary
 }
 ```
 
-### Adapters Don't Need Traits (Usually)
+## Naming Patterns
 
-Adapters are typically standalone:
+### Modules
+
+- snake_case for module names
+- One public type per adapter module (e.g., `GitStatusAdapter`)
+- One main state struct per engine dimension (e.g., `GitPhaseState`)
+
+```
+src/
+├── adapters/
+│   ├── git_status.rs          ← GitStatusAdapter
+│   ├── target_scanner.rs       ← TargetScannerAdapter
+│   └── changed_file_detector.rs ← ChangedFileDetector
+├── engine/
+│   ├── git_phase_state.rs      ← GitPhaseState
+│   ├── target_state.rs         ← TargetState
+│   └── ...
+└── nouns/
+    ├── status.rs               ← StatusNoun (with verbs)
+    └── target.rs               ← TargetNoun (with verbs)
+```
+
+### Types
+
+- PascalCase for types, traits, and enums
+- Nouns for types (`Status`, `Adapter`, `State`)
+- Adjectives for traits (`Queryable`, `Serializable`, `Default`)
 
 ```rust
-pub struct GitStatusAdapter;
+pub struct GitStatusAdapter;      // Good
+pub struct GIT_STATUS;             // Bad (screaming)
+pub struct get_git_status;         // Bad (function-like)
 
-impl GitStatusAdapter {
-    pub fn scan(root: &Path) -> Result<GitStatus> { }
+pub trait Queryable { }            // Good
+pub trait Adapter { }              // Good
+```
+
+### Functions & Methods
+
+- snake_case for function and method names
+- Verbs for actions (`parse`, `query`, `emit`)
+- Nouns for getters (`name`, `version`, `count`)
+
+```rust
+// Good: verb
+pub fn query() -> Result<State> { }
+
+// Good: getter
+pub fn version(&self) -> &str { }
+
+// Bad: screaming constant function
+pub fn GET_VERSION() { }
+
+// Bad: adjective as method
+pub fn empty() -> Self { }  // Use `fn new()` instead
+```
+
+### Constants
+
+- SCREAMING_SNAKE_CASE for constants
+- Descriptive names
+
+```rust
+const DEFAULT_TARGET_LIMIT_GB: f64 = 10.0;
+const FORBIDDEN_TERMS: &[&str] = &[
+    "ALIVE",
+    "Nehemiah",
+    "CONSTRUCT8",
+];
+```
+
+### Variable Names
+
+- Descriptive and clear
+- Avoid single letters except in loops/temporary bindings
+
+```rust
+// Good
+let workspace_root = "/path/to/workspace";
+let test_count = 42;
+
+// Okay: loop variable
+for item in items { }
+
+// Bad: unclear
+let ws = "/path/to/workspace";
+let tc = 42;
+```
+
+## Comments & Documentation
+
+### Doc Comments (Public APIs)
+
+Use `///` for public items. Include examples and invariants.
+
+```rust
+/// Query the git repository state.
+///
+/// Returns a snapshot of the current branch, dirty status, and ahead/behind counts.
+/// The state is immutable and reflects `git status --porcelain` at query time.
+///
+/// # Example
+///
+/// ```rust
+/// let state = GitStatusAdapter::query()?;
+/// println!("Branch: {}", state.branch);
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if git is not available or the cwd is not a git repository.
+pub fn query() -> Result<GitPhaseState> {
+    // ...
 }
 ```
 
-Unless multiple adapters share behavior, keep them concrete.
+### Inline Comments
 
-### Use Composition Over Inheritance
+Use `//` for internal logic. Only comment non-obvious behavior.
 
 ```rust
-// GOOD: Composition
-pub struct EngineState {
-    pub git_state: GitStatus,
-    pub workspace_state: WorkspaceState,
+impl MyAdapter {
+    pub fn query() -> Result<State> {
+        // Group files by crate before processing.
+        // This avoids redundant manifest lookups.
+        let mut by_crate: HashMap<String, Vec<Path>> = HashMap::new();
+        
+        for file in changed_files {
+            let crate_name = manifest_for(&file)?;
+            by_crate.entry(crate_name).or_insert_with(Vec::new).push(file);
+        }
+        
+        // ... process by_crate ...
+    }
+}
+```
+
+### Avoid Comments
+
+- Don't repeat what the code says
+- Don't comment type annotations (let the type speak)
+- Don't comment obvious loops/conditionals
+
+```rust
+// Bad: comment repeats the code
+let count = items.len();  // Get the length of items
+
+// Bad: obvious
+if x > 0 {  // Check if x is positive
+    // ...
 }
 
-// AVOID: Deep trait hierarchies (Rust doesn't encourage inheritance)
-pub trait AdapterBase { }
-pub trait GitAdapter: AdapterBase { }
-pub trait TargetAdapter: AdapterBase { }
+// Bad: type is clear
+let mut state: State = State::default();  // Initialize state
+
+// Good: explains why, not what
+let limit = 20_000_000_000;  // 20 GB; limit chosen empirically
 ```
 
-## Visibility and Encapsulation
+### TODO Comments
 
-### Public API (`pub`)
+Acceptable in limited cases. Must include context.
 
 ```rust
-// Expose noun commands
-pub struct StatusNoun;
-pub impl NounCommand for StatusNoun { }
-
-// Expose major state types
-pub struct EngineState;
-
-// Expose key adapters
-pub struct GitStatusAdapter;
+// TODO(issue #42): Implement parallel test execution
+// Currently gated by cicd.toml race conditions.
+pub fn run_tests_parallel() -> Result<()> {
+    // ... serial implementation ...
+}
 ```
 
-### Crate-Private (`pub(crate)`)
+## Module Organization
+
+### Public API Layout
 
 ```rust
-// Implementation details of adapters
-pub(crate) struct GitStatusImpl;
-
-// Internal event types
-pub(crate) enum InternalEvent;
-```
-
-### Private (`no pub keyword`)
-
-```rust
-// Helper functions, internal types
-fn parse_branch_name(raw: &str) -> String { }
-
-struct ParseError { }
-```
-
-## Pattern: Adapters
-
-Standard adapter pattern:
-
-```rust
+// Good: public API first, then private implementation
 pub struct MyAdapter;
 
 impl MyAdapter {
-    /// Scan external source and return internal state type.
-    pub fn scan(root: &Path) -> anyhow::Result<MyState> {
-        // 1. Read external source
-        // 2. Translate to internal types
-        // 3. Return MyState
-        Ok(MyState::default())
+    pub fn query() -> Result<State> { }
+    pub fn query_in(path: &Path) -> Result<State> { }
+    // ... public methods ...
+}
+
+// Private implementation
+impl MyAdapter {
+    fn internal_parse() -> Result<()> { }
+    fn validate() -> Result<()> { }
+}
+
+// Free functions (private)
+fn external_call() -> Result<RawData> { }
+```
+
+### Imports
+
+- Group standard library, external crates, then internal modules
+- Alphabetize within groups
+- Avoid glob imports (`use *`)
+
+```rust
+// Good: organized imports
+use std::collections::HashMap;
+use std::path::Path;
+
+use anyhow::Result;
+use serde_json;
+use walkdir::WalkDir;
+
+use crate::engine::GitPhaseState;
+use crate::adapters;
+```
+
+### Visibility
+
+- Mark public APIs with `pub`
+- Keep everything else private by default
+- Use `pub(crate)` for internal APIs shared across modules
+
+```rust
+// Public, part of the library surface
+pub struct MyAdapter;
+pub fn query() -> Result<State> { }
+
+// Private to this module
+fn internal_helper() { }
+
+// Visible to other crate modules
+pub(crate) fn shared_utility() { }
+```
+
+## Feature-Gated Code
+
+Use `#[cfg(...)]` attributes, not runtime checks, for feature gates.
+
+```rust
+// Good: compile-time gating
+#[cfg(feature = "process-data")]
+pub fn use_engine() -> Result<()> {
+    let state = EngineState::default();
+    Ok(())
+}
+
+// Bad: runtime check in always-compiled code
+pub fn use_engine() -> Result<()> {
+    if cfg!(feature = "process-data") {
+        let state = EngineState::default();
     }
+    Ok(())
 }
 ```
 
-Rules:
-- Static methods (no `self`)
-- Return `anyhow::Result<StateType>`
-- No business logic; just translation
-- Idempotent (same input → same output)
+## Testing Code Style
 
-## Pattern: Nouns
-
-Standard noun pattern:
+### Test Organization
 
 ```rust
-pub struct MyNoun;
-
-impl NounCommand for MyNoun {
-    fn name() -> &'static str { "my-noun" }
-    fn about() -> &'static str { "Description" }
+#[test]
+fn test_adapter_on_clean_workspace() {
+    // Arrange
+    let fixture = FixtureWorkspace::clean();
+    
+    // Act
+    let state = MyAdapter::query().unwrap();
+    
+    // Assert
+    assert!(!state.is_empty());
 }
+```
 
-impl MyNoun {
-    pub fn new() -> Self { Self }
-    
-    /// Default verb (called if user types just "cargo cicd my-noun")
-    pub fn run_direct() -> anyhow::Result<()> {
-        Self::show()
-    }
-    
-    fn show() -> anyhow::Result<()> {
-        let root = std::env::current_dir()?;
-        let engine = EngineState::new(&root)?;
+### Test Names
+
+- Descriptive, verb-first: `test_<subject>_<condition>_<expected>`
+- Example: `test_adapter_on_dirty_workspace_returns_warn`
+
+```rust
+#[test]
+fn test_policy_on_large_target_returns_warn() { }
+
+#[test]
+fn test_noun_with_missing_manifest_exits_nonzero() { }
+```
+
+### Assertions
+
+- Use descriptive assertion messages
+
+```rust
+assert_eq!(state.branch, "main", "expected main branch, not {}", state.branch);
+assert!(output.contains("expected text"), "output missing 'expected text': {}", output);
+```
+
+## Example Module
+
+Here's a complete, well-organized module:
+
+```rust
+//! Git repository state detection.
+//!
+//! This adapter queries `git status --porcelain` and `git rev-parse`
+//! to populate GitPhaseState.
+
+use anyhow::Result;
+use std::process::Command;
+use crate::engine::GitPhaseState;
+
+/// Query the git repository state.
+///
+/// # Errors
+/// Returns an error if git is not available or not in a git repository.
+pub struct GitStatusAdapter;
+
+impl GitStatusAdapter {
+    pub fn query() -> Result<GitPhaseState> {
+        let branch = Self::get_branch()?;
+        let is_dirty = Self::check_dirty()?;
         
-        // Read from engine, display results
-        println!("Results: {}", engine.my_state.count);
-        Ok(())
+        Ok(GitPhaseState {
+            branch,
+            is_dirty,
+            // ...
+        })
     }
 }
-```
 
-Rules:
-- Implement `NounCommand` trait
-- Provide `new()` constructor
-- `run_direct()` for default verb
-- Verbs as private methods
-- Read-only access to EngineState
-
-## Testing Patterns
-
-### Unit Test Placement
-
-```rust
-// In the same file as the code being tested
-pub fn my_function() -> bool { true }
+// Private implementation
+impl GitStatusAdapter {
+    fn get_branch() -> Result<String> {
+        let output = Command::new("git")
+            .args(&["rev-parse", "--abbrev-ref", "HEAD"])
+            .output()?;
+        
+        Ok(String::from_utf8_lossy(&output.stdout).trim().into())
+    }
+    
+    fn check_dirty() -> Result<bool> {
+        let output = Command::new("git")
+            .args(&["status", "--porcelain"])
+            .output()?;
+        
+        Ok(!output.stdout.is_empty())
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     
     #[test]
-    fn test_my_function() {
-        assert!(my_function());
+    fn test_query_on_clean_repo() {
+        let fixture = FixtureWorkspace::clean();
+        let state = GitStatusAdapter::query().unwrap();
+        assert!(!state.is_dirty);
     }
 }
 ```
 
-### Integration Test File Structure
+## Checklist
 
-```rust
-// tests/cli/my_feature.rs
-#[test]
-fn test_my_feature_with_clean_workspace() {
-    let temp = tempfile::TempDir::new().unwrap();
-    
-    let mut cmd = assert_cmd::Command::cargo_bin("cargo-cicd").unwrap();
-    cmd.arg("my-noun").arg("my-verb")
-        .current_dir(temp.path());
-    
-    cmd.assert().success();
-}
-```
+Before committing:
 
-### Assertion Patterns
-
-```rust
-use predicates::prelude::*;
-
-cmd.assert().success();
-cmd.assert().failure();
-cmd.assert().code(1);
-
-// Check output
-cmd.assert()
-    .stdout(predicate::str::contains("expected output"));
-```
-
-## Related Guides
-
-- [Pull Request Workflow](./02-pull-request-workflow.md) — commit format
-- [Adding Features](./03-adding-features.md) — architectural patterns
-- [Known Gotchas](./07-known-gotchas.md) — common mistakes
+- [ ] `cargo fmt` passes
+- [ ] `cargo clippy -- -D warnings` passes
+- [ ] No single-letter variables (except loop counters)
+- [ ] Public APIs have doc comments with examples
+- [ ] Comments explain *why*, not *what*
+- [ ] No `TODO`s without issue numbers
+- [ ] Tests follow `test_<subject>_<condition>_<expected>` naming
+- [ ] Imports are organized and alphabetized
+- [ ] Feature gates use `#[cfg(...)]`, not runtime checks

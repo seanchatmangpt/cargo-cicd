@@ -1,415 +1,474 @@
 # Adding Features
 
-How to implement and structure new capabilities in cargo-cicd.
+This guide covers common development tasks: adding nouns/verbs, extending EngineState, creating adapters, and defining policies.
 
-## Feature Categories
+## Adding a New Noun (Command Namespace)
 
-### 1. Public Commands (Nouns)
+A **noun** is a CLI namespace (e.g., `cargo cicd status`, `cargo cicd target`). Each noun contains multiple **verbs** (subcommands).
 
-Add a new `cargo cicd <noun>` command.
+### Steps
 
-**Files involved:**
-- `src/nouns/your_noun.rs` — the noun implementation
-- `src/nouns/mod.rs` — register the module
-- `src/main.rs` — register in CliBuilder
-- Tests in `tests/cli/` — command parsing tests
-- `ontology/cargo-cicd.ttl` — semantic definition (for ggen)
-
-**Example: Adding a `cargo cicd lint` noun**
+1. **Create the noun module** in `src/nouns/mynoun.rs`:
 
 ```rust
-// src/nouns/lint.rs
-use clap_noun_verb::{NounCommand, VerbCommand};
+use clap_noun_verb::{NounCommand, VerbCommand, VerbArgs};
 
-pub struct LintNoun;
+pub struct MyNoun;
 
-impl NounCommand for LintNoun {
-    fn name() -> &'static str { "lint" }
-    fn about() -> &'static str { "Run workspace linting checks" }
+impl MyNoun {
+    pub fn new() -> Self { Self }
 }
 
-impl LintNoun {
-    pub fn new() -> Self { Self }
-    pub fn run_direct() -> anyhow::Result<()> {
-        // Default verb behavior: lint show
-        Self::show()
-    }
+impl Default for MyNoun {
+    fn default() -> Self { Self::new() }
+}
+
+impl NounCommand for MyNoun {
+    fn name(&self) -> &'static str { "mynoun" }
+    fn about(&self) -> &'static str { "Brief description of what mynoun does" }
     
-    fn show() -> anyhow::Result<()> {
-        // Implementation
+    fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
+        vec![
+            Box::new(ShowVerb),
+            Box::new(ApplyVerb),
+        ]
+    }
+}
+
+pub struct ShowVerb;
+
+impl VerbCommand for ShowVerb {
+    fn name(&self) -> &'static str { "show" }
+    fn about(&self) -> &'static str { "Show mynoun state" }
+    
+    fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        // Read EngineState via adapters
+        // Perform logic
+        // Emit output and events
+        println!("mynoun show output");
+        Ok(())
+    }
+}
+
+pub struct ApplyVerb;
+
+impl VerbCommand for ApplyVerb {
+    fn name(&self) -> &'static str { "apply" }
+    fn about(&self) -> &'static str { "Apply mynoun recommendations" }
+    
+    fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        // Similar pattern to ShowVerb
         Ok(())
     }
 }
 ```
 
-Register in `src/nouns/mod.rs`:
-```rust
-pub mod lint;
-```
-
-Register in `src/main.rs`:
-```rust
-let cli = cli
-    .noun(nouns::lint::LintNoun::new())
-    // ... other nouns
-```
-
-**When to gate behind feature flags:**
-- If the noun adds internal state inspection: gate behind `process-data`
-- If the noun suggests actions: gate behind `autonomic`
-- If the noun is experimental: gate behind `contrib`
-
-### 2. State Extensions (EngineState)
-
-Add new data to `EngineState` to enable nouns to access it.
-
-**Files involved:**
-- `src/engine/` — EngineState structure
-- `src/state/` — state type definitions
-- Corresponding `Adapter` — to populate the new state
-
-**Architecture:**
-
-```
-External Source → Adapter → State Type → EngineState → Noun (read-only)
-    (git)      →(adapter)→ (GitState)  → (engine) → (status shows it)
-```
-
-**Example: Adding workspace linting state**
+2. **Register in `src/nouns/mod.rs`:**
 
 ```rust
-// src/state/lint_state.rs
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LintState {
-    pub issues: Vec<LintIssue>,
-    pub total_issues: usize,
-    pub high_priority: usize,
-}
+pub mod mynoun;
+```
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LintIssue {
-    pub severity: LintSeverity,
-    pub location: String,
-    pub message: String,
-}
+3. **Register in `src/main.rs`:**
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum LintSeverity {
-    Error,
-    Warning,
-    Info,
+Find the `CliBuilder` setup and add:
+```rust
+let cli = cli.noun(nouns::mynoun::MyNoun::new());
+```
+
+4. **Add default verb injection** (optional, for bare noun to work):
+
+In `main.rs::inject_default_verbs()`:
+```rust
+"mynoun" => Some("show"),
+```
+
+And in the `needs_default` check:
+```rust
+"mynoun" => {
+    // Optionally run a default verb
+    return Ok(());
 }
 ```
 
-```rust
-// src/engine/mod.rs
-pub struct EngineState {
-    pub workspace_state: WorkspaceState,
-    pub lint_state: LintState,  // NEW
-    // ... other state fields
-}
-```
-
-```rust
-// src/adapters/lint_scanner.rs
-pub struct LintScannerAdapter;
-
-impl LintScannerAdapter {
-    pub fn scan(workspace_root: &Path) -> anyhow::Result<LintState> {
-        // Scan workspace for lint issues
-        // Return LintState
-        Ok(LintState {
-            issues: vec![],
-            total_issues: 0,
-            high_priority: 0,
-        })
-    }
-}
-```
-
-### 3. Feature Flags
-
-Guard new functionality behind feature flags.
-
-**Flags in use:**
-- `process-data` — enables Level 5 engine and internal state structures
-- `autonomic` — implies `process-data`; enables policy suggestions
-- `wasm4pm` — implies `process-data`; wasm4pm integration
-- `contrib` — implies `process-data`; experimental features
-
-**Add to `Cargo.toml`:**
-
-```toml
-[features]
-my-new-feature = ["process-data"]
-```
-
-**Use in code:**
-
-```rust
-#[cfg(feature = "my-new-feature")]
-pub fn my_new_function() {
-    // Only compiled when feature is enabled
-}
-```
-
-**Test with feature:**
+5. **Test:**
 
 ```bash
-cargo test --features my-new-feature
+cargo build
+cargo cicd mynoun --help       # Should show verbs
+cargo cicd mynoun show         # Should run
 ```
 
-## Workflow: Adding a Complete Feature
-
-### Example: Implement `cargo cicd lint show`
-
-#### Phase 1: Design (No Code)
-
-1. Update `CLAUDE.md` with the concept
-2. Sketch the state structure (what data does lint need?)
-3. Sketch the adapter (where does data come from?)
-4. Sketch the noun (how is it displayed?)
-
-#### Phase 2: Core Types
+6. **Add integration test** in `tests/cli/`:
 
 ```rust
-// src/state/lint_state.rs
+#[test]
+fn test_mynoun_show_help() {
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(&["mynoun", "show", "--help"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(!text.contains("ALIVE")); // Forbidden term check
+}
+```
+
+## Adding a New Adapter
+
+An **adapter** translates one external source (git, cargo, filesystem, rustup) into internal `EngineState` dimensions. Adapters have **no business logic**—only translation.
+
+### Steps
+
+1. **Define or reuse State** in `src/engine/<dimension>.rs`:
+
+```rust
 #[derive(Debug, Clone, Default)]
-pub struct LintState {
-    pub issues: Vec<LintIssue>,
-}
-
-#[derive(Debug, Clone)]
-pub struct LintIssue {
-    pub rule: String,
-    pub severity: String,
+pub struct MySourceState {
+    pub field1: String,
+    pub field2: u32,
+    pub field3: Vec<String>,
 }
 ```
 
-Register in `src/state/mod.rs`:
-```rust
-pub mod lint_state;
-pub use lint_state::{LintState, LintIssue};
-```
-
-#### Phase 3: Adapter
+2. **Create adapter** in `src/adapters/my_source.rs`:
 
 ```rust
-// src/adapters/lint_scanner.rs
-pub struct LintScannerAdapter;
+use anyhow::Result;
+use crate::engine::MySourceState;
+use std::process::Command;
 
-impl LintScannerAdapter {
-    pub fn scan(root: &Path) -> anyhow::Result<LintState> {
-        // Read Cargo.toml, scan for issues
-        Ok(LintState { issues: vec![] })
-    }
-}
-```
+pub struct MySourceAdapter;
 
-Register in `src/adapters/mod.rs`:
-```rust
-pub mod lint_scanner;
-```
-
-#### Phase 4: EngineState Integration
-
-```rust
-// src/engine/mod.rs
-pub struct EngineState {
-    pub lint_state: LintState,
-    // ... other fields
-}
-
-impl EngineState {
-    pub fn new(root: &Path) -> anyhow::Result<Self> {
-        let lint_state = LintScannerAdapter::scan(root)?;
-        Ok(Self {
-            lint_state,
-            // ... init other fields
+impl MySourceAdapter {
+    /// Query the external source and return populated state.
+    ///
+    /// This method has no side effects—it only reads.
+    /// Errors are propagated; adapters don't swallow them.
+    pub fn query() -> Result<MySourceState> {
+        let raw = Self::external_call()?;
+        Ok(MySourceState {
+            field1: raw.field1,
+            field2: raw.field2,
+            field3: raw.fields,
         })
     }
 }
-```
 
-#### Phase 5: Noun (CLI)
-
-```rust
-// src/nouns/lint.rs
-use crate::engine::EngineState;
-
-pub struct LintNoun;
-
-impl NounCommand for LintNoun {
-    fn name() -> &'static str { "lint" }
-    fn about() -> &'static str { "Lint workspace" }
+fn external_call() -> Result<RawData> {
+    // Run subprocess, read file, etc.
+    let output = Command::new("my-tool")
+        .args(&["--json"])
+        .output()?;
+    
+    let raw: RawData = serde_json::from_slice(&output.stdout)?;
+    Ok(raw)
 }
 
-impl LintNoun {
-    pub fn new() -> Self { Self }
-    
-    pub fn run_direct() -> anyhow::Result<()> {
-        Self::show()
-    }
-    
-    fn show() -> anyhow::Result<()> {
-        let root = std::env::current_dir()?;
-        let engine = EngineState::new(&root)?;
-        
-        println!("Lint Issues: {}", engine.lint_state.issues.len());
-        for issue in &engine.lint_state.issues {
-            println!("  - {} ({})", issue.rule, issue.severity);
-        }
-        
-        Ok(())
-    }
+#[derive(serde::Deserialize)]
+struct RawData {
+    field1: String,
+    field2: u32,
+    fields: Vec<String>,
 }
 ```
 
-Register in `src/main.rs`:
+3. **Register in `src/adapters/mod.rs`:**
+
 ```rust
-let cli = cli.noun(nouns::lint::LintNoun::new());
+pub mod my_source;
+pub use my_source::MySourceAdapter;
 ```
 
-#### Phase 6: Tests
+4. **Call from a noun** in `src/nouns/my_noun.rs`:
 
 ```rust
-// tests/cli/lint_command.rs
+let state = MySourceAdapter::query()?;
+if state.field2 > 100 {
+    println!("Warning: field2 is high");
+}
+```
+
+5. **Test with fixture:**
+
+```rust
 #[test]
-fn test_lint_show_command() {
-    // Create temp workspace with fixtures
-    let temp = tempfile::TempDir::new().unwrap();
-    
-    // Run the command
-    let mut cmd = assert_cmd::Command::cargo_bin("cargo-cicd").unwrap();
-    cmd.arg("lint").arg("show").current_dir(temp.path());
-    
-    // Assert output
-    cmd.assert().success();
+fn test_adapter_on_clean_workspace() {
+    let fixture = FixtureWorkspace::clean();
+    let state = MySourceAdapter::query()?;
+    assert!(!state.field1.is_empty());
 }
 ```
 
-#### Phase 7: Documentation
+### Adapter Invariants
 
-Update relevant docs:
-- Add example in README.md
-- Add to CLAUDE.md if architecture changed
-- Update CONTRIBUTING.md if new patterns introduced
-- Add code comments for non-obvious logic
-
-## Extending Adapters
-
-When adding a new adapter:
-
-1. **One responsibility per adapter** — GitStatusAdapter only touches git, not cargo
-2. **No business logic** — adapters translate, not transform
-3. **Return internal types** — adapters populate EngineState types, not display types
-4. **Handle errors gracefully** — return `anyhow::Result<T>`, use context
-
-```rust
-// GOOD: One responsibility
-pub struct LintScannerAdapter;
-impl LintScannerAdapter {
-    pub fn scan(root: &Path) -> anyhow::Result<LintState> { }
-}
-
-// BAD: Multiple responsibilities (scanning + formatting + displaying)
-pub struct LintAdapter;
-impl LintAdapter {
-    pub fn scan_and_display() { } // Violates single responsibility
-}
-```
+- **I1: Deterministic** — Same input → same output
+- **I2: Idempotent** — Calling twice has no additional side effects
+- **I3: No mutation** — Adapters read only
+- **I4: Error propagation** — Errors bubble up; adapters don't swallow them
+- **I5: Single source** — One adapter per external source
 
 ## Extending EngineState
 
-When adding a new field to `EngineState`:
+If you need to track new workspace dimensions (e.g., dependency graph, build time metrics):
 
-1. **Define the state type** — create a new type in `src/state/`
-2. **Create an adapter** — to populate it (even if it's a simple initialization)
-3. **Make the field public** — so nouns can read it
-4. **Initialize in `EngineState::new()`** — call the adapter
-5. **Document the field** — comment what it represents
+1. **Create a new state dimension** in `src/engine/new_dimension.rs`:
+
+```rust
+#[derive(Debug, Clone, Default)]
+pub struct NewDimensionState {
+    pub metric1: f64,
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Item {
+    pub name: String,
+    pub value: i32,
+}
+```
+
+2. **Add to EngineState** in `src/engine/mod.rs`:
 
 ```rust
 pub struct EngineState {
-    /// Workspace lint issues discovered by LintScannerAdapter
-    pub lint_state: LintState,
+    // ... existing fields ...
+    pub new_dimension: NewDimensionState,
 }
 ```
 
-## Feature Flag Decisions
+3. **Create an adapter** to populate it (see "Adding a New Adapter" above).
 
-| Feature | When to Use |
-|---------|------------|
-| `process-data` | New state types, adapters, or engine functionality |
-| `autonomic` | Suggestions, policies, or "recommend" verbs |
-| `wasm4pm` | Evidence emission, oracle invocation, receipt validation |
-| `contrib` | Experimental features not yet stabilized |
-
-**Example: Gating a suggestion**
+4. **Use in nouns:**
 
 ```rust
-#[cfg(feature = "autonomic")]
-fn suggest_fixes() -> Vec<String> {
-    // Only compiled with autonomic feature
+let state = EngineState::default();
+if state.new_dimension.metric1 > 0.5 {
+    println!("High metric value");
 }
 ```
 
-**Example: Gating a noun**
+5. **Document in CLAUDE.md** under "EngineState Design":
 
-```rust
-pub mod lint; // Always available
-
-#[cfg(feature = "autonomic")]
-pub mod linter; // Linter suggestions only with autonomic
+```
+| **new_dimension** | Description | (none) | metric1, items |
 ```
 
-## Testing New Features
+6. **Test the state flow:**
 
-### Unit Tests
-```bash
-cargo test --test invariants         # Boundary invariants
-cargo test --lib                     # Library unit tests
-```
-
-### Integration Tests
-```bash
-cargo test --test cli                # CLI parsing
-cargo test --test your_feature_name  # Feature-specific tests
-```
-
-### With Feature Flags
-```bash
-cargo test --features autonomic
-cargo test --all-features
-```
-
-### Against Fixtures
-Use workspace fixtures in `tests/fixtures/`:
 ```rust
 #[test]
-fn test_with_fixture() {
-    let fixture = "tests/fixtures/clean_workspace";
-    std::env::set_current_dir(fixture).unwrap();
-    // Your test
+fn test_new_dimension_populated() {
+    let state = EngineState::default();
+    assert_eq!(state.new_dimension.metric1, 0.0); // Default
 }
 ```
 
-## No Breaking Changes
+## Adding a Feature Flag
 
-cargo-cicd follows semantic versioning. When adding features:
+If you're gating new code behind a feature:
 
-- **Patch version** — backwards compatible fixes
-- **Minor version** — backwards compatible features
-- **Major version** — breaking changes (rare)
+1. **Add to Cargo.toml** `[features]`:
 
-New features should:
-- Not change existing command signatures
-- Not break existing cicd.toml files
-- Support graceful degradation if a feature is missing
+```toml
+[features]
+my-feature = ["process-data"]  # If it depends on the engine
+```
 
-## Related Guides
+2. **Gate code with `#[cfg(...)]`:**
 
-- [Code Style & Patterns](./04-code-style.md) — naming conventions
-- [Documentation Standards](./05-documentation-standards.md) — what to document
-- [Known Gotchas](./07-known-gotchas.md) — common pitfalls
-- [CLAUDE.md](../../CLAUDE.md) — architecture reference
+```rust
+#[cfg(feature = "my-feature")]
+pub fn my_feature_function() {
+    // Only compiled when feature is enabled
+}
+
+#[cfg(not(feature = "my-feature"))]
+pub fn my_feature_function() {
+    // Stub implementation for when feature is disabled
+}
+```
+
+3. **Test both paths:**
+
+```bash
+# Test without feature
+cargo test
+
+# Test with feature
+cargo test --features my-feature
+```
+
+4. **Document in CLAUDE.md**:
+
+```markdown
+#### `my-feature` (disabled by default; depends on `process-data`)
+When **not** enabled:
+- ...
+
+When **enabled:**
+- ...
+```
+
+5. **Update feature projection test** in `tests/feature_projection.rs` to verify the feature contract.
+
+## Adding an Autonomic Policy
+
+Policies are smart recommendations that analyze `PolicyState` and return verdicts (pass/warn/fail). They never take destructive action by default (suggest mode).
+
+### Steps
+
+1. **Create policy** in `src/policies/my_policy.rs`:
+
+```rust
+use crate::engine::PolicyState;
+
+pub struct MyPolicy;
+
+#[derive(Debug, Clone)]
+pub struct PolicyResult {
+    pub verdict: PolicyVerdict,
+    pub message: String,
+    pub recommendation: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PolicyVerdict {
+    Pass,
+    Warn,
+    Fail,
+}
+
+impl MyPolicy {
+    pub fn evaluate(state: &PolicyState) -> PolicyResult {
+        // Read relevant dimensions from state
+        // Apply decision logic
+        // Return verdict + message + optional recommendation
+        
+        PolicyResult {
+            verdict: PolicyVerdict::Pass,
+            message: "All checks passed".into(),
+            recommendation: None,
+        }
+    }
+}
+```
+
+2. **Register in `src/policies/mod.rs`:**
+
+```rust
+pub mod my_policy;
+pub use my_policy::{MyPolicy, PolicyResult, PolicyVerdict};
+```
+
+3. **Integrate in autonomic mode** (feature-gated):
+
+```rust
+#[cfg(feature = "autonomic")]
+let result = policies::my_policy::MyPolicy::evaluate(&state.policies);
+```
+
+4. **Test the policy:**
+
+```rust
+#[test]
+fn test_my_policy_pass() {
+    let state = PolicyState::default();
+    let result = MyPolicy::evaluate(&state);
+    assert_eq!(result.verdict, PolicyVerdict::Pass);
+}
+
+#[test]
+fn test_my_policy_warn() {
+    let mut state = PolicyState::default();
+    state.some_field = some_problematic_value();
+    let result = MyPolicy::evaluate(&state);
+    assert_eq!(result.verdict, PolicyVerdict::Warn);
+    assert!(result.recommendation.is_some());
+}
+```
+
+5. **Document in CLAUDE.md** under "Policies":
+
+Describe the policy's decision rules, thresholds, and what recommendations it makes.
+
+## Common Patterns
+
+### Reading EngineState in a Verb
+
+```rust
+impl VerbCommand for MyVerb {
+    fn run(&self, args: &VerbArgs) -> Result<()> {
+        // Populate state via adapters
+        let workspace = adapters::workspace_adapter::query()?;
+        let git_phase = adapters::git_status::query()?;
+        
+        // Use state to decide behavior
+        if git_phase.is_dirty {
+            println!("Workspace is dirty; skipping operation");
+            return Ok(());
+        }
+        
+        println!("Workspace: {}", workspace.name);
+        Ok(())
+    }
+}
+```
+
+### Emitting Evidence Events
+
+If your code should emit XES evidence:
+
+```rust
+#[cfg(feature = "process-data")]
+use crate::evidence::ProcessEvent;
+
+// ...
+
+#[cfg(feature = "process-data")]
+let event = ProcessEvent {
+    timestamp: std::time::SystemTime::now(),
+    event_type: "noun_verb_executed",
+    details: serde_json::json!({
+        "noun": "mynoun",
+        "verb": "myverb",
+        "status": "success",
+    }),
+};
+ProcessEvent::emit(&event)?;
+```
+
+### Using Fixtures in Tests
+
+```rust
+use tempfile::TempDir;
+
+fn test_noun_on_clean_workspace() {
+    let fixture = FixtureWorkspace::clean();
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .arg("mynoun")
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap();
+    
+    assert!(output.status.success());
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("expected output"));
+}
+```
+
+## Checklist for Feature Completion
+
+- [ ] **Code written** — noun, adapter, or policy implementation
+- [ ] **Tests added** — unit and/or integration tests
+- [ ] **Fixtures used** — tests isolated from external state
+- [ ] **Feature-gated** — new engine code behind `process-data` / `autonomic` / etc.
+- [ ] **Forbidden terms checked** — no ALIVE, Nehemiah, etc. in public output
+- [ ] **Commit message** — follows `type(scope): description` format
+- [ ] **CLAUDE.md updated** — if architectural changes
+- [ ] **Invariants pass** — `cargo test --test invariants`
+- [ ] **All tests pass** — `cargo test`
+- [ ] **Code formatted** — `cargo fmt`
+- [ ] **Lints pass** — `cargo clippy -- -D warnings`

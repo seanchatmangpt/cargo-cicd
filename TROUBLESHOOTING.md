@@ -1,8 +1,8 @@
-# cargo-cicd Troubleshooting Guide
+# cargo-cicd Developer Troubleshooting Guide
 
 **For developers working on cargo-cicd v26.6.2**
 
-This guide covers debugging techniques, test isolation patterns, common failure modes, and development environment setup.
+A comprehensive guide to debugging, testing, development environment setup, and performance profiling for cargo-cicd developers. This guide covers practical techniques for isolating and fixing issues in the Level 5 process-data engine.
 
 ---
 
@@ -13,6 +13,7 @@ This guide covers debugging techniques, test isolation patterns, common failure 
 3. [Common Issues](#common-issues)
 4. [Development Environment Setup](#development-environment-setup)
 5. [Performance Profiling](#performance-profiling)
+6. [Quick Reference](#quick-reference)
 
 ---
 
@@ -178,6 +179,69 @@ passed = true
 # Feature state (when autonomic enabled):
 [autonomic]
 suggest_mode = true
+```
+
+### Debug Verb Dispatch
+
+When debugging noun-verb routing, trace how a command is parsed:
+
+```rust
+// Add this to main.rs temporarily to debug verb dispatch:
+fn main() -> Result<()> {
+    let raw: Vec<String> = std::env::args().collect();
+    eprintln!("[DEBUG] raw argv: {:?}", raw);
+    
+    let noun = raw.get(1).map(String::as_str).unwrap_or("").to_string();
+    let verb = raw.get(2).map(String::as_str).unwrap_or("").to_string();
+    eprintln!("[DEBUG] detected noun='{}', verb='{}'", noun, verb);
+    
+    // ... rest of main ...
+}
+```
+
+Then run:
+
+```bash
+cargo cicd status show 2>&1 | grep DEBUG
+```
+
+### Environment Variable Tracing Patterns
+
+For conditional tracing that can be toggled at runtime:
+
+```rust
+// Global patterns used throughout the codebase:
+
+// Pattern 1: Simple existence check
+if std::env::var("CARGO_CICD_TRACE").is_ok() {
+    eprintln!("[TRACE] entering adapter: {:?}", self);
+}
+
+// Pattern 2: Severity levels
+let trace_level = std::env::var("CARGO_CICD_TRACE_LEVEL")
+    .unwrap_or_else(|_| "info".to_string());
+if trace_level == "debug" {
+    eprintln!("[DEBUG] detailed state: {:#?}", state);
+}
+
+// Pattern 3: Component-specific tracing
+if std::env::var("CARGO_CICD_TRACE_ADAPTERS").is_ok() {
+    eprintln!("[ADAPTER:{}] executing with input: {:?}", 
+              adapter_name, input);
+}
+```
+
+Usage:
+
+```bash
+# Trace everything
+CARGO_CICD_TRACE=1 cargo cicd status show 2>&1
+
+# Trace only adapters
+CARGO_CICD_TRACE_ADAPTERS=1 cargo cicd status show 2>&1
+
+# Debug level tracing
+CARGO_CICD_TRACE_LEVEL=debug cargo cicd status show 2>&1
 ```
 
 ---
@@ -413,25 +477,83 @@ cargo test --all-features
 
 3. **Deep nested call** — cargo-cicd walks up from cwd to find workspace root; if not found, errors.
 
+4. **Workspace root detection logic failure** — CargoMetadataAdapter may fail to identify the root correctly.
+
 **Debug steps:**
 
 ```bash
-# Check if you're in a workspace:
+# 1. Check where you are:
 pwd
-ls -la Cargo.toml
 
-# Trace the workspace detection in CargoMetadataAdapter:
-CARGO_CICD_DEBUG_ADAPTERS=1 cargo cicd status show 2>&1 | grep -i "workspace\|manifest"
+# 2. Check if Cargo.toml exists at cwd or parents:
+ls -la Cargo.toml              # Current dir
+ls -la ../Cargo.toml           # Parent dir
+find . -name "Cargo.toml" -type f | head -5
 
-# Check Cargo.toml syntax:
-cargo metadata  # If this fails, Cargo.toml is broken
+# 3. Validate Cargo.toml syntax:
+cargo metadata  # If this fails, your Cargo.toml is broken
+# Expected output: JSON describing the workspace
+
+# 4. Check workspace structure:
+grep -A 5 '^\[workspace\]' Cargo.toml
+grep -A 10 'members' Cargo.toml
+
+# 5. Trace the adapter:
+CARGO_CICD_DEBUG_ADAPTERS=1 cargo cicd status show 2>&1 | head -20
 ```
 
 **Fix:**
 
 - Ensure you're running from workspace root (where top-level `Cargo.toml` lives).
-- Validate TOML: `toml-cli validate Cargo.toml` (or use `cargo metadata`).
-- For nested workspaces, verify `[workspace] members = [...]` is properly configured.
+- Validate TOML syntax: `cargo metadata` should output valid JSON.
+- For nested workspaces, verify `[workspace] members = [...]` lists all crates.
+- Check that members are relative paths that actually exist.
+
+**Example of correct workspace structure:**
+
+```toml
+# Cargo.toml at workspace root
+[workspace]
+members = [
+  ".",
+  "crates/cargo-cicd-core",
+  "crates/cargo-cicd-lsp",
+]
+resolver = "2"
+
+[package]
+name = "cargo-cicd"
+version = "26.6.2"
+```
+
+**Example of broken workspace:**
+
+```toml
+# Missing members field or wrong paths
+[workspace]
+resolver = "2"
+
+# Wrong: missing or incorrect members
+members = ["nonexistent/path", "./crates/wrong-name"]
+```
+
+**Quick validation script:**
+
+```bash
+#!/bin/bash
+# validate_workspace.sh
+
+echo "Checking workspace structure..."
+cargo metadata --format-version 1 > /tmp/metadata.json 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ Workspace is valid"
+    echo "  Root: $(jq -r '.workspace_root' /tmp/metadata.json)"
+    echo "  Members: $(jq '.workspace_members | length' /tmp/metadata.json)"
+else
+    echo "✗ Workspace has errors"
+    cat /tmp/metadata.json
+fi
+```
 
 ### Git State Inconsistencies
 
@@ -558,27 +680,57 @@ wpm receipt doctor --format json --strict target/cargo-cicd/evidence/events.json
 
 3. **Policies in enforce mode instead of suggest** — cicd.toml has `enforce = true` instead of `suggest = true`.
 
+4. **Policy condition not met** — Recommendation rules are conditional; if conditions fail, no output.
+
 **Debug steps:**
 
 ```bash
-# Check feature:
+# 1. Check feature is enabled:
 cargo build --features autonomic
+cargo test --features autonomic
 
-# Check cicd.toml policy config:
+# 2. Check feature implication:
+cargo tree --features autonomic | grep -i "process-data"
+# Should show: autonomic depends on process-data
+
+# 3. Inspect cicd.toml policy config:
 grep -A 5 '^\[autonomic\]' cicd.toml
+# Expected:
+# [autonomic]
+# suggest_mode = true
 
-# Check if PolicyState is populated:
-dbg!(&state.policies);
+# 4. Test with explicit feature:
+CARGO_CICD_DEBUG_ADAPTERS=1 cargo cicd status show --features autonomic 2>&1
 
-# Verify policy rules are implemented:
+# 5. Verify policy modules exist:
 ls -la src/policies/
+find src/policies/ -name "*.rs" -type f
 ```
 
 **Fix:**
 
-- Build with `--features autonomic` and test.
-- Ensure `cicd.toml [autonomic] suggest_mode = true` (default is true, but explicit is safer).
-- Add policy implementations for each rule in `src/policies/`.
+- Always build with `--features autonomic` when testing policy behavior.
+- Ensure `cicd.toml [autonomic] suggest_mode = true` (default is suggest; enforce is rare).
+- Add policy implementations in `src/policies/` for each rule.
+- Verify that policy conditions are met (e.g., "warn if dirty" requires actual dirty state).
+
+**Testing policies in isolation:**
+
+```rust
+#[cfg(feature = "autonomic")]
+#[test]
+fn test_policy_dirty_detection() {
+    use cargo_cicd::policies::DirtyPolicy;
+    
+    let mut state = EngineState::default();
+    state.git_phase.dirty_count = 5;  // Set dirty state
+    
+    let recommendations = DirtyPolicy::evaluate(&state);
+    
+    assert!(!recommendations.is_empty(), "dirty state should generate recommendations");
+    assert!(recommendations[0].contains("clean"), "recommendation should mention cleaning");
+}
+```
 
 ---
 
@@ -612,34 +764,87 @@ Then `cargo build` automatically uses the right toolchain.
 
 **wasm4pm** is the evidence-gate oracle. Tests that check evidence verdicts need the `wpm` binary.
 
-**Discovery order:**
+**Discovery order (in src/evidence/mod.rs):**
 
 1. Environment variable `WPM_BINARY`
 2. `/Users/sac/wasm4pm/target/release/wpm` (hardcoded fallback from CLAUDE.md)
-3. System `PATH`
+3. System `PATH` lookup for `wpm`
+4. Not found → tests fall back to `Blocked` verdict
 
 **Setup for development:**
 
 ```bash
-# If you have wasm4pm checked out elsewhere, set the env var:
+# Option 1: If you have wasm4pm checked out locally, set the env var:
 export WPM_BINARY="/path/to/wasm4pm/target/release/wpm"
+cargo test --test wasm4pm_evidence_gate
 
-# Or create a symlink:
+# Option 2: Create a symlink in your PATH:
 mkdir -p ~/local/bin
 ln -s /path/to/wasm4pm/target/release/wpm ~/local/bin/wpm
 export PATH="$HOME/local/bin:$PATH"
+cargo test --test wasm4pm_evidence_gate
+
+# Option 3: Build and install from wasm4pm repo:
+cd /path/to/wasm4pm
+cargo build --release
+# Then either set WPM_BINARY or add to PATH
 
 # Verify discovery:
-cargo test --test wasm4pm_harness -- --nocapture 2>&1 | grep "wpm"
+which wpm
+cargo test --test wasm4pm_harness -- --nocapture 2>&1 | grep -i "wpm\|available"
 ```
 
-**If wpm is not found, tests print:**
+**Expected behavior when wpm is NOT found:**
+
+Tests enter graceful `Blocked` verdict path:
 
 ```
-BLOCKED: wpm binary not discoverable
+test evidence_gate_status_show_accepted ... ok
 ```
 
-This is intentional — evidence-gate tests require the oracle to close releases (no self-assertion on release safety).
+The test passes but skips Accept assertions because the oracle is unavailable.
+
+**Force strict oracle requirement in CI:**
+
+```bash
+# Set this environment variable to fail fast if wpm is missing:
+REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate
+```
+
+When `REQUIRE_WPM_ORACLE=1` is set, tests panic with a clear message if wpm is unavailable:
+
+```
+REQUIRE_WPM_ORACLE=1 is set but the wpm oracle binary is absent. 
+Test 'evidence_gate_status_show_accepted' cannot exercise its Accept assertion.
+Ensure the wpm binary exists at /Users/sac/wasm4pm/target/release/wpm.
+```
+
+**Understanding the Oracle Absence Pattern:**
+
+This is intentional design. Evidence-gate tests require the oracle to close releases because:
+
+- cargo-cicd internal tests cannot self-assert on release safety
+- Only the wasm4pm oracle can adjudicate "ALIVE" verdict
+- CI pipelines without the oracle gracefully degrade (tests don't fail, but Accept assertions are skipped)
+- CI pipelines WITH the oracle can enforce strict evidence requirements
+
+**Debugging wpm Binary Discovery:**
+
+```bash
+# Check if env var is set:
+echo $WPM_BINARY
+
+# Check if in PATH:
+which wpm
+
+# Check if hardcoded path exists:
+ls -l /Users/sac/wasm4pm/target/release/wpm 2>&1
+
+# List all ways to provide it:
+echo "Option 1: export WPM_BINARY=/path/to/wpm"
+echo "Option 2: ln -s /path/to/wpm ~/local/bin/wpm && export PATH=\$HOME/local/bin:\$PATH"
+echo "Option 3: Place at /Users/sac/wasm4pm/target/release/wpm (hardcoded fallback)"
+```
 
 ### Ontology and ggen Setup
 
@@ -916,23 +1121,428 @@ cargo test --ignored bench_workspace_scan -- --nocapture
 
 ---
 
-## Additional Resources
+## Quick Reference
 
-**Files referenced in this guide:**
+### Essential Commands Cheat Sheet
 
-- **Main modules:** `/home/user/cargo-cicd/src/main.rs`, `/home/user/cargo-cicd/src/adapters/mod.rs`, `/home/user/cargo-cicd/src/engine/mod.rs`
-- **Tests:** `/home/user/cargo-cicd/tests/` (invariants, changed_tests, wasm4pm_harness, etc.)
-- **Test fixtures:** `/home/user/cargo-cicd/tests/fixtures/`
-- **Configuration:** `/home/user/cargo-cicd/Cargo.toml`, `/home/user/cargo-cicd/CLAUDE.md`, `/home/user/cargo-cicd/ggen.toml`
-- **Ontology:** `/home/user/cargo-cicd/ontology/cargo-cicd.ttl`
+```bash
+# Build and check
+cargo build                    # Build binary
+cargo build --release         # Release build for profiling
+cargo check                    # Type-check without building
+cargo clippy                   # Lint checks
 
-**Related documentation in the codebase:**
+# Test with various scopes
+cargo test                     # All tests with default features
+cargo test --test NAME        # Run single test file
+cargo test --test NAME FUNC   # Run single test function
+cargo test -- --nocapture    # Show stdout/stderr
 
-- `CLAUDE.md` — Project mission, forbidden terms, commit format, architecture overview.
-- `README.md` — Public-facing usage; generated from ontology via ggen.
-- `src/adapters/mod.rs` — Overview of all adapters and their responsibilities.
+# Test with features
+cargo test --features process-data
+cargo test --features autonomic
+cargo test --features wasm4pm
+cargo test --all-features
+
+# Test with environment variables
+CARGO_CICD_DEBUG_ADAPTERS=1 cargo test
+REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate
+
+# Profile and bench
+time cargo cicd status show
+/usr/bin/time -v cargo cicd workspace doctor
+cargo test --ignored bench_workspace_scan -- --nocapture
+
+# Check git/workspace state
+git status --porcelain        # See all changes
+git rev-parse --git-dir       # Verify git repo
+cargo metadata                # Verify Cargo.toml validity
+```
+
+### Common Failure Modes Quick Lookup
+
+| Symptom | Likely Cause | Troubleshooting |
+|---------|-------------|-----------------|
+| "workspace root not found" | Running outside a workspace | Ensure Cargo.toml exists; check pwd |
+| "forbidden term found" | Public API leak | Check CLAUDE.md for forbidden list |
+| "malformed evidence" | XES format broken | Validate with jq; check wpm binary |
+| "git state inconsistent" | Detached HEAD or no upstream | Run `git rev-parse --abbrev-ref HEAD` |
+| "wasm4pm blocked" | wpm binary not found | Check WPM_BINARY env var |
+| "test hangs" | Large workspace scan | Use timeout; check WalkDir filters |
+| "feature interaction fails" | Missing feature implication | Verify feature flags in Cargo.toml |
 
 ---
 
+## Additional Comprehensive Resources
+
+### File Reference
+
+**Core Architecture:**
+- `/home/user/cargo-cicd/src/main.rs` — Entry point and default verb injection
+- `/home/user/cargo-cicd/src/adapters/mod.rs` — Adapter trait and all implementations
+- `/home/user/cargo-cicd/src/engine/mod.rs` — EngineState aggregate root
+- `/home/user/cargo-cicd/src/nouns/` — Noun modules (status, target, test, git, publish, workspace, evidence)
+
+**Test Infrastructure:**
+- `/home/user/cargo-cicd/tests/invariants.rs` — 7 non-negotiable public boundary invariants
+- `/home/user/cargo-cicd/tests/fixtures/mod.rs` — FixtureWorkspace helper builders
+- `/home/user/cargo-cicd/tests/fixtures/` — Pre-built test workspaces (clean, dirty, corrupted, etc.)
+- `/home/user/cargo-cicd/tests/cli/` — Command projection tests for each noun
+- `/home/user/cargo-cicd/tests/wasm4pm_*.rs` — Evidence-gate test suite
+
+**Configuration & Generation:**
+- `/home/user/cargo-cicd/Cargo.toml` — Workspace members, features, dependencies, test definitions
+- `/home/user/cargo-cicd/CLAUDE.md` — Project mission, forbidden terms, architecture mandates
+- `/home/user/cargo-cicd/ggen.toml` — Code generation configuration
+- `/home/user/cargo-cicd/ontology/cargo-cicd.ttl` — RDF ontology (Turtle)
+- `/home/user/cargo-cicd/queries/` — SPARQL queries for ontology
+- `/home/user/cargo-cicd/templates/` — Tera templates for code generation
+
+### Related Documentation
+
+- **CLAUDE.md** — Project mission (Level 5 process-data engine), forbidden terms, commit format, architecture decisions
+- **TESTING_GUIDE.md** — Complete testing strategy (smoke, integration, evidence-gate tiers)
+- **ARCHITECTURE.md** — Detailed architecture, state dimensions, adapter descriptions
+- **README.md** — Public-facing user documentation (generated from ontology)
+- **CONTRIBUTING.md** — Contribution workflow and standards
+
+### Adapter Responsibilities Reference
+
+| Adapter | Source | Output | Purpose |
+|---------|--------|--------|---------|
+| CargoMetadataAdapter | `cargo metadata` | WorkspaceState | Discover workspace root, members, manifest |
+| GitStatusAdapter | `git status --porcelain` | GitPhaseState | Read branch, dirty/staged/untracked counts |
+| TargetScannerAdapter | Filesystem walk | TargetState | Measure target/ size and file age |
+| ChangedFileDetector | git diff + filesystem | ChangedFileState | Find changed .rs files since last commit |
+| ToolchainDetector | rust-toolchain.toml | ToolchainState | Detect Rust version and channel |
+| TrybuildDetector | Filesystem walk | TrybuildState | Find trybuild fixtures and changed ones |
+| CicdTomlWriter | cicd.toml file | Emits events | Write workspace state and process events |
+
+---
+
+## Advanced Debugging Techniques
+
+### Inspecting State at Breakpoints (Without Debugger)
+
+If you don't have a debugger setup, use strategic eprintln! dumps before key operations:
+
+```rust
+// In src/nouns/your_command.rs
+fn your_verb_impl() -> Result<()> {
+    let mut state = EngineState::default();
+    
+    // Checkpoint 1: After workspace detection
+    state.workspace = CargoMetadataAdapter::read()?;
+    eprintln!("[CHECKPOINT-1] workspace = {:#?}", state.workspace);
+    
+    // Checkpoint 2: After git state
+    state.git_phase = GitStatusAdapter::read_git_state()?;
+    eprintln!("[CHECKPOINT-2] git_phase = {:#?}", state.git_phase);
+    
+    // Checkpoint 3: After target scan
+    state.target = TargetScannerAdapter::scan(&state.workspace.root)?;
+    eprintln!("[CHECKPOINT-3] target = {:#?}", state.target);
+    
+    // Now proceed with business logic
+    render_output(&state)?;
+    Ok(())
+}
+```
+
+Then run with output capture:
+
+```bash
+cargo cicd status show 2>&1 | tee /tmp/debug.log
+# Review checkpoints in the log
+```
+
+### Testing State Transitions (State Machine Debugging)
+
+cargo-cicd is fundamentally a state machine: Adapters read external state, populate EngineState, then Nouns render output. To debug state transitions:
+
+```rust
+// In tests/your_debug_test.rs
+#[test]
+#[ignore]  // Run with: cargo test --ignored debug_state_transitions -- --nocapture
+fn debug_state_transitions() {
+    let fixture = FixtureWorkspace::clean();
+    
+    // Snapshot 1: Before any commands
+    let cmd1 = Command::cargo_bin("cargo-cicd").unwrap()
+        .current_dir(fixture.root.clone())
+        .arg("status").arg("show")
+        .output().unwrap();
+    eprintln!("=== SNAPSHOT 1: Clean ===");
+    eprintln!("{}", String::from_utf8_lossy(&cmd1.stdout));
+    
+    // Modify the workspace
+    std::fs::write(fixture.root.join("new_file.rs"), "// changed\n").unwrap();
+    
+    // Snapshot 2: After modification
+    let cmd2 = Command::cargo_bin("cargo-cicd").unwrap()
+        .current_dir(fixture.root.clone())
+        .arg("status").arg("show")
+        .output().unwrap();
+    eprintln!("=== SNAPSHOT 2: After modification ===");
+    eprintln!("{}", String::from_utf8_lossy(&cmd2.stdout));
+    
+    // Verify state changed
+    assert_ne!(cmd1.stdout, cmd2.stdout, "state should change after modification");
+}
+```
+
+Run:
+
+```bash
+cargo test --ignored debug_state_transitions -- --nocapture
+```
+
+### Trace Adapter Execution Order
+
+To understand which adapters run and in what order:
+
+```rust
+// In each adapter, add a guard struct that logs on drop
+pub struct AdapterGuard {
+    name: &'static str,
+    start: std::time::Instant,
+}
+
+impl Drop for AdapterGuard {
+    fn drop(&mut self) {
+        eprintln!("[ADAPTER] {} took {:.2}ms", 
+                  self.name, 
+                  self.start.elapsed().as_secs_f64() * 1000.0);
+    }
+}
+
+// Then in each adapter function:
+impl CargoMetadataAdapter {
+    pub fn read() -> Result<WorkspaceState> {
+        let _guard = AdapterGuard { name: "CargoMetadataAdapter", start: Instant::now() };
+        // ... actual implementation ...
+    }
+}
+```
+
+This creates a clear timeline of adapter execution without modifying return values.
+
+### Capture Intermediate Files for Post-Mortem Analysis
+
+When a test fails, capture the workspace state before cleanup:
+
+```bash
+#!/bin/bash
+# save_test_workspace.sh
+# Run a failing test and save the temp workspace
+
+TESTNAME="$1"
+SAVEDIR="/tmp/cargo-cicd-debug-${TESTNAME}-$(date +%s)"
+
+# Modify your test temporarily to save on failure:
+# Use RUST_BACKTRACE=1 and capture stderr
+RUST_BACKTRACE=1 cargo test --test "$TESTNAME" 2>&1 | tee "$SAVEDIR/test.log"
+
+echo "Debug workspace may be in /tmp/cargo-cicd-debug-*/"
+```
+
+---
+
+## Advanced Feature Flag Debugging
+
+### Understanding Feature Implication Graph
+
+Features in Cargo.toml form a directed graph:
+
+```toml
+[features]
+default = []
+process-data = []           # Base: Level 5 engine
+autonomic = ["process-data"]  # Implies: process-data
+contrib = ["process-data"]    # Implies: process-data
+wasm4pm = ["process-data"]    # Implies: process-data
+```
+
+When you enable `autonomic`, you automatically get `process-data`. But the reverse is NOT true.
+
+### Debug Feature Availability
+
+```bash
+# See which features are compiled in:
+cargo tree --features autonomic 2>&1 | head -20
+
+# Verify feature gate in code:
+grep -r '#\[cfg(feature' src/
+
+# Build with specific feature combos:
+cargo build --no-default-features
+cargo build --no-default-features --features process-data
+cargo build --no-default-features --features autonomic
+cargo build --no-default-features --features wasm4pm
+cargo build --all-features
+```
+
+### Test Feature Isolation
+
+Write a test that verifies feature gates are working:
+
+```rust
+#[cfg(feature = "autonomic")]
+#[test]
+fn test_autonomic_only_when_enabled() {
+    // This should only compile with --features autonomic
+    use cargo_cicd::autonomic::PolicyState;
+    let _state = PolicyState::default();
+}
+
+#[cfg(not(feature = "autonomic"))]
+#[test]
+fn test_autonomic_not_available_by_default() {
+    // autonomic::PolicyState should not exist
+    // (This test just documents the feature boundary)
+}
+```
+
+---
+
+## Detailed wasm4pm Evidence Testing
+
+### Understanding XES Format
+
+XES (XML Event Stream) is a process mining standard. cargo-cicd emits events as XES, which wpm then adjudicates.
+
+Example valid XES structure:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<log xes.version="2.0">
+  <trace id="cargo-cicd-v26.6.2">
+    <event>
+      <string key="concept:name" value="status show"/>
+      <string key="lifecycle:transition" value="PASS"/>
+      <date key="time:timestamp" value="2026-06-14T10:30:45Z"/>
+    </event>
+  </trace>
+</log>
+```
+
+### Validating Evidence Manually
+
+```bash
+# Check if evidence file exists and is valid XML:
+xmllint --noout target/cargo-cicd/evidence/events.xes
+
+# Check if wpm can read it:
+wpm audit target/cargo-cicd/evidence/events.xes --format json
+
+# Check receipt doctor directly:
+wpm receipt doctor --format json --strict target/cargo-cicd/evidence/events.jsonl
+```
+
+### Creating Evidence-Only Tests
+
+Test evidence emission without waiting for the full command:
+
+```rust
+#[test]
+fn test_emit_evidence_only() {
+    use cargo_cicd::evidence::{ProcessEvent, emit_xes};
+    use tempfile::TempDir;
+    
+    let dir = TempDir::new().unwrap();
+    let events = vec![
+        ProcessEvent::new("status show", "PASS"),
+        ProcessEvent::new("git status", "PASS"),
+    ];
+    
+    let xes_path = dir.path().join("events.xes");
+    emit_xes(&events, &xes_path).expect("emit must succeed");
+    
+    // Validate the file exists and is well-formed
+    assert!(xes_path.exists(), "XES file must exist");
+    let content = std::fs::read_to_string(&xes_path).unwrap();
+    assert!(content.contains("<?xml"), "Must be valid XML");
+    assert!(content.contains("<log"), "Must have log element");
+}
+```
+
+---
+
+## Workspace Scan Optimization Checklist
+
+If workspace scans are slow, follow this checklist:
+
+- [ ] Profile with `time` to get baseline (e.g., `time cargo cicd status show`)
+- [ ] Check if you're scanning the entire workspace or just changed files
+- [ ] Verify WalkDir filters exclude `.git`, `target/`, `node_modules/`
+- [ ] Consider caching workspace metadata between invocations
+- [ ] Profile individual adapters with the `[PROFILE]` markers above
+- [ ] Check if git operations are slow (`git status --porcelain` on large repos)
+- [ ] If scanning large target dirs, consider `find` with depth limits instead of WalkDir
+- [ ] Use release builds for profiling: `cargo build --release && time ./target/release/cargo-cicd ...`
+
+Example optimization: limit walk depth
+
+```rust
+// Bad: walks entire workspace including target, .git
+for entry in walkdir::WalkDir::new(&root) { }
+
+// Good: excludes slow directories
+for entry in walkdir::WalkDir::new(&root)
+    .into_iter()
+    .filter_entry(|e| {
+        let name = e.file_name().to_string_lossy();
+        !name.starts_with('.') && name != "target" && name != "node_modules"
+    })
+    .filter_map(|e| e.ok())
+{ }
+```
+
+---
+
+## Debugging Clap/Noun-Verb Interactions
+
+cargo-cicd uses `clap-noun-verb` for CLI parsing. Debugging command-line parsing:
+
+### Check How Bare Nouns are Mapped
+
+The `inject_default_verbs()` function in `main.rs` maps bare nouns to default verbs:
+
+```
+cargo cicd status    -> cargo cicd status show
+cargo cicd publish   -> cargo cicd publish run
+cargo cicd workspace -> cargo cicd workspace doctor
+```
+
+If your bare noun command doesn't work, check:
+
+1. Is it listed in the `match` statement in `main.rs`?
+2. Does the noun implement `NounCommand::run_direct()`?
+3. Is the default verb implemented?
+
+### Test Clap Parsing Separately
+
+```rust
+#[test]
+fn test_clap_parsing_status_bare() {
+    use clap::Parser;
+    
+    // Simulate: cargo cicd status
+    let args = vec!["cargo-cicd", "status"];
+    let cmd = YourCliParser::try_parse_from(&args);
+    
+    // Should either parse successfully or explain why not
+    match cmd {
+        Ok(parsed) => eprintln!("Parsed successfully: {:#?}", parsed),
+        Err(e) => eprintln!("Parse error: {}", e),
+    }
+}
+```
+
+---
+
+## Last Updated
+
 **Last Updated:** 2026-06-14  
 **Tested with:** cargo-cicd v26.6.2, Rust 1.85+
+**Related Docs:** TESTING_GUIDE.md, ARCHITECTURE.md, CLAUDE.md

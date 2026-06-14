@@ -11,7 +11,11 @@ This guide covers configuring Claude Code (claude.ai/code) for optimal developme
 3. [Available Settings](#available-settings)
 4. [Common Configurations](#common-configurations)
 5. [Hook Examples](#hook-examples)
-6. [Troubleshooting Settings](#troubleshooting-settings)
+6. [IDE Integration Hooks](#ide-integration-hooks)
+7. [Advanced Hook Patterns](#advanced-hook-patterns)
+8. [Complete Working Examples](#complete-working-examples)
+9. [Troubleshooting Settings](#troubleshooting-settings)
+10. [Best Practices](#best-practices)
 
 ---
 
@@ -622,6 +626,519 @@ Verify feature flags before release:
 
 ---
 
+## IDE Integration Hooks
+
+### VS Code Integration
+
+For developers using VS Code with the Rust Analyzer extension, configure Claude Code to sync with the IDE:
+
+```json
+{
+  "hooks": {
+    "SessionStart": {
+      "description": "VS Code workspace setup",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "command -v cargo-make || cargo install cargo-make"],
+          "description": "Ensure cargo-make is available"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo make check"],
+          "description": "Prime Rust Analyzer with type-check"
+        }
+      ]
+    },
+    "before-commit": {
+      "description": "Format and lint before VS Code commit",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo fmt --all"],
+          "description": "Auto-format on save"
+        }
+      ]
+    }
+  },
+  "env": {
+    "RUST_ANALYZER_DEBUG": "false",
+    "RA_LOG": "off"
+  }
+}
+```
+
+### Neovim/Helix Integration
+
+For terminal-based editors, disable heavy background tasks in SessionStart:
+
+```json
+{
+  "hooks": {
+    "SessionStart": {
+      "description": "Lightweight setup for terminal editors",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "rustup update stable"],
+          "description": "Update Rust (quick check)"
+        }
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "1"
+  }
+}
+```
+
+### GitHub Codespaces Integration
+
+For cloud-based development environments:
+
+```json
+{
+  "hooks": {
+    "SessionStart": {
+      "description": "Codespaces-optimized setup",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "apt-get update -qq && apt-get install -y cargo 2>/dev/null || true"],
+          "description": "Ensure Rust is available (if not pre-installed)"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo install cargo-make --quiet"],
+          "description": "Install cargo-make quietly"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "timeout 300 cargo make check || true"],
+          "description": "Check with 5-minute timeout (Codespaces slower)"
+        }
+      ]
+    }
+  },
+  "env": {
+    "CARGO_INCREMENTAL": "1",
+    "CARGO_BUILD_JOBS": "2"
+  }
+}
+```
+
+---
+
+## Advanced Hook Patterns
+
+### Conditional Hook Execution
+
+Run hooks only in specific environments:
+
+```json
+{
+  "hooks": {
+    "SessionStart": {
+      "description": "Environment-aware setup",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "if [[ \"$CI\" != \"true\" ]]; then cargo make check; fi"],
+          "description": "Skip check in CI environments"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "if [[ -n \"$GITHUB_ACTIONS\" ]]; then cargo test --test invariants; fi"],
+          "description": "Run tests only in GitHub Actions"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Parallel Command Execution
+
+Run independent commands concurrently:
+
+```json
+{
+  "hooks": {
+    "SessionStart": {
+      "description": "Parallel workspace setup",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo fmt --all & cargo clippy --all -- -D warnings & wait"],
+          "description": "Format and lint in parallel"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Deferred Hooks (Fire-and-Forget)
+
+Run background tasks without blocking:
+
+```json
+{
+  "hooks": {
+    "post-test": {
+      "description": "Background telemetry (non-blocking)",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "nohup cargo make test &> /tmp/background-test.log &"],
+          "description": "Queue test run for later"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Hook Chaining with Failure Strategies
+
+Control behavior when commands fail:
+
+```json
+{
+  "hooks": {
+    "pre-push": {
+      "description": "Pre-push validation with fallback",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test invariants"],
+          "description": "Run invariants",
+          "failureStrategy": "fail",
+          "failureMessage": "Invariants failed; push blocked"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test feature_projection"],
+          "description": "Run feature tests",
+          "failureStrategy": "warn",
+          "failureMessage": "Feature tests failed; push allowed with warning"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo fmt --all"],
+          "description": "Auto-format",
+          "failureStrategy": "continue",
+          "failureMessage": "Format failed; continuing anyway"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Scheduled Hook Examples
+
+Run tasks on intervals:
+
+```json
+{
+  "hooks": {
+    "hourly": {
+      "description": "Hourly workspace diagnostics",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo cicd target show"],
+          "description": "Check target directory size hourly"
+        }
+      ]
+    },
+    "daily": {
+      "description": "Daily workspace cleanup",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo clean && cargo build --release 2>&1 | head -10"],
+          "description": "Nightly clean rebuild"
+        }
+      ]
+    }
+  }
+}
+```
+
+### File Watch Hooks
+
+React to file changes intelligently:
+
+```json
+{
+  "hooks": {
+    "on-file-change": {
+      "description": "Run tests on Rust file change",
+      "filePatterns": ["src/**/*.rs", "tests/**/*.rs"],
+      "debounceMs": 2000,
+      "maxConcurrent": 1,
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --lib"],
+          "description": "Run unit tests on change"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Complete Working Examples
+
+### Example 1: Full Development Setup
+
+Complete `.claude/settings.json` for active cargo-cicd development:
+
+```json
+{
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cargo build",
+        "cargo build --release",
+        "cargo test",
+        "cargo test --all-features",
+        "cargo test --no-default-features",
+        "cargo test --test *",
+        "cargo make *",
+        "cargo fmt *",
+        "cargo clippy *",
+        "cargo cicd *",
+        "git status",
+        "git log",
+        "git diff",
+        "git diff origin/main",
+        "rustup update",
+        "rustup component add",
+        "rustup toolchain install",
+        "cargo install cargo-make",
+        "cargo metadata --format-version 1"
+      ],
+      "blockingPatterns": [
+        "rm -rf /",
+        "git push --force",
+        "git reset --hard",
+        "sudo"
+      ]
+    },
+    "files": {
+      "read": [
+        "**/*.rs",
+        "**/*.toml",
+        "**/*.md",
+        "CLAUDE.md",
+        ".claude/**",
+        "docs/**",
+        "src/**",
+        "tests/**",
+        "crates/**"
+      ],
+      "write": [
+        "src/**/*.rs",
+        "tests/**/*.rs",
+        "Cargo.toml",
+        "crates/**/Cargo.toml",
+        ".claude/settings.json",
+        "docs/**"
+      ],
+      "blocked": [
+        ".git/**",
+        ".git",
+        "target/**",
+        "**/*.lock",
+        ".env*",
+        "credentials*"
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_INCREMENTAL": "1",
+    "RUST_LOG": "warn",
+    "CARGO_NET_RETRY": "3"
+  },
+  "hooks": {
+    "SessionStart": {
+      "description": "Full cargo-cicd development environment",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "rustup update stable && rustup component add rustfmt clippy"],
+          "description": "Update Rust toolchain",
+          "timeout": 300000
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "command -v cargo-make &>/dev/null || cargo install cargo-make"],
+          "description": "Ensure cargo-make is installed",
+          "timeout": 600000
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo make check"],
+          "description": "Type-check and lint",
+          "timeout": 180000
+        }
+      ]
+    },
+    "before-commit": {
+      "description": "Format and lint before commit",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo fmt --all"],
+          "description": "Auto-format code",
+          "failureStrategy": "warn"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo clippy --all -- -D warnings"],
+          "description": "Run clippy linter",
+          "failureStrategy": "warn"
+        }
+      ]
+    },
+    "pre-push": {
+      "description": "Validate before push",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test invariants"],
+          "description": "Verify public boundary invariants",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test feature_projection"],
+          "description": "Verify feature flag contracts",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo cicd workspace doctor"],
+          "description": "Workspace health check",
+          "failureStrategy": "warn"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Example 2: CI/CD Pipeline Setup
+
+For continuous integration environments:
+
+```json
+{
+  "env": {
+    "CI": "true",
+    "RUST_BACKTRACE": "full",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "hooks": {
+    "SessionStart": {
+      "description": "CI pipeline initialization",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "rustup update stable"],
+          "description": "Update toolchain",
+          "timeout": 300000
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --all-features --no-fail-fast 2>&1 | tee test-output.log"],
+          "description": "Run all tests",
+          "timeout": 1800000
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test invariants --test feature_projection"],
+          "description": "Run critical tests",
+          "failureStrategy": "fail"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cargo build",
+        "cargo test",
+        "rustup update",
+        "cargo metadata"
+      ]
+    }
+  }
+}
+```
+
+### Example 3: Release Validation Setup
+
+For pre-release checks:
+
+```json
+{
+  "hooks": {
+    "before-release": {
+      "description": "Pre-release validation checklist",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --no-default-features"],
+          "description": "Test with no features",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --all-features"],
+          "description": "Test with all features",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --features autonomic"],
+          "description": "Test autonomic mode",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --features wasm4pm"],
+          "description": "Test wasm4pm integration",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test invariants --test feature_projection --test cli"],
+          "description": "Run acceptance tests",
+          "failureStrategy": "fail"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo build --release"],
+          "description": "Build release binary",
+          "failureStrategy": "fail",
+          "timeout": 600000
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
 ## Troubleshooting Settings
 
 ### Common Issues & Solutions
@@ -969,13 +1486,253 @@ Expected top-level keys:
 
 ## Best Practices
 
-1. **Start simple**: Use minimal SessionStart first, expand as needed.
-2. **Test locally**: Always run hook commands manually before adding to config.
-3. **Commit carefully**: Only commit `.claude/settings.json`, not `.local` variants.
-4. **Use timeouts**: Prevent infinite waits with reasonable timeout values.
-5. **Document intentions**: Add clear descriptions to every hook command.
-6. **Monitor permissions**: Review allowlists quarterly; avoid overly broad wildcards.
+### General Guidelines
+
+1. **Start simple**: Use minimal SessionStart first, expand as needed. Add complexity incrementally.
+2. **Test locally**: Always run hook commands manually before adding to config. Verify behavior before committing.
+3. **Commit carefully**: Only commit `.claude/settings.json`, not `.local` variants. Add `.claude/settings.local.json` to `.gitignore`.
+4. **Use timeouts**: Prevent infinite waits with reasonable timeout values (prefer 5-10 minutes for heavy tasks).
+5. **Document intentions**: Add clear descriptions to every hook command. Future maintainers will thank you.
+6. **Monitor permissions**: Review allowlists quarterly; avoid overly broad wildcards like `cargo *`.
 7. **Version-pin tools**: Specify exact versions for reproducible setups (e.g., `cargo install cargo-make@0.36.0`).
+
+### Performance Optimization
+
+- **Minimize SessionStart overhead**: Keep SessionStart commands under 60 seconds if possible. Lazy-load heavy dependencies.
+- **Fail fast on critical checks**: Use `failureStrategy: "fail"` for invariants and safety checks; use `"warn"` for quality checks.
+- **Parallelize where safe**: Use `&` and `wait` to run independent commands concurrently (e.g., format + lint).
+- **Cache dependencies**: Avoid re-downloading tools in every SessionStart; check if already installed first.
+
+### Security Considerations
+
+- **Minimal permissions**: Only allowlist commands you actually need. Avoid `cargo *` wildcards.
+- **Block destructive patterns**: Always include blocking patterns for `rm -rf`, `git push --force`, `git reset --hard`.
+- **Protect sensitive files**: Block `.env*`, `credentials*`, `.git/**` in file permissions.
+- **Audit MCP integrations**: Only enable MCP tools (GitHub, Git) that are explicitly needed; disable others.
+- **Environment variable caution**: Avoid leaking secrets in `env` section. Use `.claude/settings.local.json` for local overrides.
+
+### Maintenance & Troubleshooting
+
+- **Use verbose output**: Add `set -x` to bash commands during debugging; remove for production.
+- **Leverage `.local` overrides**: Use `.claude/settings.local.json` for environment-specific tweaks without committing.
+- **Version control hook changes**: Treat `.claude/settings.json` as you would code; document changes in commit messages.
+- **Monitor execution time**: Periodically review hook execution times; optimize or move long-running tasks to scheduled hooks.
+- **Test on multiple platforms**: If team members use macOS, Linux, and Windows, test hooks on all three.
+
+### cargo-cicd-Specific Best Practices
+
+- **Always enable invariants**: Include `cargo test --test invariants` in pre-push hooks to catch public boundary violations early.
+- **Feature flag validation**: Test with `--no-default-features`, `--all-features`, and specific flags (`--features autonomic`, etc.).
+- **CLAUDE.md alignment**: Keep hook commands aligned with build/test commands documented in `CLAUDE.md`.
+- **cicd.toml awareness**: Remember that `cicd.toml` is auto-generated; don't commit it, but do review its events section during debugging.
+- **Evidence validation**: If using wasm4pm features, include evidence-gate tests in pre-push hooks.
+
+---
+
+## Settings Schema Reference
+
+This section provides a comprehensive JSON schema for `.claude/settings.json`.
+
+### Root Settings Object
+
+```json
+{
+  "permissions": {
+    "bash": {
+      "allowlist": ["string[]"],
+      "blockingPatterns": ["string[]"]
+    },
+    "files": {
+      "read": ["string[]"],
+      "write": ["string[]"],
+      "blocked": ["string[]"]
+    },
+    "mcp": {
+      "enabled": ["string[]"],
+      "disabled": ["string[]"]
+    }
+  },
+  "env": {
+    "KEY": "value"
+  },
+  "features": ["string[]"],
+  "hooks": {
+    "SessionStart": { "commands": [] },
+    "before-commit": { "commands": [] },
+    "pre-push": { "commands": [] },
+    "post-test": { "commands": [] },
+    "on-file-change": { "filePatterns": [], "commands": [] },
+    "hourly": { "commands": [] },
+    "daily": { "commands": [] }
+  },
+  "ignorePatterns": ["string[]"],
+  "debug": "boolean",
+  "logLevel": "debug|info|warn|error"
+}
+```
+
+### Hook Command Object
+
+Each command in a hook's `commands` array has this structure:
+
+```json
+{
+  "command": "bash|cargo|git",
+  "args": ["arg1", "arg2"],
+  "description": "Human-readable description",
+  "timeout": 60000,
+  "failureStrategy": "fail|warn|continue",
+  "failureMessage": "Custom error message (optional)",
+  "workingDirectory": "/path/to/dir (optional)",
+  "env": {
+    "VARIABLE": "value"
+  }
+}
+```
+
+### Detailed Field Descriptions
+
+#### `permissions.bash.allowlist`
+
+Commands that Claude Code is allowed to run. Supports exact matches and wildcards.
+
+```json
+{
+  "allowlist": [
+    "cargo build",           // Exact match
+    "cargo test *",          // Wildcard (ends with test)
+    "cargo *",               // All cargo commands
+    "git status",
+    "rustup update"
+  ]
+}
+```
+
+#### `permissions.bash.blockingPatterns`
+
+Patterns that will always be blocked, overriding allowlist. Use for safety.
+
+```json
+{
+  "blockingPatterns": [
+    "rm -rf /",
+    "git push --force",
+    "git reset --hard",
+    "*sudo*",
+    "*rm -rf*"
+  ]
+}
+```
+
+#### `permissions.files.read|write|blocked`
+
+File patterns controlling which files Claude Code can access.
+
+```json
+{
+  "read": [
+    "src/**/*.rs",           // Read all Rust files in src/
+    "**/*.toml",             // All TOML files
+    "CLAUDE.md",             // Specific file
+    "docs/**"                // All files in docs/
+  ],
+  "write": [
+    "src/**/*.rs",           // Allow write to source files
+    "Cargo.toml"             // Allow editing manifest
+  ],
+  "blocked": [
+    ".git/**",               // Always block git internals
+    "target/**",             // Block build output
+    "**/*.lock",             // Block lock files
+    ".env*"                  // Block environment files
+  ]
+}
+```
+
+#### `env`
+
+Environment variables available to all hooks and Claude Code sessions.
+
+```json
+{
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_INCREMENTAL": "1",
+    "RUST_LOG": "warn",
+    "CARGO_NET_RETRY": "3"
+  }
+}
+```
+
+**Common values for cargo-cicd:**
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `RUST_BACKTRACE` | `1` or `full` | Show full error traces |
+| `CARGO_INCREMENTAL` | `0` or `1` | Incremental compilation (1=faster, 0=cleaner) |
+| `RUST_LOG` | `debug\|info\|warn\|error` | Logging level |
+| `CARGO_NET_RETRY` | `1-10` | Retry failed downloads |
+| `CARGO_INCREMENTAL` | `0` | Disable in CI for clean builds |
+| `CARGO_FEATURE_AUTONOMIC` | `1` | Enable autonomic features at compile time |
+| `CARGO_FEATURE_PROCESS_DATA` | `1` | Enable process-data features |
+
+#### `hooks`
+
+All available hook types:
+
+| Hook | When | Example Use |
+|------|------|-------------|
+| `SessionStart` | Web session begins | Install dependencies, run linter |
+| `before-commit` | Before `git commit` | Format, lint |
+| `pre-push` | Before `git push` | Tests, validation |
+| `post-test` | After tests complete | Summary, reporting |
+| `on-file-change` | Files matching pattern change | Incremental build, lint |
+| `hourly` | Every hour (if session active) | Background checks |
+| `daily` | Every day (if session active) | Cleanup, optimization |
+
+#### `hooks[hook].commands[].failureStrategy`
+
+Controls behavior when a command fails:
+
+- **`fail`**: Stop execution, fail the entire hook. Use for critical checks.
+- **`warn`**: Log warning, continue to next command. Use for quality checks.
+- **`continue`**: Silent failure, continue. Use for optional commands.
+
+```json
+{
+  "commands": [
+    {
+      "command": "cargo",
+      "args": ["test"],
+      "failureStrategy": "fail",
+      "failureMessage": "Tests failed; push blocked"
+    }
+  ]
+}
+```
+
+### Complete Schema Validation
+
+Validate your settings file structure:
+
+```bash
+# Using jq (install with apt-get install jq, brew install jq)
+jq . .claude/settings.json
+
+# Check for common errors
+jq 'keys' .claude/settings.json  # Show top-level keys
+
+# Validate hook structure
+jq '.hooks.SessionStart.commands | length' .claude/settings.json
+```
+
+### Schema Evolution
+
+Future versions of Claude Code may add new fields. To stay future-compatible:
+
+1. **Use optional fields**: Don't require unknown fields in your schema checks.
+2. **Version your config**: Add a comment noting which Claude Code version the config targets.
+3. **Test compatibility**: Periodically test your config on the latest Claude Code version.
 
 ---
 

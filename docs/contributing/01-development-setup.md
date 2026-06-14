@@ -1,277 +1,295 @@
 # Development Setup
 
-Get your environment ready to build and test cargo-cicd.
+This guide will get you up and running with cargo-cicd development in minutes.
 
 ## Prerequisites
 
 ### Required
-- **Rust toolchain** 1.85 or later
-- **cargo-make** — for convenient build tasks (optional but recommended)
-- **Git** — for version control and testing git operations
+- **Rust 1.85 or later** (as specified in `Cargo.toml`)
+  - Install or update: `rustup update`
+- **Git** (for repository interaction and adapters)
+- **cargo-make** (optional but strongly recommended)
+  - Install: `cargo install cargo-make`
 
-### Optional but Highly Recommended
-- **wasm4pm** — for testing evidence-gate validation (required for release validation)
-- **Direnv** or **mise** — for automatic environment loading (if you use them)
-
-### System Requirements
-- **Linux, macOS, or Windows** (with WSL for Windows recommended)
-- **Disk space:** ~2 GB for full build artifacts
-- **RAM:** 4 GB minimum, 8 GB recommended for full test suite with wasm4pm
+### Optional but Recommended
+- **wasm4pm** (for release validation; path: `/Users/sac/wasm4pm/target/release/wpm`)
+  - Needed only when running evidence-gate tests or preparing releases
+- **A Rust IDE** (VS Code with rust-analyzer recommended)
 
 ## One-Command Setup
 
-### macOS/Linux
-
 ```bash
-# Update Rust to 1.85+
-rustup update
-
-# Clone the repo
+# Clone the repository
 git clone https://github.com/seanchatmangpt/cargo-cicd
 cd cargo-cicd
 
-# Build and verify
-cargo build
-
-# Run all tests (without wasm4pm validation)
-cargo test
+# Run setup (updates Rust, builds project, runs tests)
+rustup update && cargo build && cargo test
 ```
 
-### Windows (WSL)
-Use the same commands as Linux; WSL provides a full Linux environment.
-
-## Full Setup with All Tools
-
-If you plan to work on release validation or evidence-gate features:
-
-```bash
-# 1. Update Rust
-rustup update
-
-# 2. Install cargo-make (if not present)
-cargo install cargo-make
-
-# 3. Clone and build
-git clone https://github.com/seanchatmangpt/cargo-cicd
-cd cargo-cicd
-cargo make build
-
-# 4. Install wasm4pm (for evidence-gate validation)
-# See https://github.com/seanchatmangpt/wasm4pm for detailed setup
-# The binary should be available at: /Users/sac/wasm4pm/target/release/wpm (adjust for your system)
-```
+That's it! You can now develop.
 
 ## Build Commands
 
-### With cargo-make (Recommended)
+### Using cargo-make (Preferred)
+
+If you have `cargo-make` installed:
 
 ```bash
-# Build release binary
+# Build the project
 cargo make build
 
-# Check (lint + type-check without building)
+# Check code (lint + type-check, no build)
 cargo make check
 
 # Run all tests
 cargo make test
 
-# Full clean build and test
+# Clean build artifacts
 cargo make clean
-cargo make build
-cargo make test
 ```
 
-### With plain cargo (Fallback)
+### Using cargo Directly
+
+If `cargo-make` is unavailable:
 
 ```bash
 # Build
 cargo build
 
-# Build release (optimized)
-cargo build --release
-
-# Type-check without building
+# Type-check and lint
 cargo check
 
 # Run all tests
 cargo test
 
-# Run a specific test file
+# Build with optimizations
+cargo build --release
+```
+
+## Test Commands
+
+### Integration Tests
+
+Run specific integration test suites:
+
+```bash
+# Public boundary invariants (no forbidden terms, safety, etc.)
 cargo test --test invariants
+
+# CLI command projection test
 cargo test --test cli
+
+# cicd.toml correctness
+cargo test --test cicd_toml_truth
+
+# Autonomic policies
 cargo test --test autonomic_policies
 
-# Run with feature flags
-cargo test --features process-data
-cargo test --features autonomic
+# Changed test detection
+cargo test --test changed_tests
+
+# Git phase closure
+cargo test --test git_phase_closure
+
+# Feature flag projection
+cargo test --test feature_projection
+
+# wasm4pm evidence gate (requires wasm4pm binary)
+cargo test --test wasm4pm_evidence_gate
 ```
 
-## Test Commands Reference
+### Unit Tests
 
-### All Tests
+Run all unit tests (within each module):
 
 ```bash
-# Run the full test suite
-cargo test
-
-# Run with all features enabled
-cargo test --all-features
+cargo test --lib
 ```
 
-### Integration Tests by Name
+### Specific Test Function
 
 ```bash
-cargo test --test invariants           # Boundary invariants
-cargo test --test cli                  # CLI parsing and commands
-cargo test --test cicd_toml_truth      # cicd.toml schema validation
-cargo test --test autonomic_policies   # Autonomic policy mode
-cargo test --test changed_tests        # Changed file detection
-cargo test --test git_phase_closure    # Git operations
-cargo test --test feature_projection   # Feature flag contracts
-```
-
-### Run a Specific Test Function
-
-```bash
-cargo test --test invariants test_function_name -- --nocapture
+# Run a single test function by name
+cargo test --test invariants invariant_public_boundary
 ```
 
 ### With Feature Flags
 
 ```bash
-# Test with process-data engine
+# Test with process-data feature enabled
 cargo test --features process-data
 
-# Test with autonomic policies (implies process-data)
+# Test with autonomic feature (implies process-data)
 cargo test --features autonomic
 
-# Test with contrib features
-cargo test --features contrib
-
-# Test with wasm4pm integration
+# Test with wasm4pm feature (for release validation)
 cargo test --features wasm4pm
 ```
 
-## Verify Your Setup
+### Full Test Suite
 
 ```bash
-# 1. Check Rust version
-rustc --version  # Should be 1.85.0 or higher
+# Run everything (lib + integration tests)
+cargo test
 
-# 2. Build the binary
+# Run with all features
+cargo test --all-features
+```
+
+## Common Development Workflows
+
+### Starting a New Feature
+
+```bash
+# Update Rust first
+rustup update
+
+# Create a feature branch
+git checkout -b feat/my-feature
+
+# Build and verify setup
 cargo build
 
-# 3. Run help to verify it works
-./target/debug/cargo-cicd --help
+# Run tests to establish baseline
+cargo test
 
-# 4. Run core tests
-cargo test --test invariants
-
-# 5. (Optional) Verify wasm4pm integration if installed
-# wpm --version
+# Now implement your feature...
 ```
 
-## IDE Setup
-
-### VS Code
-
-1. Install the **rust-analyzer** extension
-2. Install the **CodeLLDB** extension for debugging
-3. Create `.vscode/settings.json`:
-
-```json
-{
-  "rust-analyzer.check.command": "clippy",
-  "rust-analyzer.check.extraArgs": [
-    "--all-targets",
-    "--all-features"
-  ],
-  "editor.formatOnSave": true,
-  "[rust]": {
-    "editor.defaultFormatter": "rust-lang.rust-analyzer"
-  }
-}
-```
-
-### JetBrains CLion / IntelliJ IDEA
-
-1. Install the **Rust** plugin
-2. Enable **Run external linter** in Rust settings
-3. Set external linter to **clippy**
-
-### Vim/Neovim
+### Debugging a Test Failure
 
 ```bash
-# Install with rust-analyzer
-rustup component add rust-analyzer
+# Run the failing test with output visible
+cargo test test_name -- --nocapture
+
+# Or with rust backtrace
+RUST_BACKTRACE=1 cargo test test_name -- --nocapture
 ```
 
-## Environment Variables
-
-None are required for basic development, but you can set these if helpful:
+### Before Committing
 
 ```bash
-# Enable verbose logging during tests
-RUST_LOG=debug cargo test
+# Check formatting (requires rustfmt)
+cargo fmt --check
 
-# Run tests without capturing output (see println! output)
-cargo test -- --nocapture
+# Check linting (requires clippy)
+cargo clippy -- -D warnings
 
-# Parallel test execution (default)
-cargo test -- --test-threads=4
+# Run all tests
+cargo test
 
-# Single-threaded testing (use if tests interfere)
-cargo test -- --test-threads=1
+# Try a clean build
+cargo clean && cargo build && cargo test
+```
+
+## Project Structure
+
+```
+cargo-cicd/
+├── src/
+│   ├── main.rs              # CLI entry point, noun registration
+│   ├── lib.rs               # Library exports
+│   ├── cicd_toml.rs         # cicd.toml schema & parsing
+│   ├── evidence.rs          # Process event emission (XES)
+│   ├── session.rs           # Session lifecycle
+│   ├── nouns/               # CLI noun (command) implementations
+│   │   ├── status.rs        # `cargo cicd status`
+│   │   ├── target.rs        # `cargo cicd target`
+│   │   ├── test.rs          # `cargo cicd test`
+│   │   └── ...
+│   ├── adapters/            # External source adapters
+│   │   ├── git_status.rs    # Git repository state
+│   │   ├── target_scanner.rs # target/ directory scanning
+│   │   ├── toolchain_detector.rs # Rust toolchain info
+│   │   └── ...
+│   ├── engine/              # EngineState and dimensions
+│   │   ├── mod.rs           # EngineState aggregate root
+│   │   ├── workspace_state.rs
+│   │   ├── git_phase_state.rs
+│   │   └── ...
+│   ├── state/               # Additional state structures
+│   ├── autonomic/           # Autonomic policies (feature-gated)
+│   ├── policies/            # Policy implementations
+│   └── integrations/        # External integrations (wasm4pm, etc.)
+├── tests/
+│   ├── invariants.rs        # Public boundary tests
+│   ├── cli/                 # CLI command tests
+│   ├── feature_projection.rs # Feature flag surface tests
+│   ├── cicd_toml_truth.rs   # cicd.toml correctness
+│   ├── fixtures/            # Test fixture workspaces
+│   └── ...
+├── Cargo.toml               # Workspace & package config
+├── CLAUDE.md                # Internal architecture (detailed)
+├── CONTRIBUTING.md          # Quick reference (links here)
+└── docs/
+    └── contributing/        # This contributor guide
+        ├── 01-development-setup.md
+        ├── 02-pull-request-workflow.md
+        ├── ...
 ```
 
 ## Troubleshooting
 
-### Error: "rust 1.85 or later required"
+### Rust Version Too Old
 
-Update Rust:
 ```bash
+# Check your current version
+rustc --version
+
+# Update to latest stable
 rustup update
+
+# Or use nightly if needed
+rustup install nightly
+rustup default nightly
 ```
 
-### Tests fail with "missing wasm4pm"
+### "cargo-make not found"
 
-You can skip wasm4pm-dependent tests:
+Install it:
 ```bash
-cargo test --test invariants           # These don't require wasm4pm
-cargo test --test cli
-cargo test --test feature_projection
+cargo install cargo-make
 ```
 
-Full evidence-gate tests (`tests/wasm4pm_evidence_gate.rs`) require wasm4pm to be installed. See [Release Process](./06-release-process.md) for wasm4pm setup.
+Or use plain `cargo` commands instead (all `cargo make X` commands have `cargo X` equivalents).
 
-### Out of disk space during build
+### Build Fails on Linux
 
-Clean intermediate artifacts:
+Ensure you have build tools:
 ```bash
-cargo clean          # Remove all build artifacts
-cargo make clean     # If using cargo-make
+# Ubuntu/Debian
+sudo apt-get install build-essential
+
+# Fedora/RHEL
+sudo dnf groupinstall "Development Tools"
 ```
 
-### Compilation hangs or is very slow
+### Tests Timeout
 
-Try single-threaded compilation:
+Some tests (especially wasm4pm tests) can take a minute. Use:
 ```bash
-cargo build -j 1
-```
-
-Or reduce parallel test threads:
-```bash
+# Increase timeout (in seconds)
 cargo test -- --test-threads=1
+```
+
+### Git Commands Fail in Tests
+
+Ensure git is initialized in the test directory. Most tests use `FixtureWorkspace` which handles this automatically. If writing custom tests, initialize git:
+```rust
+std::process::Command::new("git")
+    .args(&["init"])
+    .current_dir(&test_dir)
+    .output()?;
 ```
 
 ## Next Steps
 
-- Read [Pull Request Workflow](./02-pull-request-workflow.md) to understand how to structure your contribution
-- Check [Code Style & Patterns](./04-code-style.md) to learn the conventions used in this project
-- See [Adding Features](./03-adding-features.md) if you're implementing a new capability
+Once setup is complete:
 
-## Getting Help
+1. **Read [CLAUDE.md](../../CLAUDE.md)** for a deep dive into architecture
+2. **Review [02-pull-request-workflow.md](./02-pull-request-workflow.md)** before making your first commit
+3. **Check [03-adding-features.md](./03-adding-features.md)** if you're implementing new functionality
+4. **Browse tests/** for examples of how features are tested
 
-- Review [CLAUDE.md](../../CLAUDE.md) for architecture and internal design
-- Check existing tests in `tests/` for patterns and examples
-- Open an issue with `[help]` prefix to ask questions
+Happy coding!
