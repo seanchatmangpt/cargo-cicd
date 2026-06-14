@@ -467,20 +467,49 @@
   ],
   "notes": {
     "feature_flag_required": "advanced",
-    "architecture": "MetricsCollector (src/integrations/metrics_collector.rs) wraps StageLatencies (src/advanced/histogram.rs) which uses HdrHistogram for accurate percentile tracking. Each stage records latencies in microseconds (range: 1µs to 60s) at 3 significant figures precision.",
-    "metric_units": "Internal metrics use microseconds; reports display milliseconds for readability",
+    "architecture": "MetricsCollector (src/integrations/metrics_collector.rs) is the public API that wraps per-stage StageLatencies histograms (src/advanced/histogram.rs). Each StageLatencies uses HdrHistogram<u64> for accurate percentile tracking at 3 significant figures of precision. Histograms record latencies in microseconds with bounds 1µs to 60s. The MetricsCollector::report() method emits human-readable lines like 'stage: p50=XXµs, p90=XXµs, p99=XXµs' to stdout. This skill parses those lines, aggregates stats, and formats output.",
+    "metric_units": {
+      "internal_storage": "microseconds (u64) - allows sub-millisecond precision for fast stages",
+      "output_display": "milliseconds (floats with 3 decimal places) - human readable",
+      "percentiles": "p50 (median), p90 (tail-heavy), p99 (tail-light) - identify variability"
+    },
     "integration_points": [
-      "MetricsCollector::record_stage(stage_name, micros) - invoked by instrumented pipeline code",
-      "MetricsCollector::report() - generates text summary",
-      "StageLatencies::percentiles() - snapshot of stage distribution"
+      "MetricsCollector::record_stage(stage_name, micros) - called by instrumented pipeline stages to record execution time",
+      "MetricsCollector::report() -> String - generates compact summary (used by this skill to extract metrics)",
+      "StageLatencies::percentiles() -> Percentiles - snapshot struct with count, p50, p90, p99, max, mean",
+      "StageLatencies::merge(&other) - thread-safe histogram merge for parallel stage collection"
     ],
-    "performance_impact": "Minimal - HdrHistogram uses fixed small memory footprint (~32KB per stage histogram). Thread-safe merge() allows parallel collection.",
+    "performance_impact": {
+      "memory": "~32KB per stage histogram (HdrHistogram fixed size at 3 sigfigs precision). With 10 stages: ~320KB total.",
+      "cpu": "Negligible - record() is O(1). Percentile queries are O(log n) bucket search.",
+      "latency": "<1µs per record_stage() call, no blocking"
+    },
+    "reliability": {
+      "bounds_clamping": "Values outside 1µs-60s range are clamped; no panics on outliers",
+      "merge_safety": "Histograms with identical bounds can merge without data loss",
+      "concurrent_access": "Use Arc<Mutex<MetricsCollector>> for thread-safe collection"
+    },
+    "limitations": {
+      "requires_advanced_feature": "MetricsCollector is gated behind --features advanced compilation",
+      "single_run_per_report": "Metrics are aggregated within one execution; separate runs need separate reports",
+      "precision": "3 significant figures - trades some accuracy for fixed memory and speed",
+      "max_duration": "60 seconds - any stage longer than 60s is clamped to 60s"
+    },
+    "recommendations_logic": {
+      "threshold_exceeded": "p99 > threshold_ms parameter (default 5000ms)",
+      "performance_hotspot": "p99 > 3x median p99 across all stages",
+      "high_variance": "p99/p50 > 5 (indicates outlier measurements)",
+      "regression_detected": "p99 > baseline_p99 * 1.1 (10% threshold)"
+    },
     "future_extensions": [
-      "XES (XML Event Stream) format for wasm4pm evidence integration",
-      "Prometheus metrics export for monitoring dashboards",
-      "Percentile heatmaps for visualizing latency distributions",
-      "Anomaly detection and automatic outlier flagging",
-      "Budget-based alerts (e.g., 'test stage should complete in <500ms')"
+      "XES (XML Event Stream) format for wasm4pm evidence gate integration",
+      "Prometheus /metrics endpoint for scrape-based monitoring",
+      "Percentile heatmaps for visualizing latency distribution shapes",
+      "Automatic anomaly detection (e.g., Grubbs test for outliers)",
+      "Performance SLA tracking ('test stage should complete in <500ms')",
+      "Histogram bucket export for custom analysis",
+      "Spark-line trend charts in text/HTML output",
+      "Stage dependency graph visualization (critical path analysis)"
     ]
   },
   "defaults": {
