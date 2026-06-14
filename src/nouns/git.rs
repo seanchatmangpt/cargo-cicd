@@ -262,9 +262,9 @@ impl VerbCommand for GitCommitVerb {
         let (mut start_evt, t0) = ProcessEvent::started("git:commit");
         start_evt.case_id = Some(case_id.clone());
 
-        // Check if tree is clean before attempting commit
+        // Check only tracked-file modifications (ignore untracked dirs like target/).
         let status_out = std::process::Command::new("git")
-            .args(["status", "--short"])
+            .args(["status", "--short", "-uno"])
             .output()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
         let status_str = String::from_utf8_lossy(&status_out.stdout);
