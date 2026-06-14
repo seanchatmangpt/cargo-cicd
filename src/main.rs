@@ -12,6 +12,7 @@ mod nouns;
 mod policies;
 pub mod session;
 mod state;
+mod ui;
 
 // Inject default verbs so bare-noun invocations work:
 //   cargo cicd status          → status show
@@ -93,7 +94,8 @@ fn main() -> Result<()> {
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
         .noun(nouns::workspace::WorkspaceNoun::new())
-        .noun(nouns::lsp::LspNoun::new());
+        .noun(nouns::lsp::LspNoun::new())
+        .noun(nouns::ui::UiNoun::new());
 
     cli.run().map_err(|e| anyhow::anyhow!("{}", e))
 }

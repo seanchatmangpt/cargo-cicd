@@ -10,6 +10,7 @@ pub mod nouns;
 pub mod policies;
 pub mod session;
 pub mod state;
+pub mod ui;
 
 pub use cicd_toml::CicdToml;
 pub use engine::EngineState;

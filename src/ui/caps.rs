@@ -1,0 +1,94 @@
+//! Terminal capability detection (zero-dependency, std-only).
+//!
+//! Decisions about color and Unicode are made once per call from the
+//! environment and an optional process-wide override (set by CLI flags).
+
+use std::io::IsTerminal;
+use std::sync::atomic::{AtomicU8, Ordering};
+
+// 0 = auto, 1 = force on, 2 = force off.
+static COLOR_MODE: AtomicU8 = AtomicU8::new(0);
+static UNICODE_MODE: AtomicU8 = AtomicU8::new(0);
+
+fn encode(mode: Option<bool>) -> u8 {
+    match mode {
+        None => 0,
+        Some(true) => 1,
+        Some(false) => 2,
+    }
+}
+
+/// Force color on (`Some(true)`), off (`Some(false)`), or restore auto-detection
+/// (`None`). Intended to be wired to `--color` / `--no-color` CLI flags.
+pub fn set_color_override(mode: Option<bool>) {
+    COLOR_MODE.store(encode(mode), Ordering::Relaxed);
+}
+
+/// Force Unicode glyphs on/off, or `None` for auto-detection.
+pub fn set_unicode_override(mode: Option<bool>) {
+    UNICODE_MODE.store(encode(mode), Ordering::Relaxed);
+}
+
+/// Whether ANSI styling should be emitted to stdout right now.
+///
+/// Precedence: explicit override → `NO_COLOR` → `CLICOLOR_FORCE` → `CLICOLOR`
+/// → stdout-is-a-terminal.
+pub fn color_enabled() -> bool {
+    match COLOR_MODE.load(Ordering::Relaxed) {
+        1 => return true,
+        2 => return false,
+        _ => {}
+    }
+    if std::env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    if let Ok(v) = std::env::var("CLICOLOR_FORCE") {
+        if v != "0" && !v.is_empty() {
+            return true;
+        }
+    }
+    if let Ok(v) = std::env::var("CLICOLOR") {
+        if v == "0" {
+            return false;
+        }
+    }
+    std::io::stdout().is_terminal()
+}
+
+/// Whether Unicode glyphs should be used instead of ASCII fallbacks.
+pub fn unicode_enabled() -> bool {
+    match UNICODE_MODE.load(Ordering::Relaxed) {
+        1 => return true,
+        2 => return false,
+        _ => {}
+    }
+    if std::env::var_os("CICD_ASCII").is_some() {
+        return false;
+    }
+    let locale = std::env::var("LC_ALL")
+        .or_else(|_| std::env::var("LC_CTYPE"))
+        .or_else(|_| std::env::var("LANG"))
+        .unwrap_or_default();
+    if locale.is_empty() {
+        return true; // assume a modern UTF-8 terminal
+    }
+    let up = locale.to_uppercase();
+    up.contains("UTF-8") || up.contains("UTF8")
+}
+
+/// Terminal width in columns. Honors `COLUMNS`, defaulting to 80.
+pub fn width() -> usize {
+    if let Ok(v) = std::env::var("COLUMNS") {
+        if let Ok(w) = v.parse::<usize>() {
+            if w > 0 {
+                return w;
+            }
+        }
+    }
+    80
+}
+
+/// Terminal width clamped to `[20, max]` for readable, bounded layouts.
+pub fn content_width(max: usize) -> usize {
+    width().min(max).max(20)
+}
