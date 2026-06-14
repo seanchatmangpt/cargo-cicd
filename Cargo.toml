@@ -77,6 +77,10 @@ name = "feature_projection"
 path = "tests/feature_projection.rs"
 
 [[test]]
+name = "feature_projections"
+path = "tests/feature_projections.rs"
+
+[[test]]
 name = "cli"
 harness = true
 path = "tests/cli/command_projection.rs"
