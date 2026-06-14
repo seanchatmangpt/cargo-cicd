@@ -1785,21 +1785,88 @@ fn evidence_gate_with_required_oracle() {
 
 ### Example 6: Testing Evidence Mutation (Negative Case)
 
+This example verifies that corrupted evidence is rejected by the oracle:
+
 ```rust
+use cargo_cicd::evidence::{assert_wpm_verdict, ExpectedWpmVerdict, WpmEvidenceOracle};
+use tempfile::TempDir;
+
 #[test]
-fn test_public_boundary_no_forbidden_terms() {
-    let forbidden = ["ALIVE", "Nehemiah", "CONSTRUCT8", "Instinct8"];
-    let commands = vec![
+fn evidence_gate_corrupted_xes_must_be_refused() {
+    let dir = TempDir::new().unwrap();
+    let xes_path = dir.path().join("corrupted.xes");
+    
+    // Step 1: Write intentionally corrupted XES
+    std::fs::write(
+        &xes_path,
+        "NOT A VALID XML DOCUMENT AT ALL\n",
+    ).unwrap();
+    
+    // Step 2: Verify file exists
+    assert!(xes_path.exists(), "Corrupted file must exist");
+    
+    // Step 3: Get oracle and assert
+    let oracle = WpmEvidenceOracle::new();
+    
+    if oracle.is_available() {
+        // Oracle installed: corrupted evidence MUST be Refused
+        assert_wpm_verdict(
+            &oracle,
+            &xes_path,
+            &ExpectedWpmVerdict::Refuse,
+        );
+        eprintln!("✓ Oracle correctly rejected corrupted evidence");
+    } else {
+        // Oracle absent: gracefully degrade to Blocked
+        assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Blocked);
+    }
+}
+```
+
+**Mutation Testing Strategies:**
+- Empty file → Refuse
+- Not valid XML → Refuse
+- Mismatched XML tags → Refuse
+- Binary garbage → Refuse
+- Truncated XES → Refuse
+- Valid structure but semantically invalid → Refuse
+
+These tests verify that wasm4pm is a **real adjudicator**, not a rubber stamp.
+
+### Example 7: Testing Public Boundary (Smoke Test)
+
+This example shows a smoke test that verifies public output contains no forbidden terms:
+
+```rust
+use assert_cmd::Command;
+
+#[test]
+fn test_smoke_public_boundary_no_forbidden_terms() {
+    let forbidden = [
+        "ALIVE",
+        "Nehemiah",
+        "CONSTRUCT8",
+        "Instinct8",
+        "Inspection Gate",
+        "Cargo Court",
+        "AGI",
+        "Truex",
+        "Field8",
+        "wall",
+    ];
+    
+    let noun_verbs = [
         vec!["--help"],
         vec!["status", "--help"],
         vec!["target", "--help"],
+        vec!["test", "--help"],
         vec!["git", "--help"],
     ];
     
-    for args in commands {
+    for args in &noun_verbs {
         let output = Command::cargo_bin("cargo-cicd")
             .unwrap()
-            .args(&args)
+            .args(args.iter())
             .output()
             .unwrap();
         
@@ -1809,7 +1876,7 @@ fn test_public_boundary_no_forbidden_terms() {
         for term in &forbidden {
             assert!(
                 !text.contains(term),
-                "Forbidden term '{}' in: cargo-cicd {}",
+                "INVARIANT VIOLATION: Forbidden term '{}' in: cargo-cicd {}",
                 term,
                 args.join(" ")
             );
@@ -1818,12 +1885,28 @@ fn test_public_boundary_no_forbidden_terms() {
 }
 ```
 
-### Pattern 7: Test Changed-File Detection
+**Key Patterns:**
+- Smoke tests are fast and safe to run everywhere
+- Use comprehensive lists of forbidden terms
+- Test multiple noun-verb combinations
+- Assert on complete output (stdout + stderr)
+
+### Example 8: Testing Changed-File Detection
+
+This example tests that trybuild only runs changed fixtures, not all:
 
 ```rust
+use assert_cmd::Command;
+use crate::fixtures::FixtureWorkspace;
+
 #[test]
-fn test_changed_file_selection() {
+fn test_trybuild_changed_selects_only_changed_fixtures() {
     let fixture = FixtureWorkspace::with_changed_trybuild_fixture();
+    
+    // Fixture contains: 10 pre-existing + 1 changed (uncommitted)
+    // Verify fixture setup
+    let ui_dir = fixture.root.join("tests/ui");
+    assert!(ui_dir.exists(), "tests/ui must exist");
     
     // Run trybuild changed
     let output = Command::cargo_bin("cargo-cicd")
@@ -1836,13 +1919,26 @@ fn test_changed_file_selection() {
     let text = String::from_utf8_lossy(&output.stdout).to_string()
         + &String::from_utf8_lossy(&output.stderr);
     
-    // Must not mention running all fixtures
+    // INVARIANT: Must not claim to run all fixtures
     assert!(
-        !text.contains("all 10") && !text.contains("10 fixtures"),
-        "trybuild changed must not run all fixtures by default"
+        !text.contains("all 10") && !text.contains("10 fixtures") && !text.contains("run all"),
+        "trybuild changed MUST NOT run all fixtures by default (INVARIANT: No Full Trybuild)"
+    );
+    
+    // INVARIANT: Should mention changed or indicate selection
+    assert!(
+        text.contains("changed") || text.contains("1") || text.contains("select"),
+        "Should indicate changed-file selection; output: {}",
+        text
     );
 }
 ```
+
+**Key Patterns:**
+- Use fixtures specifically designed for changed-file testing
+- Verify the fixture has the expected state (N pre-existing + 1 changed)
+- Assert that "all N" is NOT in the output
+- Verify the command mentions "changed" or reports selective execution
 
 ---
 
