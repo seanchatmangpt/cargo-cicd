@@ -5,6 +5,7 @@ use crate::diagnostics::lifecycle::DiagnosticLifecycle;
 use crate::diagnostics::severity::CicdSeverity;
 
 /// A single diagnostic finding.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CicdFinding {
     pub code: CicdCode,
     pub severity: CicdSeverity,
@@ -18,7 +19,7 @@ pub struct CicdFinding {
 }
 
 /// A suggested repair route for a finding.
-#[derive(Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RepairRoute {
     pub command: String,
     pub explanation: String,

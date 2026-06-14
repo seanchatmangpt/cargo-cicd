@@ -14,12 +14,17 @@ use crate::analyzers::run_all;
 use crate::protocol::code_action_map::finding_to_actions;
 use crate::protocol::diagnostic_map::finding_to_lsp;
 use crate::server::capabilities::build_server_capabilities;
+use crate::state::{CapabilityCache, DiagnosticStore, ReceiptIndex, WorkspaceState};
 use cargo_cicd_core::workspace::WorkspaceSnapshot;
 
 /// The LSP backend for cargo-cicd-lsp.
 pub struct Backend {
     pub client: Client,
     pub workspace_root: Arc<RwLock<Option<PathBuf>>>,
+    pub diagnostic_store: Arc<RwLock<DiagnosticStore>>,
+    pub capability_cache: Arc<RwLock<CapabilityCache>>,
+    pub receipt_index: Arc<RwLock<ReceiptIndex>>,
+    pub workspace_state: Arc<RwLock<WorkspaceState>>,
 }
 
 impl Backend {
@@ -28,6 +33,10 @@ impl Backend {
         Self {
             client,
             workspace_root: Arc::new(RwLock::new(None)),
+            diagnostic_store: Arc::new(RwLock::new(DiagnosticStore::new())),
+            capability_cache: Arc::new(RwLock::new(CapabilityCache::new())),
+            receipt_index: Arc::new(RwLock::new(ReceiptIndex::new())),
+            workspace_state: Arc::new(RwLock::new(WorkspaceState::new())),
         }
     }
 
@@ -43,6 +52,15 @@ impl Backend {
             None => Vec::new(),
         };
 
+        // Persist findings into the diagnostic store for this URI.
+        {
+            let mut store = self.diagnostic_store.write().await;
+            store.clear_uri(&uri.to_string());
+            for f in &findings {
+                store.insert(uri.to_string(), f.clone());
+            }
+        }
+
         let diagnostics: Vec<Diagnostic> = findings.iter().map(finding_to_lsp).collect();
 
         self.client
@@ -57,7 +75,10 @@ impl LanguageServer for Backend {
         if let Some(root_uri) = params.root_uri {
             if let Ok(path) = root_uri.to_file_path() {
                 let mut lock = self.workspace_root.write().await;
-                *lock = Some(path);
+                *lock = Some(path.clone());
+
+                let mut ws = self.workspace_state.write().await;
+                ws.set_root(path);
             }
         }
         Ok(InitializeResult {
@@ -74,6 +95,19 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "cargo-cicd-lsp ready")
             .await;
+
+        // Check wpm availability and populate the capability cache.
+        let wpm_available = std::process::Command::new("wpm")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        let mut cache = self.capability_cache.write().await;
+        if wpm_available {
+            cache.set_available("unknown");
+        } else {
+            cache.set_unavailable();
+        }
     }
 
     async fn shutdown(&self) -> Result<()> {
