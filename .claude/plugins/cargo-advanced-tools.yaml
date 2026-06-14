@@ -3,11 +3,26 @@ description: Direct cargo command integration with advanced features for Rust wo
 version: 1.0.0
 author: cargo-cicd team
 license: MIT OR Apache-2.0
+repository: https://github.com/seanchatmangpt/cargo-cicd
+documentation: https://github.com/seanchatmangpt/cargo-cicd/docs
 
 # Plugin metadata for Claude Code MCP integration
 mcp:
   protocol_version: "2024.01"
   tool_namespace: cargo
+  capability: "cargo-command-execution"
+  supports_streaming: true
+  supports_cancellation: true
+  schema_version: "1.0"
+
+# Overview and capabilities
+capabilities:
+  - feature_selection: "Configure feature flags (process-data, autonomic, wasm4pm, contrib, advanced)"
+  - test_filtering: "Filter tests by scope (lib, integration, doc) and test name"
+  - workspace_analysis: "Extract dependency graphs, crate structure, and metadata"
+  - feature_validation: "Test feature combinations for compatibility and conflicts"
+  - code_quality: "Run clippy, check, and doc generation with advanced options"
+  - build_optimization: "Support release builds, all-targets compilation, and workspace selection"
 
 # Supported cargo commands integrated through this plugin
 supported_commands:
@@ -19,6 +34,8 @@ supported_commands:
   - clippy_suggestions
   - doc_generation
   - metadata_extraction
+  - feature_combinations_test
+  - crate_discovery
 
 # Tool definitions with full signatures and descriptions
 tools:
@@ -26,29 +43,52 @@ tools:
     description: |
       Build the project with specified feature flags.
       Supports individual features and feature combinations (e.g., "process-data,autonomic").
+      This tool integrates with cargo's build system to provide consistent,
+      reproducible builds across different feature flag combinations.
     endpoint: /cargo/build
+    http_method: POST
     parameters:
       features:
         type: string
         description: |
           Comma-separated list of features to enable.
           Examples: "advanced", "process-data,autonomic", "wasm4pm,contrib"
+          Available features:
+            - process-data: Level 5 engine internals
+            - autonomic: Policy/suggest mode (implies process-data)
+            - wasm4pm: Evidence-gate acceptance testing oracle
+            - contrib: Contrib features (implies process-data)
+            - advanced: All advanced capabilities (ignore, rayon, blake3, tracing, petgraph, etc.)
         required: true
+        pattern: "^[a-z0-9,_-]+$"
+        min_length: 1
+        max_length: 256
       release:
         type: boolean
-        description: Build in release mode (--release flag)
+        description: Build in release mode (--release flag) for optimized binary
         required: false
         default: false
       all_targets:
         type: boolean
-        description: Build all targets (--all-targets)
+        description: Build all targets including benches, examples, and tests (--all-targets)
         required: false
         default: false
       workspace:
         type: boolean
-        description: Build all workspace members
+        description: Build all workspace members (--workspace)
         required: false
         default: true
+      jobs:
+        type: integer
+        description: Number of parallel jobs for build (1-64; default is number of CPUs)
+        required: false
+        minimum: 1
+        maximum: 64
+      offline:
+        type: boolean
+        description: Run build in offline mode (no network access)
+        required: false
+        default: false
     returns:
       type: object
       properties:
@@ -61,56 +101,111 @@ tools:
         duration_ms:
           type: integer
           description: Build duration in milliseconds
+          minimum: 0
         warnings:
           type: array
           items:
             type: string
-          description: List of compiler warnings
+          description: List of compiler warnings with locations
+          minItems: 0
         errors:
           type: array
           items:
             type: string
-          description: List of compiler errors
+          description: List of compiler errors with locations
+          minItems: 0
+        artifacts:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum: [bin, lib, cdylib, staticlib, rlib]
+              name:
+                type: string
+              path:
+                type: string
+          description: Generated build artifacts
+        profile:
+          type: string
+          enum: [dev, release]
+          description: Build profile used
     examples:
       - features: "advanced"
         release: true
+        description: "Build with all advanced features in release mode"
       - features: "process-data,autonomic"
         release: false
+        description: "Build with process-data and autonomic features in debug mode"
+      - features: "wasm4pm"
+        workspace: true
+        release: true
+        description: "Build workspace with wasm4pm oracle integration"
+    error_codes:
+      COMPILATION_ERROR: "Compilation failed; see error details"
+      FEATURE_NOT_FOUND: "One or more specified features do not exist"
+      INVALID_FEATURE_COMBINATION: "Feature combination has conflicts"
+      BUILD_TIMEOUT: "Build exceeded timeout (600 seconds)"
+      IO_ERROR: "File system error during build"
 
   test_with_filter:
     description: |
       Run tests with optional filtering by scope and test name.
       Supports lib tests, integration tests, doc tests, and specific test filtering.
+      Tests can be run with different feature combinations to validate behavior
+      across feature gates.
     endpoint: /cargo/test
+    http_method: POST
     parameters:
       scope:
         type: string
         description: |
           Test scope filter.
-          Options: "all", "lib", "integration", "doc", "unit"
+          Options:
+            - "all": Run all tests (lib, integration, doc)
+            - "lib": Unit tests only
+            - "integration": Integration tests in tests/ directory
+            - "doc": Documentation tests
+            - "unit": Alias for lib
         required: true
         enum: ["all", "lib", "integration", "doc", "unit"]
       test_name:
         type: string
         description: |
-          Optional specific test name to run.
+          Optional specific test name or pattern to run.
           If provided, only tests matching this name will execute.
-          Supports partial matching (substring).
+          Supports substring matching and glob patterns.
         required: false
+        pattern: "^[a-zA-Z0-9_*?]*$"
+        max_length: 256
       features:
         type: string
         description: |
           Comma-separated features to enable during tests.
           Examples: "process-data", "autonomic", "wasm4pm"
+          If omitted, tests run with default features.
         required: false
+        pattern: "^[a-z0-9,_-]*$"
       release:
         type: boolean
-        description: Run tests in release mode
+        description: Run tests in release mode (slower build, faster execution)
         required: false
         default: false
       nocapture:
         type: boolean
-        description: Show test output (don't capture stdout/stderr)
+        description: Show test output (don't capture stdout/stderr); use for debugging
+        required: false
+        default: false
+      threads:
+        type: integer
+        description: Number of test threads (1 = serial, default = number of CPUs)
+        required: false
+        minimum: 1
+        maximum: 128
+      no_fail_fast:
+        type: boolean
+        description: Run all tests even if some fail (don't stop on first failure)
         required: false
         default: false
     returns:
@@ -122,18 +217,23 @@ tools:
         total_tests:
           type: integer
           description: Total number of tests run
+          minimum: 0
         passed:
           type: integer
           description: Number of passed tests
+          minimum: 0
         failed:
           type: integer
           description: Number of failed tests
+          minimum: 0
         skipped:
           type: integer
           description: Number of skipped tests
+          minimum: 0
         duration_ms:
           type: integer
-          description: Total test duration
+          description: Total test duration in milliseconds
+          minimum: 0
         failed_tests:
           type: array
           items:
@@ -141,51 +241,91 @@ tools:
             properties:
               name:
                 type: string
+                description: Full test path (e.g., invariants::test_function)
               error:
                 type: string
+                description: Error message and backtrace
+              duration_ms:
+                type: integer
+          description: Details of failed tests
+          minItems: 0
         output:
           type: string
-          description: Full test output
+          description: Full test output (if nocapture=true)
+    examples:
+      - scope: "invariants"
+        description: "Run public boundary invariants tests"
+      - scope: "integration"
+        test_name: "autonomic_policies"
+        features: "autonomic"
+        description: "Run autonomic policy integration tests with autonomic feature"
+      - scope: "all"
+        release: true
+        no_fail_fast: true
+        description: "Run all tests in release mode without stopping on failures"
+    error_codes:
+      TEST_FAILURE: "One or more tests failed"
+      COMPILATION_ERROR: "Test compilation failed; check feature compatibility"
+      TEST_TIMEOUT: "Test exceeded timeout (1200 seconds)"
+      NO_TESTS_FOUND: "No tests found matching the specified filter"
+      INVALID_SCOPE: "Invalid test scope specified"
 
   check_all:
     description: |
       Run cargo check with all targets and optional feature selection.
       Performs lint checks without building binaries (faster than build).
+      Use for rapid iteration and catching compile errors early.
     endpoint: /cargo/check
+    http_method: POST
     parameters:
       features:
         type: string
         description: |
           Comma-separated features to enable.
           Optional; if omitted, checks default features.
+          Example: "advanced,autonomic"
         required: false
+        pattern: "^[a-z0-9,_-]*$"
       all_targets:
         type: boolean
-        description: Check all targets (--all-targets)
+        description: Check all targets (--all-targets) including benches and tests
         required: false
         default: true
       workspace:
         type: boolean
-        description: Check all workspace members
+        description: Check all workspace members (--workspace)
         required: false
         default: true
       fix:
         type: boolean
-        description: Apply automatic fixes (--fix)
+        description: Apply automatic fixes (--fix) for rustc suggestions
         required: false
         default: false
+      allow_warnings:
+        type: boolean
+        description: Succeed even if warnings are present (default: treat as errors)
+        required: false
+        default: false
+      jobs:
+        type: integer
+        description: Number of parallel jobs (1-64)
+        required: false
+        minimum: 1
+        maximum: 64
     returns:
       type: object
       properties:
         success:
           type: boolean
-          description: Check succeeded with no errors
+          description: Check succeeded with no errors (or warnings if allow_warnings=true)
         warnings_count:
           type: integer
           description: Total warnings found
+          minimum: 0
         errors_count:
           type: integer
           description: Total errors found
+          minimum: 0
         warnings:
           type: array
           items:
@@ -195,8 +335,15 @@ tools:
                 type: string
               line:
                 type: integer
+              column:
+                type: integer
               message:
                 type: string
+              code:
+                type: string
+                description: Rustc warning code (e.g., E0425)
+          description: List of warnings with locations
+          minItems: 0
         errors:
           type: array
           items:
@@ -206,23 +353,51 @@ tools:
                 type: string
               line:
                 type: integer
+              column:
+                type: integer
               message:
                 type: string
+              code:
+                type: string
+                description: Rustc error code
+          description: List of errors with locations
+          minItems: 0
         duration_ms:
           type: integer
+          description: Check duration in milliseconds
+          minimum: 0
+    examples:
+      - features: "advanced"
+        description: "Check with advanced features enabled"
+      - all_targets: true
+        fix: true
+        description: "Check all targets and apply fixes"
+    error_codes:
+      COMPILATION_ERROR: "Check found compilation errors"
+      COMPILATION_WARNING: "Check found warnings (if allow_warnings=false)"
+      CHECK_TIMEOUT: "Check exceeded timeout (300 seconds)"
+      INVALID_FEATURES: "One or more features do not exist or have conflicts"
 
   analyze_workspace:
     description: |
       Extract comprehensive workspace metadata including dependency graph,
-      crate structure, and module hierarchy.
+      crate structure, and module hierarchy. Provides complete visibility
+      into workspace composition and dependency relationships.
     endpoint: /cargo/metadata
+    http_method: GET
     parameters: {}
     returns:
       type: object
       properties:
         workspace_root:
           type: string
-          description: Absolute path to workspace root
+          description: Absolute path to workspace root directory
+        workspace_name:
+          type: string
+          description: Workspace package name
+        resolver_version:
+          type: string
+          description: Workspace resolver version (1 or 2)
         members:
           type: array
           items:
@@ -230,11 +405,17 @@ tools:
             properties:
               name:
                 type: string
-              path:
-                type: string
+                description: Crate name
               version:
                 type: string
+                description: Semantic version
+              path:
+                type: string
+                description: Relative path to crate root
               edition:
+                type: string
+                enum: ["2015", "2018", "2021"]
+              description:
                 type: string
               targets:
                 type: array
@@ -243,15 +424,46 @@ tools:
                   properties:
                     kind:
                       type: string
+                      enum: [bin, lib, example, test, bench, rlib, cdylib]
                     name:
                       type: string
                     src:
                       type: string
-        dependencies:
+                description: Build targets for this crate
+              features:
+                type: array
+                items:
+                  type: string
+                description: Available feature flags
+              dependencies:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    version:
+                      type: string
+                    optional:
+                      type: boolean
+          description: Workspace member crates
+          minItems: 1
+        dependency_graph:
           type: object
-          description: Dependency graph with version info
+          description: Dependency relationships (crate -> [dependencies])
           additionalProperties:
-            type: object
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                version:
+                  type: string
+                is_dev:
+                  type: boolean
+                is_build:
+                  type: boolean
         feature_matrix:
           type: object
           description: Available features per crate
@@ -259,25 +471,44 @@ tools:
             type: array
             items:
               type: string
-        resolver:
-          type: string
-          description: Workspace resolver version
+        total_crates:
+          type: integer
+          minimum: 1
+        total_dependencies:
+          type: integer
+          minimum: 0
+    examples:
+      - description: "Analyze the current workspace"
+    error_codes:
+      METADATA_ERROR: "Failed to extract workspace metadata"
+      NO_WORKSPACE: "Current directory is not in a workspace"
+      MANIFEST_ERROR: "Invalid Cargo.toml or workspace manifest"
 
   validate_features:
     description: |
       Validate feature flag combinations for compatibility and conflicts.
-      Tests multiple feature combinations to ensure they compile together.
+      Tests multiple feature combinations to ensure they compile together
+      and identifies implied features and potential issues.
     endpoint: /cargo/features
+    http_method: POST
     parameters:
       feature_combo:
         type: string
         description: |
           Comma-separated feature combination to validate.
           Examples: "process-data,autonomic", "wasm4pm", "advanced,contrib"
+          Automatically handles feature dependencies and transitive features.
         required: true
+        pattern: "^[a-z0-9,_-]+$"
+        min_length: 1
       check_conflicts:
         type: boolean
-        description: Check for feature conflicts
+        description: Analyze for feature conflicts and incompatibilities
+        required: false
+        default: true
+      test_compilation:
+        type: boolean
+        description: Actually compile with the feature combination (slower but thorough)
         required: false
         default: true
     returns:
@@ -285,27 +516,37 @@ tools:
       properties:
         valid:
           type: boolean
-          description: Feature combination is valid
+          description: Feature combination is valid and compilable
         features_enabled:
           type: array
           items:
             type: string
-          description: List of enabled features (including transitive)
+          description: All features enabled (including transitive dependencies)
+          minItems: 1
         conflicts:
           type: array
           items:
-            type: string
-          description: Any detected conflicts
+            type: object
+            properties:
+              feature_a:
+                type: string
+              feature_b:
+                type: string
+              reason:
+                type: string
+          description: Detected conflicts between features
+          minItems: 0
         implied_features:
           type: array
           items:
             type: string
-          description: Features implied by the requested combination
+          description: Features automatically enabled due to dependencies
         compatibility_notes:
           type: array
           items:
             type: string
-          description: Important compatibility information
+          description: Important compatibility information (warnings, requirements)
+          minItems: 0
         test_result:
           type: object
           properties:
@@ -313,40 +554,82 @@ tools:
               type: boolean
             duration_ms:
               type: integer
+            error_message:
+              type: string
+          description: Compilation test results (if test_compilation=true)
+        feature_dependencies:
+          type: object
+          description: Which features depend on other features
+          additionalProperties:
+            type: array
+            items:
+              type: string
+    examples:
+      - feature_combo: "advanced,autonomic"
+        description: "Validate advanced + autonomic combination"
+      - feature_combo: "wasm4pm,process-data"
+        check_conflicts: true
+        description: "Check wasm4pm with full conflict analysis"
+    error_codes:
+      INVALID_FEATURE: "One or more specified features do not exist"
+      FEATURE_CONFLICT: "Features have incompatible requirements"
+      COMPILATION_FAILED: "Feature combination fails to compile"
+      CIRCULAR_DEPENDENCY: "Circular feature dependencies detected"
 
   clippy_suggestions:
     description: |
       Run cargo clippy to get lint suggestions and code quality improvements.
-      Provides detailed suggestions organized by severity level.
+      Provides detailed suggestions organized by severity level with actionable fixes.
     endpoint: /cargo/clippy
+    http_method: POST
     parameters:
       features:
         type: string
         description: Features to enable during clippy analysis
         required: false
+        pattern: "^[a-z0-9,_-]*$"
       all_targets:
         type: boolean
-        description: Check all targets
+        description: Check all targets including examples, tests, benches
         required: false
         default: true
       all_features:
         type: boolean
-        description: Enable all features
+        description: Enable all available features for analysis
         required: false
         default: false
       fix:
         type: boolean
-        description: Apply clippy fixes automatically
+        description: Apply clippy fixes automatically (modifies source files)
         required: false
         default: false
+      allow_dirty:
+        type: boolean
+        description: Allow --fix even with uncommitted changes (use with caution)
+        required: false
+        default: false
+      warn_level:
+        type: string
+        description: Lint warning level to enforce
+        required: false
+        enum: [allow, warn, deny]
+        default: warn
+      jobs:
+        type: integer
+        description: Number of parallel jobs (1-64)
+        required: false
+        minimum: 1
+        maximum: 64
     returns:
       type: object
       properties:
         success:
           type: boolean
+          description: No clippy warnings at specified level
         suggestions_count:
           type: integer
           description: Total number of suggestions
+          minimum: 0
         warnings:
           type: array
           items:
@@ -354,15 +637,22 @@ tools:
             properties:
               lint:
                 type: string
-                description: Clippy lint name
+                description: Clippy lint name (e.g., clippy::unused_variables)
               file:
                 type: string
               line:
+                type: integer
+              column:
                 type: integer
               message:
                 type: string
               suggestion:
                 type: string
+              severity:
+                type: string
+                enum: [allow, warn, deny]
+          description: List of lint suggestions
+          minItems: 0
         by_severity:
           type: object
           properties:
@@ -372,19 +662,40 @@ tools:
               type: integer
             deny:
               type: integer
+          description: Counts by severity level
+        fixed_count:
+          type: integer
+          description: Number of issues auto-fixed (if fix=true)
+          minimum: 0
         duration_ms:
           type: integer
+          description: Clippy execution time
+          minimum: 0
+    examples:
+      - all_features: true
+        fix: true
+        description: "Run clippy with all features and apply fixes"
+      - features: "advanced"
+        warn_level: "deny"
+        description: "Treat all clippy warnings as errors"
+    error_codes:
+      CLIPPY_WARNINGS: "Clippy found issues at the specified level"
+      CLIPPY_TIMEOUT: "Clippy exceeded timeout (300 seconds)"
+      FIX_FAILED: "Could not apply automatic fixes"
 
   doc_generation:
     description: |
       Generate Rust documentation with optional feature selection.
-      Produces HTML documentation for the workspace.
+      Produces HTML documentation for the workspace with cross-referencing
+      and search capabilities.
     endpoint: /cargo/doc
+    http_method: POST
     parameters:
       features:
         type: string
         description: Features to include in documentation
         required: false
+        pattern: "^[a-z0-9,_-]*$"
       all_features:
         type: boolean
         description: Document with all features enabled
@@ -397,45 +708,80 @@ tools:
         default: false
       open_browser:
         type: boolean
-        description: Open generated docs in browser
+        description: Open generated docs in browser after build
         required: false
         default: false
+      jobs:
+        type: integer
+        description: Number of parallel jobs (1-64)
+        required: false
+        minimum: 1
+        maximum: 64
     returns:
       type: object
       properties:
         success:
           type: boolean
+          description: Documentation generated successfully
         output_path:
           type: string
-          description: Path to generated documentation root
+          description: Absolute path to generated documentation root (index.html)
         crates_documented:
           type: array
           items:
             type: string
-          description: List of documented crates
+          description: List of crates documented
+          minItems: 1
+        total_items:
+          type: integer
+          description: Total documented items (modules, functions, types, etc.)
+          minimum: 0
         warnings:
           type: array
           items:
             type: string
-          description: Documentation warnings
+          description: Documentation generation warnings
+          minItems: 0
         duration_ms:
           type: integer
+          description: Documentation build time
+          minimum: 0
+    examples:
+      - all_features: true
+        document_private_items: true
+        open_browser: true
+        description: "Generate full documentation with all features and open in browser"
+    error_codes:
+      DOC_BUILD_FAILED: "Documentation generation failed"
+      DOC_TIMEOUT: "Doc generation exceeded timeout (600 seconds)"
+      INVALID_MARKUP: "Documentation contains invalid Rust code or markdown"
 
   metadata_extraction:
     description: |
       Extract detailed cargo metadata including package information,
-      dependencies tree, and build configuration.
+      dependencies tree, and build configuration. Returns structured
+      information suitable for analysis and tooling.
     endpoint: /cargo/metadata
+    http_method: GET
     parameters:
       format:
         type: string
-        description: Output format (json, tree, compact)
+        description: |
+          Output format.
+          - "json": Full structured metadata
+          - "tree": Dependency tree visualization
+          - "compact": Condensed summary
         required: false
         default: json
         enum: ["json", "tree", "compact"]
       include_dependencies:
         type: boolean
-        description: Include full dependency tree
+        description: Include full dependency tree and transitive dependencies
+        required: false
+        default: true
+      include_features:
+        type: boolean
+        description: Include feature definitions and relationships
         required: false
         default: true
     returns:
@@ -443,19 +789,180 @@ tools:
       properties:
         metadata:
           type: object
-          description: Full cargo metadata
+          description: Full cargo metadata (format=json)
+          properties:
+            packages:
+              type: array
+              items:
+                type: object
+            dependencies:
+              type: array
+              items:
+                type: object
         summary:
           type: object
           properties:
             total_crates:
               type: integer
+            workspace_members:
+              type: integer
             total_dependencies:
               type: integer
-            workspace_members:
+            total_optional_deps:
               type: integer
         dependency_tree:
           type: object
-          description: Hierarchical dependency structure
+          description: Hierarchical dependency structure (format=tree)
+        compact_summary:
+          type: string
+          description: Text summary (format=compact)
+    examples:
+      - format: "json"
+        include_dependencies: true
+        description: "Full metadata in JSON format"
+      - format: "tree"
+        description: "Visual dependency tree"
+    error_codes:
+      METADATA_EXTRACT_FAILED: "Could not extract metadata"
+      INVALID_FORMAT: "Invalid output format specified"
+
+  feature_combinations_test:
+    description: |
+      Test multiple feature flag combinations in sequence.
+      Validates that each combination builds, tests pass, and passes clippy.
+      Provides a compatibility matrix showing which combinations are viable.
+    endpoint: /cargo/feature-test
+    http_method: POST
+    parameters:
+      combinations:
+        type: array
+        items:
+          type: string
+        description: |
+          List of feature combinations to test.
+          Examples: ["advanced", "autonomic", "wasm4pm", "advanced,autonomic"]
+        required: true
+        minItems: 1
+        maxItems: 20
+      run_checks:
+        type: boolean
+        description: Run cargo check for each combination
+        required: false
+        default: true
+      run_tests:
+        type: boolean
+        description: Run cargo test for each combination
+        required: false
+        default: true
+      run_clippy:
+        type: boolean
+        description: Run cargo clippy for each combination
+        required: false
+        default: true
+      stop_on_failure:
+        type: boolean
+        description: Stop testing after first failure
+        required: false
+        default: false
+    returns:
+      type: object
+      properties:
+        total_combinations:
+          type: integer
+          description: Total combinations tested
+          minimum: 1
+        passed:
+          type: integer
+          description: Number of compatible combinations
+          minimum: 0
+        failed:
+          type: integer
+          description: Number of incompatible combinations
+          minimum: 0
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              features:
+                type: string
+              check_result:
+                type: string
+                enum: [pass, fail, skip]
+              test_result:
+                type: string
+                enum: [pass, fail, skip]
+              clippy_result:
+                type: string
+                enum: [pass, fail, skip]
+              duration_ms:
+                type: integer
+              error:
+                type: string
+          description: Results for each combination
+        compatibility_matrix:
+          type: object
+          description: Summary matrix of results
+    examples:
+      - combinations: ["advanced", "autonomic", "wasm4pm", "advanced,autonomic,wasm4pm"]
+        run_checks: true
+        run_tests: true
+        description: "Test feature combinations for advanced ecosystem"
+    error_codes:
+      TEST_FAILED: "One or more feature combinations failed testing"
+      TIMEOUT: "Testing exceeded overall timeout"
+
+  crate_discovery:
+    description: |
+      Discover and analyze all crates in the workspace.
+      Provides detailed information about each crate including
+      dependencies, features, and capabilities.
+    endpoint: /cargo/crates
+    http_method: GET
+    parameters: {}
+    returns:
+      type: object
+      properties:
+        crates:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              version:
+                type: string
+              path:
+                type: string
+              edition:
+                type: string
+              description:
+                type: string
+              features:
+                type: array
+                items:
+                  type: string
+              targets:
+                type: array
+                items:
+                  type: object
+              is_workspace_member:
+                type: boolean
+              dependencies_count:
+                type: integer
+          minItems: 1
+        total_crates:
+          type: integer
+        workspace_crates:
+          type: integer
+          description: Number of workspace member crates
+        external_crates:
+          type: integer
+          description: Number of external dependencies
+    examples:
+      - description: "Discover all crates in workspace"
+    error_codes:
+      DISCOVERY_FAILED: "Could not discover crates"
 
 # Error handling and reporting
 error_handling:
@@ -464,17 +971,26 @@ error_handling:
     include_stderr: true
     include_compiler_notes: true
     suggestion_format: actionable
+    retry_strategy: exponential_backoff
 
   on_test_failure:
     report_failed_tests: true
     include_stacktraces: true
     include_assertion_details: true
+    max_output_lines: 1000
 
   on_metadata_error:
     fallback_to_manifest: true
     report_missing_metadata: true
+    suggest_diagnostics: true
 
-  rate_limits:
+  timeout_handling:
+    default_timeout_seconds: 300
+    max_timeout_seconds: 1200
+    warn_at_percent: 80
+
+  rate_limiting:
+    enabled: true
     builds_per_minute: 10
     tests_per_minute: 15
     metadata_queries_per_minute: 30
@@ -485,65 +1001,84 @@ features:
   available:
     - name: process-data
       description: Enable Level 5 engine internals
+      stability: stable
       conflicts_with: []
       depends_on: []
+      introduced_in: "26.6.0"
 
     - name: autonomic
       description: Enable policy/suggest mode (implies process-data)
+      stability: stable
       conflicts_with: []
       depends_on: [process-data]
+      introduced_in: "26.6.0"
 
     - name: wasm4pm
       description: |
         wasm4pm oracle integration for evidence-gate acceptance testing.
         Enables richer runtime integration; evidence-gate acceptance law applies.
+      stability: beta
       conflicts_with: []
       depends_on: [process-data]
-      required_for: ["release", "closure"]
+      required_for: [release, closure]
+      introduced_in: "26.6.2"
 
     - name: contrib
       description: Enable contrib features (implies process-data)
+      stability: stable
       conflicts_with: []
       depends_on: [process-data]
+      introduced_in: "26.6.0"
 
     - name: advanced
       description: |
         Enable all advanced capabilities including parallel processing,
         caching, tracing, and advanced data structures (petgraph, hdrhistogram).
         Requires bleeding-edge dependencies.
+      stability: stable
       conflicts_with: []
       depends_on: [process-data]
+      introduced_in: "26.6.1"
       includes_deps:
-        - ignore
-        - rayon
-        - blake3
-        - tracing
-        - tracing-subscriber
-        - miette
-        - thiserror
-        - moka
-        - bitcode
-        - petgraph
-        - jiff
-        - hdrhistogram
-        - aho-corasick
+        - ignore (v0.4)
+        - rayon (v1)
+        - blake3 (v1)
+        - tracing (v0.1)
+        - tracing-subscriber (v0.3)
+        - miette (v7)
+        - thiserror (v2)
+        - moka (v0.12)
+        - bitcode (v0.6)
+        - petgraph (v0.6)
+        - jiff (v0.2)
+        - hdrhistogram (v7)
+        - aho-corasick (v1)
 
   recommended_combinations:
     - name: "development"
       features: ["process-data"]
       use_case: "Local development with full introspection"
+      rationale: "Minimal dependencies, maximum build speed"
 
     - name: "testing"
       features: ["autonomic", "process-data"]
       use_case: "Integration and autonomic policy testing"
+      rationale: "Enables policy engine without heavy dependencies"
 
     - name: "release"
       features: ["wasm4pm", "advanced", "process-data"]
       use_case: "Release build with evidence-gate closure"
+      rationale: "Full power for production releases with verification"
 
     - name: "extended-analysis"
       features: ["advanced", "autonomic"]
       use_case: "Advanced workspace analysis and suggestions"
+      rationale: "Enable powerful analysis tools and parallel processing"
+
+    - name: "ci-validation"
+      features: ["advanced", "wasm4pm", "autonomic"]
+      use_case: "Comprehensive CI/CD validation pipeline"
+      rationale: "Maximum validation with evidence collection"
 
 # Integration points with cargo-cicd ecosystem
 integration:
@@ -570,89 +1105,22 @@ integration:
     - publish
     - workspace
 
-# Testing configuration
-testing:
-  integration_tests:
-    - invariants
-    - cli
-    - cicd_toml_truth
-    - autonomic_policies
-    - changed_tests
-    - git_phase_closure
-    - feature_projection
-
-  wasm4pm_gates:
-    - wasm4pm_evidence_gate
-    - wasm4pm_evidence_mutation
-    - wasm4pm_refusal_cases
-
-  evidence_requirements:
-    format: XES
-    directory: target/cargo-cicd/evidence/
-    oracle_command: "wpm receipt doctor --format json --strict"
-    verification: required_for_release
-
-# Rate limiting and performance tuning
-performance:
-  caching:
-    metadata: true
-    cache_ttl_seconds: 300
-    cache_invalidation: on_cargo_toml_change
-
-  parallel_operations:
-    enabled: true
-    max_concurrent_checks: 4
-    max_concurrent_tests: 2
-
-  timeouts:
-    build_timeout_seconds: 600
-    test_timeout_seconds: 1200
-    metadata_timeout_seconds: 60
-    clippy_timeout_seconds: 300
-
-# Logging and diagnostics
-diagnostics:
-  log_level: info
-  structured_logging: true
-  include_timings: true
-  trace_feature_resolution: true
-
-# Documentation and examples
-examples:
-  build_with_advanced_features: |
-    cargo-advanced-tools build_with_features \
-      --features "advanced,autonomic" \
-      --release
-
-  test_autonomic_policies: |
-    cargo-advanced-tools test_with_filter \
-      --scope integration \
-      --test autonomic_policies \
-      --features "autonomic"
-
-  validate_wasm4pm_features: |
-    cargo-advanced-tools validate_features \
-      --feature_combo "wasm4pm,process-data" \
-      --check-conflicts
-
-  analyze_workspace: |
-    cargo-advanced-tools analyze_workspace
-
-  clippy_with_all_features: |
-    cargo-advanced-tools clippy_suggestions \
-      --all-features \
-      --all-targets
-
 # Compatibility matrix
 compatibility:
   rust_versions:
     minimum: "1.85"
     tested: ["1.85", "1.86", "1.87"]
+    support_window: "latest 3 stable releases"
 
   platforms:
     - linux
     - macos
     - windows
+
+  architectures:
+    - x86_64
+    - aarch64
+    - arm
 
   cargo_versions:
     minimum: "1.75"
@@ -663,3 +1131,42 @@ versioning:
   matches_cargo_cicd_version: "26.6.2"
   api_stability: stable
   breaking_changes_policy: semantic_versioning
+  changelog_url: "https://github.com/seanchatmangpt/cargo-cicd/releases"
+
+# Performance and optimization
+performance:
+  caching:
+    metadata: true
+    cache_ttl_seconds: 300
+    cache_invalidation: on_cargo_toml_change
+    cache_size_limit_mb: 1024
+
+  parallel_operations:
+    enabled: true
+    max_concurrent_builds: 2
+    max_concurrent_checks: 4
+    max_concurrent_tests: 2
+    max_concurrent_clippy: 2
+
+  timeouts:
+    build_timeout_seconds: 600
+    test_timeout_seconds: 1200
+    metadata_timeout_seconds: 60
+    clippy_timeout_seconds: 300
+    doc_timeout_seconds: 600
+    feature_test_timeout_seconds: 3600
+
+# Security considerations
+security:
+  validate_feature_names: true
+  sanitize_paths: true
+  restrict_workspace_to_repo: true
+  audit_dependencies: true
+  supply_chain_security: true
+
+# Support and maintenance
+support:
+  issue_tracker: "https://github.com/seanchatmangpt/cargo-cicd/issues"
+  discussions: "https://github.com/seanchatmangpt/cargo-cicd/discussions"
+  documentation: "https://github.com/seanchatmangpt/cargo-cicd/docs"
+  maintainers: ["seanchatmangpt"]
