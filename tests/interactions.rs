@@ -340,3 +340,29 @@ fn evidence_reset_exits_zero() {
         .assert()
         .success();
 }
+
+/// pipeline status exits zero
+#[test]
+fn pipeline_status_exits_zero() {
+    Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["pipeline", "status"])
+        .assert()
+        .success();
+}
+
+/// pipeline validate emits PASS or WARN status lines
+#[test]
+fn pipeline_validate_produces_pass_or_warn_lines() {
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["pipeline", "validate"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("PASS") || stdout.contains("WARN"),
+        "pipeline validate must emit status lines: {}",
+        stdout
+    );
+}

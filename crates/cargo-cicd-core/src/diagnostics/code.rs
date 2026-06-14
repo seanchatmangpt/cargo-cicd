@@ -1,7 +1,7 @@
 //! Diagnostic code enum.
 
 /// Diagnostic code for a cicd finding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CicdCode {
     BoundaryPublicApiLeak,
     // GIT family
@@ -165,6 +165,44 @@ impl CicdCode {
         }
     }
 
+    /// Returns all known variants of `CicdCode`.
+    pub fn all_variants() -> Vec<Self> {
+        vec![
+            Self::BoundaryPublicApiLeak,
+            Self::BranchBehindRemote,
+            Self::EvidenceHardcodedTimestamp,
+            Self::EvidenceMissing,
+            Self::EvidenceMissingCaseId,
+            Self::EvidenceStale,
+            Self::FalseCloseRisk,
+            Self::GgenCustomRegionMissing,
+            Self::GgenDriftDetected,
+            Self::GgenRenderedSurfaceDrift,
+            Self::GitDirtyTreeBlocksClose,
+            Self::GitUntrackedArtifacts,
+            Self::NoCicdTomlFound,
+            Self::PipelineStageFailed,
+            Self::PublicPrivateTermLeak,
+            Self::PublishDryRunWithoutReceipt,
+            Self::PublishNoCicdToml,
+            Self::PublishNoReceipt,
+            Self::ReceiptBeforeCourt,
+            Self::SpecMissingForChange,
+            Self::TargetDirOversize,
+            Self::TargetPruneRequiresDryRun,
+            Self::TaskDoneWithoutEvidence,
+            Self::TestFailuresBlockClose,
+            Self::TestsImpactUnknown,
+            Self::TestsStaleMapping,
+            Self::TrybuildFixtureChanged,
+            Self::WpmCommandUnavailable,
+            Self::WpmRuntimeCourtNotInvoked,
+            Self::WpmUnconfirmedReceiptCourt,
+            Self::WpmVerdictKeyMismatch,
+            Self::WorkspaceStructureInvalid,
+        ]
+    }
+
     /// Returns a short repair hint for this diagnostic code.
     pub fn repair_hint(self) -> &'static str {
         match self {
@@ -203,6 +241,24 @@ impl CicdCode {
 impl std::fmt::Display for CicdCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl From<CicdCode> for String {
+    fn from(c: CicdCode) -> String {
+        c.as_str().to_string()
+    }
+}
+
+impl std::str::FromStr for CicdCode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        for variant in Self::all_variants() {
+            if variant.as_str() == s {
+                return Ok(variant);
+            }
+        }
+        Err(format!("unknown CicdCode: {}", s))
     }
 }
 
@@ -254,4 +310,28 @@ pub fn explain_code(code_str: &str) -> Option<String> {
         code.description(),
         code.repair_hint()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cicd_code_display_matches_as_str() {
+        let code = CicdCode::GitDirtyTreeBlocksClose;
+        assert_eq!(format!("{}", code), code.as_str());
+    }
+
+    #[test]
+    fn cicd_code_from_str_roundtrip() {
+        let code = CicdCode::TargetDirOversize;
+        let s = code.as_str();
+        let back: CicdCode = s.parse().unwrap();
+        assert_eq!(back.as_str(), s);
+    }
+
+    #[test]
+    fn all_variants_returns_non_empty() {
+        assert!(!CicdCode::all_variants().is_empty());
+    }
 }
