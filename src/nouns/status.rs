@@ -1,4 +1,6 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
+use crate::autonomic::policy_engine;
+use crate::engine::EngineState;
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
@@ -64,6 +66,18 @@ impl StatusShowVerb {
         if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
+
+        // Run autonomic policies and display suggestions.
+        let engine = EngineState::default();
+        let suggestions = policy_engine::run_suggestions(&engine);
+        if !suggestions.is_empty() {
+            println!();
+            println!("policy suggestions:");
+            for s in &suggestions {
+                println!("  → {}", s);
+            }
+        }
+
         Ok(())
     }
 }

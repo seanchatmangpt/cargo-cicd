@@ -1,6 +1,7 @@
 //! CicdFinding structure.
 
 use crate::diagnostics::code::CicdCode;
+use crate::diagnostics::lifecycle::DiagnosticLifecycle;
 use crate::diagnostics::severity::CicdSeverity;
 
 /// A single diagnostic finding.
@@ -13,9 +14,11 @@ pub struct CicdFinding {
     pub message: String,
     pub uri: Option<String>,
     pub route: Option<RepairRoute>,
+    pub lifecycle: DiagnosticLifecycle,
 }
 
 /// A suggested repair route for a finding.
+#[derive(Clone)]
 pub struct RepairRoute {
     pub command: String,
     pub explanation: String,
@@ -38,6 +41,7 @@ impl CicdFinding {
             message: message.into(),
             uri: None,
             route: None,
+            lifecycle: DiagnosticLifecycle::Raised,
         }
     }
 

@@ -106,7 +106,7 @@ impl LanguageServer for Backend {
         let uri = &params.text_document.uri;
         let actions: Vec<CodeActionOrCommand> = findings
             .iter()
-            .flat_map(|f| finding_to_actions(f, uri))
+            .flat_map(|f| finding_to_actions(f, uri, None))
             .map(CodeActionOrCommand::CodeAction)
             .collect();
 
@@ -115,5 +115,81 @@ impl LanguageServer for Backend {
         } else {
             Ok(Some(actions))
         }
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let root = {
+            let lock = self.workspace_root.read().await;
+            lock.clone()
+        };
+        let Some(ref path) = root else {
+            return Ok(None);
+        };
+
+        let findings = run_all(&WorkspaceSnapshot::from_path(path));
+
+        // Used to identify which file was hovered; no per-range filtering since
+        // findings don't carry precise source positions.
+        let _uri = &params.text_document_position_params.text_document.uri;
+
+        if findings.is_empty() {
+            return Ok(None);
+        }
+
+        let mut lines = vec!["**cargo-cicd diagnostics**\n".to_string()];
+        for finding in &findings {
+            lines.push(format!(
+                "- `{}` **{}**: {}",
+                finding.code.as_str(),
+                format!("{:?}", finding.severity).to_lowercase(),
+                finding.message
+            ));
+        }
+
+        Ok(Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: lines.join("\n"),
+            }),
+            range: None,
+        }))
+    }
+
+    async fn completion(
+        &self,
+        _params: CompletionParams,
+    ) -> Result<Option<CompletionResponse>> {
+        use cargo_cicd_core::diagnostics::CicdCode;
+
+        let codes = [
+            CicdCode::GitDirtyTreeBlocksClose,
+            CicdCode::GitUntrackedArtifacts,
+            CicdCode::EvidenceMissing,
+            CicdCode::EvidenceStale,
+            CicdCode::EvidenceHardcodedTimestamp,
+            CicdCode::EvidenceMissingCaseId,
+            CicdCode::WpmUnconfirmedReceiptCourt,
+            CicdCode::WpmCommandUnavailable,
+            CicdCode::WpmRuntimeCourtNotInvoked,
+            CicdCode::WpmVerdictKeyMismatch,
+            CicdCode::TargetDirOversize,
+            CicdCode::PublishDryRunWithoutReceipt,
+            CicdCode::FalseCloseRisk,
+            CicdCode::GgenRenderedSurfaceDrift,
+            CicdCode::PublicPrivateTermLeak,
+        ];
+
+        let items: Vec<CompletionItem> = codes
+            .iter()
+            .map(|code| CompletionItem {
+                label: code.as_str().to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                detail: Some(code.description().to_string()),
+                documentation: Some(Documentation::String(code.repair_hint().to_string())),
+                ..CompletionItem::default()
+            })
+            .collect();
+
+        Ok(Some(CompletionResponse::Array(items)))
     }
 }
