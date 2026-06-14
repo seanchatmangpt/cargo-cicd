@@ -10,7 +10,7 @@ Common pitfalls and how to avoid them.
 ALIVE
 Nehemiah
 CONSTRUCT8
-Instinct8
+Instruct8
 Inspection Gate
 Cargo Court
 AGI
@@ -33,91 +33,30 @@ This test runs every `--help` command and checks for forbidden terms.
 
 ### Example: The Bug
 
-```rust
-// Bad: Nehemiah is forbidden
-println!("Running Nehemiah workspace scan...");
-
-// Good
-println!("Scanning workspace...");
-```
-
-If you see this test fail, search for the term and remove it:
+Do not include Nehemiah in output. Search and remove it:
 
 ```bash
-grep -r "ALIVE" src/
 grep -r "Nehemiah" src/
 # ... remove the offending line ...
 ```
 
+If you see this test fail, search for the term and remove it.
+
 ## State Mutation Patterns
 
-**The Rule:** `EngineState` is an immutable snapshot. Mutations happen only through adapters → `CicdTomlWriter`.
+**The Rule:** `EngineState` is an immutable snapshot. Mutations happen only through adapters to `CicdTomlWriter`.
 
 ### Anti-Pattern 1: Mutating EngineState in a Verb
 
-```rust
-// Bad: verbs are read-only consumers
-impl VerbCommand for MyVerb {
-    fn run(&self, args: &VerbArgs) -> Result<()> {
-        let mut state = EngineState::default();
-        state.target.size_gb = 100.0;  // ← Do not mutate!
-        Ok(())
-    }
-}
-```
-
-**Fix:** Have the adapter populate the state, then read it:
-
-```rust
-impl VerbCommand for MyVerb {
-    fn run(&self, args: &VerbArgs) -> Result<()> {
-        let state = adapters::target_scanner::query()?;  // Adapter populates
-        println!("Target size: {} GB", state.size_gb);    // Verb reads
-        Ok(())
-    }
-}
-```
+Verbs are read-only consumers. Never mutate EngineState. Have the adapter populate the state, then read it.
 
 ### Anti-Pattern 2: Adapter Returns Mutable State
 
-```rust
-// Bad: state is modified after construction
-pub fn query() -> Result<TargetState> {
-    let mut state = TargetState::default();
-    state.size_gb = 10.0;
-    state.size_gb = 20.0;  // Why mutate twice?
-    Ok(state)
-}
-```
-
-**Fix:** Build immutable values directly:
-
-```rust
-pub fn query() -> Result<TargetState> {
-    let size = calculate_total_size()?;
-    Ok(TargetState {
-        size_gb: size,
-        // ... other fields ...
-    })
-}
-```
+State should be built immutable directly. Do not mutate state after construction. Build immutable values in one place.
 
 ### Anti-Pattern 3: Circular Dependency in State
 
-```rust
-// Bad: MyState depends on AnotherState, which is also in EngineState
-pub struct MyState {
-    pub dependency: AnotherState,  // ← Redundancy!
-}
-```
-
-**Fix:** Reference by ID or path, never embed state:
-
-```rust
-pub struct MyState {
-    pub affected_crates: Vec<String>,  // Just names, not full state
-}
-```
+Never embed full state within another state struct. Reference by ID or path instead. Keep state dimensions independent.
 
 ## Test Isolation Failures
 
@@ -125,82 +64,15 @@ pub struct MyState {
 
 ### Anti-Pattern 1: Test Depends on External Git State
 
-```rust
-#[test]
-fn test_git_phase_detection() {
-    // Bad: assumes we're in a real git repo with a main branch
-    let state = adapters::git_status::query()?;
-    assert_eq!(state.branch, "main");  // ← What if we're on a different branch?
-}
-```
-
-**Fix:** Use `FixtureWorkspace` to create isolated state:
-
-```rust
-#[test]
-fn test_git_phase_detection() {
-    let fixture = FixtureWorkspace::clean();  // ← Isolated fixture
-    // The fixture is a fresh git repo; we control its state
-    let state = adapters::git_status::query_in(&fixture.root)?;
-    assert_eq!(state.branch, "main");  // Safe assumption in the fixture
-}
-```
+Never assume the current git repo state in tests. Use `FixtureWorkspace` to create isolated test environments. The fixture is a fresh git repo that you control.
 
 ### Anti-Pattern 2: Test Leaves Behind Temp Files
 
-```rust
-#[test]
-fn test_target_scanning() {
-    std::fs::create_dir_all("/tmp/test-workspace/target")?;
-    // ← /tmp/test-workspace is left behind after test!
-    
-    let state = adapters::target_scanner::query()?;
-    assert!(state.size_gb > 0.0);
-}
-```
-
-**Fix:** Use `tempfile::TempDir` which cleans up automatically:
-
-```rust
-#[test]
-fn test_target_scanning() {
-    let temp = tempfile::TempDir::new()?;
-    let workspace_root = temp.path();  // Created automatically
-    
-    std::fs::create_dir_all(workspace_root.join("target"))?;
-    // temp is dropped here, and workspace_root is deleted
-    
-    // Or use FixtureWorkspace which does this internally
-    let fixture = FixtureWorkspace::with_target_over_limit();
-    let state = adapters::target_scanner::query_in(&fixture.root)?;
-    assert!(state.size_gb > 0.0);
-}
-```
+Always use `tempfile::TempDir` which cleans up automatically. Or use `FixtureWorkspace` which handles this internally.
 
 ### Anti-Pattern 3: Test Assumes Environment Variable
 
-```rust
-#[test]
-fn test_uses_environment_config() {
-    // Bad: CI or other developers might not have MY_CONFIG set
-    let config = std::env::var("MY_CONFIG").expect("MY_CONFIG required");
-    assert!(!config.is_empty());
-}
-```
-
-**Fix:** Either make the test not depend on environment, or mock it:
-
-```rust
-#[test]
-fn test_reads_config_from_file() {
-    let fixture = FixtureWorkspace::clean();
-    let config_path = fixture.root.join("my.config");
-    std::fs::write(&config_path, "test_data")?;
-    
-    let config = read_config(&config_path)?;
-    assert!(!config.is_empty());
-}
-```
+Either make the test not depend on environment, or mock it via files. Do not assume MY_CONFIG or other env vars are set.
 
 ## Feature Flag Gating Mistakes
 
@@ -208,64 +80,11 @@ fn test_reads_config_from_file() {
 
 ### Anti-Pattern 1: Runtime Feature Check
 
-```rust
-// Bad: feature is checked at runtime
-pub fn use_engine() -> Result<()> {
-    if cfg!(feature = "process-data") {
-        let state = EngineState::default();
-        println!("{:?}", state);
-    } else {
-        println!("Feature disabled");
-    }
-    Ok(())
-}
-```
-
-**Fix:** Compile out the code entirely:
-
-```rust
-#[cfg(feature = "process-data")]
-pub fn use_engine() -> Result<()> {
-    let state = EngineState::default();
-    println!("{:?}", state);
-    Ok(())
-}
-
-#[cfg(not(feature = "process-data"))]
-pub fn use_engine() -> Result<()> {
-    println!("Feature disabled");
-    Ok(())
-}
-```
+Checking `cfg!(feature = "...")` at runtime compiles the code regardless of feature. Use compile-time `#[cfg(...)]` guards instead.
 
 ### Anti-Pattern 2: Feature-Gated Code Without Stub
 
-```rust
-// Bad: code doesn't compile without the feature
-pub fn query() -> Result<State> {
-    #[cfg(feature = "process-data")]
-    {
-        // Only this exists
-        // If feature is off, what does query() return?
-    }
-}
-```
-
-**Fix:** Provide a stub implementation:
-
-```rust
-#[cfg(feature = "process-data")]
-pub fn query() -> Result<State> {
-    // Real implementation
-    Ok(State::default())
-}
-
-#[cfg(not(feature = "process-data"))]
-pub fn query() -> Result<State> {
-    // Stub: return default or error
-    Err(anyhow::anyhow!("process-data feature required"))
-}
-```
+Always provide a stub implementation for when the feature is off. Otherwise the code doesn't compile without the feature.
 
 ## Adapter Query Mistakes
 
@@ -273,50 +92,11 @@ pub fn query() -> Result<State> {
 
 ### Anti-Pattern 1: Adapter Modifies External State
 
-```rust
-// Bad: adapter calls git commands that modify the repo
-pub fn query() -> Result<State> {
-    // This silently resets uncommitted changes!
-    Command::new("git").args(&["reset", "--hard"]).output()?;
-    
-    let output = Command::new("git").args(&["status"]).output()?;
-    Ok(parse_status(&output.stdout)?)
-}
-```
-
-**Fix:** Adapters only read, never write:
-
-```rust
-pub fn query() -> Result<State> {
-    let output = Command::new("git")
-        .args(&["status", "--porcelain"])
-        .output()?;
-    Ok(parse_status(&output.stdout)?)
-}
-```
+Never have an adapter call destructive git commands like reset or clean. Adapters only read, they never write or modify.
 
 ### Anti-Pattern 2: Adapter Caches Incorrectly
 
-```rust
-// Bad: static cache can be stale
-lazy_static::lazy_static! {
-    static ref CACHE: State = expensive_query().unwrap();
-}
-
-pub fn query() -> Result<State> {
-    Ok(CACHE.clone())  // ← Always returns old data!
-}
-```
-
-**Fix:** If caching is needed, validate freshness:
-
-```rust
-pub fn query() -> Result<State> {
-    // Query fresh data every time
-    // If optimization is needed, add a cicd.toml cache layer at a higher level
-    expensive_query()
-}
-```
+If caching is needed, validate freshness. Query fresh data every time in the adapter. Cache at a higher level (cicd.toml) if needed.
 
 ## Common cicd.toml Mistakes
 
@@ -324,8 +104,44 @@ pub fn query() -> Result<State> {
 
 ### Anti-Pattern 1: Manually Editing cicd.toml
 
-```bash
-# Bad: editing by hand introduces inconsistencies
-$ cat >> cicd.toml << EOF
-[state]
-target_size_gb = 99.0  # Hand-edited
+Never hand-edit cicd.toml. Have the adapter write it via CicdTomlWriter to ensure consistency.
+
+### Anti-Pattern 2: Stale cicd.toml Not Invalidated
+
+Always validate cache freshness against current state. If git changed since the cache was written, regenerate it.
+
+## Evidence Emission Mistakes
+
+**The Rule:** Process events are emitted to XES format. They must be valid and complete.
+
+### Anti-Pattern 1: Missing Event Timestamp
+
+Always include a timestamp in ProcessEvent. wasm4pm will reject events without timestamps.
+
+### Anti-Pattern 2: Invalid Event Type
+
+Use standardized event types (see evidence.rs). Do not use arbitrary event_type strings. Examples: "noun_verb_invoked", "test_started", "policy_evaluated".
+
+## Troubleshooting Quick Reference
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Test fails with forbidden term | ALIVE/Nehemiah in help text | grep and remove the term |
+| Test passes alone but fails in CI | Test depends on git state | Use FixtureWorkspace::clean() |
+| Adapter returns different results on second call | Adapter mutates external state | Ensure adapter only reads |
+| cicd.toml becomes inconsistent | Manually edited or stale cache | Always regenerate via adapter |
+| wasm4pm evidence-gate fails | Event missing timestamp | Check evidence.rs for standard types |
+| Feature code compiles without feature | Missing #[cfg(...)] guard | Wrap with #[cfg(feature = "...")] |
+
+## Prevention Checklist
+
+Before opening a PR:
+
+- [ ] No forbidden terms in public output (run invariants test)
+- [ ] All state mutations go through adapters (code review check)
+- [ ] Tests use FixtureWorkspace, not real git state
+- [ ] Adapters do not modify external sources (read-only)
+- [ ] Feature gates use #[cfg(...)], not runtime checks
+- [ ] cicd.toml is written by CicdTomlWriter, not manually
+- [ ] Process events have timestamps and standard types
+- [ ] No circular state dependencies in EngineState

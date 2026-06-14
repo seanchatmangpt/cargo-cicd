@@ -16,14 +16,15 @@ cargo-cicd implements a **three-tier testing strategy**:
 
 ## Table of Contents
 
-1. [Test Organization](#test-organization)
-2. [Fixture Design](#fixture-design)
-3. [Writing New Tests](#writing-new-tests)
-4. [Mocking and Isolation](#mocking-and-isolation)
-5. [Evidence-Gate Testing](#evidence-gate-testing)
-6. [CI/CD Integration](#cicd-integration)
-7. [Test Utilities](#test-utilities)
-8. [Patterns and Examples](#patterns-and-examples)
+1. [Test Organization](#test-organization) — Three-tier strategy (smoke, integration, evidence-gate)
+2. [Fixture Design](#fixture-design) — FixtureWorkspace API and fixture construction patterns
+3. [Writing New Tests](#writing-new-tests) — Step-by-step guide and decision tree
+4. [Mocking and Isolation](#mocking-and-isolation) — Test independence, external tools, time control
+5. [Evidence-Gate Testing](#evidence-gate-testing) — XES format, wasm4pm oracle, verdict assertion
+6. [CI/CD Integration](#cicd-integration) — Workflows for development, merge, and release
+7. [Practical Test Examples](#practical-test-examples) — Real-world copy-paste-ready patterns
+8. [Troubleshooting](#troubleshooting-common-test-issues) — Common issues and solutions
+9. [Additional Resources](#additional-resources) — Links and command reference
 
 ---
 
@@ -1983,9 +1984,227 @@ fn test_trybuild_changed_selects_only_changed_fixtures() {
 
 ---
 
+---
+
+## Troubleshooting Common Test Issues
+
+### Issue: "test ... FAILED: fixture root does not exist"
+
+**Cause:** Fixture lifecycle ended before test assertion. `TempDir` was dropped prematurely.
+
+**Solution:** Ensure fixture variable stays in scope:
+
+```rust
+// WRONG: fixture dropped at end of block
+{
+    let fixture = FixtureWorkspace::clean();
+}  // fixture dropped here
+// Command runs, but temp dir is gone!
+
+// CORRECT: fixture stays alive for the entire test
+#[test]
+fn test_correct() {
+    let fixture = FixtureWorkspace::clean();  // Still alive
+    // ... test runs ...
+}  // fixture dropped here after test completes
+```
+
+### Issue: "error: git not found" or "cargo metadata failed"
+
+**Cause:** External tool (git, cargo) not in PATH.
+
+**Solution:** Gracefully handle absence:
+
+```rust
+#[test]
+fn test_with_tool_fallback() {
+    let fixture = FixtureWorkspace::clean();
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(fixture.root)
+        .args(["status"])
+        .output()
+        .unwrap();
+    
+    // Accept both success and failure (tool may be absent)
+    assert!(
+        output.status.code().is_some(),
+        "Must not panic; tool absence is ok"
+    );
+}
+```
+
+### Issue: "assertion failed: expected Accept, got Blocked"
+
+**Cause:** Oracle not available when test expected it.
+
+**Solution:** Check oracle availability or use `REQUIRE_WPM_ORACLE=1`:
+
+```rust
+let oracle = WpmEvidenceOracle::new();
+if oracle.is_available() {
+    assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Accept);
+} else {
+    eprintln!("Oracle unavailable; test will use Blocked verdict");
+    assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Blocked);
+}
+
+// OR: Require oracle in CI
+// REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate
+```
+
+### Issue: "panic: XES file does not exist before oracle call"
+
+**Cause:** Tried to invoke oracle on non-existent file.
+
+**Solution:** Verify XES file exists before oracle call:
+
+```rust
+let xes_path = dir.path().join("events.xes");
+emit_xes(&events, &xes_path)?;
+
+// CRITICAL: Verify file exists BEFORE oracle invocation
+assert!(xes_path.exists(), "XES file must exist on disk before oracle call");
+
+// Now safe to invoke oracle
+let oracle = WpmEvidenceOracle::new();
+if oracle.is_available() {
+    oracle.audit_xes(&xes_path)?;
+}
+```
+
+### Issue: "test ... timed out after 30 seconds"
+
+**Cause:** Test waiting for slow operation (wpm oracle invocation, cargo metadata).
+
+**Solution:** 
+- Run evidence-gate tests separately: `cargo test --test wasm4pm_evidence_gate`
+- Use `cargo test --lib` to skip integration tests during development
+- Increase timeout in CI: `cargo test -- --test-threads=1`
+
+### Issue: "test ... uses hardcoded path /tmp/test-123"
+
+**Cause:** Test creates files in shared `/tmp`, affecting other tests or the system.
+
+**Solution:** Always use `tempfile::TempDir`:
+
+```rust
+// WRONG: Hardcoded path
+std::fs::create_dir_all("/tmp/my-test").unwrap();
+
+// CORRECT: Isolated temp directory
+let dir = tempfile::TempDir::new().unwrap();
+std::fs::create_dir_all(dir.path().join("my-subdir")).unwrap();
+// Automatically cleaned up when dir is dropped
+```
+
+### Issue: "assertion ... contains 'PASS' failed; output was empty"
+
+**Cause:** Command output is on stderr, not stdout.
+
+**Solution:** Combine stdout and stderr in assertions:
+
+```rust
+let output = Command::cargo_bin("cargo-cicd")...output().unwrap();
+
+// WRONG: Only checks stdout
+let stdout = String::from_utf8_lossy(&output.stdout);
+assert!(stdout.contains("PASS"));
+
+// CORRECT: Combines stdout + stderr
+let text = String::from_utf8_lossy(&output.stdout).to_string()
+    + &String::from_utf8_lossy(&output.stderr);
+assert!(text.contains("PASS"));
+```
+
+### Issue: "test ... SKIP: git not available"
+
+**Cause:** Test intentionally skipped because required tool is absent.
+
+**Solution:** This is OK for optional dependencies. To require the tool in CI:
+
+```bash
+# Check if git is available before running test
+if ! command -v git &> /dev/null; then
+    echo "SKIP: git not available"
+    exit 0
+fi
+
+# Require in CI with environment variable
+REQUIRE_GIT=1 cargo test
+```
+
+---
+
+## Performance Tips
+
+### Speed Up Local Development
+
+**Use `cargo test --lib`** to run only unit tests (skip integration tests):
+```bash
+cargo test --lib  # ~5 sec
+```
+
+**Use `cargo make check`** instead of `cargo test` for pre-commit:
+```bash
+cargo make check  # Lint + type-check, ~5 sec
+```
+
+**Run specific test file**:
+```bash
+cargo test --test cli  # Only CLI tests, ~10 sec
+```
+
+### Speed Up CI
+
+**Run tests in parallel** (4 threads is typical):
+```bash
+cargo test -- --test-threads=4
+```
+
+**Skip slow tests in development CI**:
+```bash
+cargo test --lib --test invariants  # Fast gate before integration tests
+```
+
+**Cache cargo builds** in CI (GitHub Actions, etc.):
+```yaml
+- uses: actions/cache@v3
+  with:
+    path: |
+      ~/.cargo/registry
+      ~/.cargo/git
+      target
+    key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+```
+
+---
+
 ## Additional Resources
 
-- `/CLAUDE.md` — Project mission and architecture
-- `/tests/fixtures/*/README.md` — Pre-built fixture descriptions
-- `/tests/invariants.rs` — 7 invariants (public boundary, safety, no false close)
-- `/tests/wasm4pm_*.rs` — Evidence-gate test patterns
+- **Project Documentation:**
+  - `/CLAUDE.md` — Project mission and architecture overview
+  - `/ARCHITECTURE.md` — Detailed engine and adapter architecture
+  - `/tests/fixtures/mod.rs` — FixtureWorkspace implementation
+
+- **Test Examples:**
+  - `/tests/invariants.rs` — 7 non-negotiable invariants
+  - `/tests/cli/` — CLI command tests
+  - `/tests/wasm4pm_evidence_gate.rs` — Evidence-gate patterns
+  - `/tests/autonomic_policies.rs` — Policy unit tests
+
+- **External Resources:**
+  - [assert_cmd documentation](https://docs.rs/assert_cmd/) — Process assertions
+  - [tempfile documentation](https://docs.rs/tempfile/) — Temporary directories
+  - [predicates documentation](https://docs.rs/predicates/) — Composable assertions
+  - [XES Standard](http://www.xesstandard.org/) — Event log format
+
+- **Development Commands:**
+  ```bash
+  cargo make build          # Full build
+  cargo make check          # Lint + type-check
+  cargo make test           # All tests
+  cargo test --lib          # Unit tests only
+  cargo test --test cli     # Specific test file
+  REQUIRE_WPM_ORACLE=1 cargo test --test wasm4pm_evidence_gate
+  ```
