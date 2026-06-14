@@ -46,6 +46,11 @@ impl VerbCommand for WorkspaceDoctorVerb {
         "Diagnose workspace health"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("workspace:doctor");
+        start_evt.case_id = Some(case_id.clone());
+
         println!("workspace doctor");
         println!("================");
 
@@ -117,7 +122,7 @@ impl VerbCommand for WorkspaceDoctorVerb {
         }
 
         println!();
-        let verdict = if !has_cargo || !has_git {
+        let verdict_str = if !has_cargo || !has_git {
             println!("FAIL: workspace has critical issues");
             "FAIL"
         } else {
@@ -125,11 +130,9 @@ impl VerbCommand for WorkspaceDoctorVerb {
             "PASS"
         };
 
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let mut event = ProcessEvent::new("workspace:doctor", verdict);
-        event.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[event], &evidence_dir) {
+        let mut complete_evt = ProcessEvent::completed("workspace:doctor", t0, verdict_str);
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
