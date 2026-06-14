@@ -9,7 +9,7 @@
     {
       "name": "output_format",
       "type": "string",
-      "description": "Output format for the metrics report",
+      "description": "Output format for the metrics report: 'text' for human-readable tables, 'json' for programmatic consumption, 'html' for styled browser-viewable reports",
       "enum": ["text", "json", "html"],
       "default": "text",
       "example": "json"
@@ -17,192 +17,288 @@
     {
       "name": "compare_to",
       "type": "string",
-      "description": "Path to a previous metrics file for trend analysis and comparison. If provided, generates delta analysis showing improvements/regressions.",
+      "description": "Path to a previous metrics JSON file for trend analysis and regression detection. Computes percentage deltas and marks regressions (>10% slower) vs baseline.",
       "default": null,
       "example": "/tmp/metrics-2026-06-14.json"
     },
     {
       "name": "save_to",
       "type": "string",
-      "description": "File path to save the metrics report for tracking over time. Useful for building a historical metrics database.",
+      "description": "File path where the metrics report will be persisted as JSON for historical tracking and trend analysis over time.",
       "default": null,
       "example": "/tmp/metrics-report.json"
     },
     {
       "name": "threshold_ms",
       "type": "integer",
-      "description": "Alert threshold in milliseconds. Any stage exceeding this value will be flagged in recommendations.",
+      "description": "Alert threshold in milliseconds. Any stage's p99 latency exceeding this will be flagged as 'threshold_exceeded' in recommendations. Default 5000ms (5s).",
       "default": 5000,
+      "minimum": 100,
+      "maximum": 600000,
       "example": 3000
     },
     {
       "name": "log_level",
       "type": "string",
-      "description": "RUST_LOG level for capturing tracing output (debug, info, trace)",
-      "enum": ["debug", "info", "trace"],
+      "description": "RUST_LOG level for capturing internal tracing/metrics output. Use 'debug' for detailed metrics, 'info' for standard metrics collection, 'trace' for verbose diagnostics.",
+      "enum": ["trace", "debug", "info", "warn"],
       "default": "info"
+    },
+    {
+      "name": "show_histogram_data",
+      "type": "boolean",
+      "description": "Include detailed histogram bucket breakdown in JSON output for advanced analysis. Increases output size significantly.",
+      "default": false,
+      "example": true
     }
   ],
   "command": {
-    "description": "Execute cargo-cicd pipeline with metrics collection enabled",
+    "description": "Execute cargo-cicd pipeline with metrics collection enabled, capture histogram data from MetricsCollector, aggregate percentiles, and generate performance reports",
+    "environment": {
+      "RUST_LOG": "${log_level}",
+      "RUST_BACKTRACE": "1"
+    },
+    "execution": {
+      "description": "Full command pipeline with output capture and post-processing",
+      "shell_script": "set -e\necho '[metrics-report] Starting metrics collection with log_level=${log_level}...'\nexport RUST_LOG=\"${log_level}\"\nexport RUST_BACKTRACE=1\n\n# Create temp directory for intermediate files\nMETRICS_TMPDIR=$(mktemp -d -t metrics-XXXXXX)\necho \"[metrics-report] Working directory: ${METRICS_TMPDIR}\"\ntrp 'rm -rf ${METRICS_TMPDIR}' EXIT\n\n# Step 1: Run cargo-cicd with advanced features and capture output\necho '[metrics-report] Running cargo-cicd with --features advanced...'\nMETRICS_LOG=\"${METRICS_TMPDIR}/pipeline.log\"\ncargo run --quiet --features advanced 2>&1 | tee \"${METRICS_LOG}\" || echo '[metrics-report] WARNING: Pipeline execution may have failed' >&2\n\necho '[metrics-report] ✓ Pipeline execution complete. Output captured to ${METRICS_LOG}'\n\n# Step 2: Extract structured metric events using Python regex parser\necho '[metrics-report] Parsing structured metrics from output...'\nPARSE_SCRIPT=\"${METRICS_TMPDIR}/parse.py\"\ncat > \"${PARSE_SCRIPT}\" << 'PARSE_EOF'\nimport re, json, sys\nfrom datetime import datetime\n\nmetrics = {}\nwith open(sys.argv[1]) as f:\n    for line in f:\n        # Pattern: stage_name: p50=XXXXµs, p90=XXXXµs, p99=XXXXµs\n        m = re.search(r'([a-z_]+):\\s+p50=([0-9]+)µs,\\s+p90=([0-9]+)µs,\\s+p99=([0-9]+)µs', line)\n        if m:\n            name, p50, p90, p99 = m.groups()\n            # Extract optional count, mean, max\n            count = int(re.search(r'count=([0-9]+)', line).group(1) or 1) if 'count=' in line else 1\n            mean = float(re.search(r'mean=([0-9.]+)µs', line).group(1) or p50) if 'mean=' in line else float(p50)\n            maxx = int(re.search(r'max=([0-9]+)µs', line).group(1) or p99) if 'max=' in line else int(p99)\n            metrics[name] = {'p50_us':int(p50), 'p90_us':int(p90), 'p99_us':int(p99), 'count':count, 'mean_us':mean, 'max_us':maxx}\n\nresult = {'timestamp': datetime.utcnow().isoformat()+'Z', 'stages': metrics}\nprint(json.dumps(result, indent=2))\nPARSE_EOF\n\nRAW_METRICS=\"${METRICS_TMPDIR}/metrics_raw.json\"\npython3 \"${PARSE_SCRIPT}\" \"${METRICS_LOG}\" > \"${RAW_METRICS}\"\necho '[metrics-report] ✓ Metrics extraction complete'\n\n# Step 3: Generate comprehensive report with statistics and recommendations\necho '[metrics-report] Generating report with statistics and recommendations...'\nREPORT_SCRIPT=\"${METRICS_TMPDIR}/report.py\"\ncat > \"${REPORT_SCRIPT}\" << 'REPORT_EOF'\nimport json, sys\nfrom datetime import datetime\n\nwith open(sys.argv[1]) as f:\n    current = json.load(f)\nstages = [(n, d) for n, d in current['stages'].items()]\nstages.sort(key=lambda x: x[1]['p99_us'], reverse=True)\n\nstage_list = []\nfor name, data in stages:\n    stage_list.append({\n        'name': name,\n        'count': data['count'],\n        'p50_ms': round(data['p50_us']/1000, 3),\n        'p90_ms': round(data['p90_us']/1000, 3),\n        'p99_ms': round(data['p99_us']/1000, 3),\n        'mean_ms': round(data['mean_us']/1000, 3),\n        'max_ms': round(data['max_us']/1000, 3),\n        'p50_us': data['p50_us'],\n        'p90_us': data['p90_us'],\n        'p99_us': data['p99_us'],\n        'mean_us': data['mean_us'],\n        'max_us': data['max_us'],\n    })\n\nthreshold_ms = float(sys.argv[2] or 5000)\nbaseline_path = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != 'null' else None\nbaseline = None\nif baseline_path:\n    try:\n        with open(baseline_path) as f:\n            baseline = json.load(f)\n    except:\n        print(f'[metrics-report] WARNING: Could not load baseline {baseline_path}', file=sys.stderr)\n\nsummary = {\n    'total_stages': len(stage_list),\n    'total_time_ms': round(sum(s['mean_ms'] for s in stage_list), 3),\n    'slowest_stage': stage_list[0]['name'] if stage_list else None,\n    'slowest_stage_p99_ms': stage_list[0]['p99_ms'] if stage_list else None,\n    'fastest_stage': stage_list[-1]['name'] if stage_list else None,\n    'fastest_stage_p99_ms': stage_list[-1]['p99_ms'] if stage_list else None,\n}\n\nrecs = []\nfor stage in stage_list:\n    if stage['p99_ms'] > threshold_ms:\n        recs.append({'type': 'threshold_exceeded', 'stage': stage['name'], 'severity': 'warning', 'message': f\"p99={stage['p99_ms']:.1f}ms exceeds {threshold_ms}ms\", 'suggested_action': f\"Investigate {stage['name']}\"})\n\nif len(stage_list) > 1:\n    median = sorted([s['p99_ms'] for s in stage_list])[len(stage_list)//2]\n    for stage in stage_list:\n        if stage['p99_ms'] > median * 3:\n            recs.append({'type': 'performance_hotspot', 'stage': stage['name'], 'severity': 'critical', 'message': f\"{stage['p99_ms']/median:.1f}x slower than median\", 'suggested_action': f\"Profile and optimize {stage['name']}\"})\n        if stage['p50_ms'] > 0 and stage['p99_ms']/stage['p50_ms'] > 5:\n            recs.append({'type': 'high_variance', 'stage': stage['name'], 'severity': 'info', 'message': f\"p99/p50={stage['p99_ms']/stage['p50_ms']:.1f}x variance\", 'suggested_action': f\"Investigate latency variance in {stage['name']}\"})\n\ncomparison = None\nif baseline:\n    comparison = {'compared_to': baseline_path, 'comparison_timestamp': baseline.get('timestamp'), 'stages': []}\n    baseline_stages = {s['name']: s for s in baseline.get('stages', [])}\n    for stage in stage_list:\n        if stage['name'] in baseline_stages:\n            b = baseline_stages[stage['name']]\n            p50_chg = ((stage['p50_ms'] - b['p50_ms']) / b['p50_ms'] * 100) if b['p50_ms'] > 0 else 0\n            p90_chg = ((stage['p90_ms'] - b['p90_ms']) / b['p90_ms'] * 100) if b['p90_ms'] > 0 else 0\n            p99_chg = ((stage['p99_ms'] - b['p99_ms']) / b['p99_ms'] * 100) if b['p99_ms'] > 0 else 0\n            is_reg = stage['p99_ms'] > b['p99_ms'] * 1.1\n            status = 'degraded' if is_reg else ('improved' if p99_chg < -5 else 'stable')\n            comparison['stages'].append({\n                'name': stage['name'],\n                'p50_change_percent': round(p50_chg, 2),\n                'p90_change_percent': round(p90_chg, 2),\n                'p99_change_percent': round(p99_chg, 2),\n                'regression': is_reg,\n                'direction': status\n            })\n            if is_reg:\n                recs.append({'type': 'regression_detected', 'stage': stage['name'], 'severity': 'warning', 'message': f\"p99 {p99_chg:+.1f}% vs baseline\", 'suggested_action': f\"Review recent changes to {stage['name']}\"})\n\nreport = {\n    'metadata': {'timestamp': datetime.utcnow().isoformat()+'Z', 'stages_collected': len(stage_list), 'threshold_ms': threshold_ms},\n    'stages': stage_list,\n    'summary': summary,\n    'recommendations': recs\n}\nif comparison:\n    report['baseline_comparison'] = comparison\n\nprint(json.dumps(report, indent=2))\nREPORT_EOF\n\nFINAL_REPORT=\"${METRICS_TMPDIR}/report.json\"\npython3 \"${REPORT_SCRIPT}\" \"${RAW_METRICS}\" \"${threshold_ms}\" \"${compare_to}\" > \"${FINAL_REPORT}\"\necho '[metrics-report] ✓ Report generation complete'\n\n# Step 4: Format and output report in requested format\necho '[metrics-report] Formatting output as ${output_format}...'\ncase \"${output_format}\" in\n  json)\n    cat \"${FINAL_REPORT}\"\n    if [ -n \"${save_to}\" ] && [ \"${save_to}\" != \"null\" ]; then\n      mkdir -p \"$(dirname ${save_to})\"\n      cp \"${FINAL_REPORT}\" \"${save_to}\"\n      echo \"\" >&2\n      echo \"[metrics-report] ✓ Report saved to ${save_to}\" >&2\n    fi\n    ;;\n  text)\n    python3 <<'TEXT_EOF' \"${FINAL_REPORT}\"\nimport json, sys\nwith open(sys.argv[1]) as f: d=json.load(f)\nprint(f\"\\n=== CARGO-CICD Metrics Report ===\")\nprint(f\"Generated: {d['metadata']['timestamp']}\")\nprint(f\"\\n--- Per-Stage Statistics (sorted by p99) ---\")\nprint(f\"{'Stage':<15} {'Count':>8} {'p50(ms)':>10} {'p90(ms)':>10} {'p99(ms)':>10} {'Mean(ms)':>10} {'Max(ms)':>10}\")\nprint(\"-\" * 75)\nfor s in d['stages']:\n    print(f\"{s['name']:<15} {s['count']:>8} {s['p50_ms']:>10.3f} {s['p90_ms']:>10.3f} {s['p99_ms']:>10.3f} {s['mean_ms']:>10.3f} {s['max_ms']:>10.3f}\")\nprint(f\"\\n--- Summary ---\")\nsum_d = d['summary']\nprint(f\"Total Stages: {sum_d['total_stages']}\")\nprint(f\"Total Pipeline Time: {sum_d['total_time_ms']:.3f}ms\")\nprint(f\"Slowest Stage: {sum_d['slowest_stage']} (p99={sum_d['slowest_stage_p99_ms']:.3f}ms)\")\nprint(f\"Fastest Stage: {sum_d['fastest_stage']} (p99={sum_d['fastest_stage_p99_ms']:.3f}ms)\")\nif 'baseline_comparison' in d:\n    print(f\"\\n--- Baseline Comparison ---\")\n    print(f\"Compared to: {d['baseline_comparison']['compared_to']}\")\n    print(f\"{'Stage':<15} {'p50 Δ%':>10} {'p90 Δ%':>10} {'p99 Δ%':>10} {'Status':>12}\")\n    print(\"-\" * 57)\n    for s in d['baseline_comparison']['stages']:\n        status = 'REGRESSION' if s['regression'] else s['direction'].upper()\n        print(f\"{s['name']:<15} {s['p50_change_percent']:>10.1f} {s['p90_change_percent']:>10.1f} {s['p99_change_percent']:>10.1f} {status:>12}\")\nif d['recommendations']:\n    print(f\"\\n--- Recommendations ---\")\n    for r in d['recommendations']:\n        print(f\"[{r['severity'].upper()}] {r['type'].replace('_', ' ').title()}\")\n        print(f\"  Stage: {r['stage']}\")\n        print(f\"  Message: {r['message']}\")\n        print(f\"  Action: {r['suggested_action']}\")\nTEXT_EOF\n    ;;\n  html)\n    python3 <<'HTML_EOF' \"${FINAL_REPORT}\" \"${save_to}\"\nimport json, sys\nwith open(sys.argv[1]) as f: d=json.load(f)\nhtml=f\"\"\"<!DOCTYPE html>\n<html><head><meta charset=UTF-8><meta name=viewport content='width=device-width'><title>Metrics Report</title>\n<style>\nbody {{ font: 13px -apple-system, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}\n.container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,.1); }}\nh1 {{ color: #2c3e50; margin-top: 0; }} h2 {{ color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-top: 30px; }}\n.metadata {{ background: #ecf0f1; padding: 15px; border-radius: 4px; margin: 20px 0; }}\ntable {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}\nth, td {{ padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }}\nth {{ background: #3498db; color: white; font-weight: bold; }} tr:hover {{ background: #f9f9f9; }}\ntd:first-child {{ text-align: left; }}\n.severity-warning {{ background: #fff3cd; border-left: 4px solid #f39c12; padding: 15px; margin: 10px 0; }}\n.severity-critical {{ background: #ffe6e6; border-left: 4px solid #e74c3c; padding: 15px; margin: 10px 0; }}\n.severity-info {{ background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 10px 0; }}\n.summary-box {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }}\n.summary-item {{ background: #f8f9fa; padding: 15px; border-radius: 4px; }}\n.summary-label {{ color: #666; font-size: 0.9em; }} .summary-value {{ font-size: 1.5em; font-weight: bold; color: #2c3e50; }}\n</style></head><body><div class=container>\n<h1>📊 Metrics Report - cargo-cicd</h1>\n<div class=metadata>Generated: {d['metadata']['timestamp']} | Stages: {d['metadata']['stages_collected']} | Threshold: {d['metadata']['threshold_ms']}ms</div>\n<h2>Summary</h2>\n<div class=summary-box>\n<div class=summary-item><div class=summary-label>Total Stages</div><div class=summary-value>{d['summary']['total_stages']}</div></div>\n<div class=summary-item><div class=summary-label>Total Time</div><div class=summary-value>{d['summary']['total_time_ms']:.1f}ms</div></div>\n<div class=summary-item><div class=summary-label>Slowest Stage</div><div class=summary-value>{d['summary']['slowest_stage']}</div><div style='font-size: 0.9em; color: #666;'>{d['summary']['slowest_stage_p99_ms']:.1f}ms p99</div></div>\n<div class=summary-item><div class=summary-label>Fastest Stage</div><div class=summary-value>{d['summary']['fastest_stage']}</div><div style='font-size: 0.9em; color: #666;'>{d['summary']['fastest_stage_p99_ms']:.1f}ms p99</div></div>\n</div>\n<h2>Per-Stage Statistics</h2>\n<table><thead><tr><th>Stage</th><th>Count</th><th>p50 (ms)</th><th>p90 (ms)</th><th>p99 (ms)</th><th>Mean (ms)</th><th>Max (ms)</th></tr></thead><tbody>\n\"\"\"\nfor s in d['stages']:\n    bg = ' style=\"background: #ffe6e6;\"' if s['p99_ms'] > d['metadata']['threshold_ms'] else (' style=\"background: #fff9e6;\"' if s['p99_ms'] > d['metadata']['threshold_ms'] * 0.5 else '')\n    html += f\"<tr{bg}><td>{s['name']}</td><td>{s['count']}</td><td>{s['p50_ms']:.3f}</td><td>{s['p90_ms']:.3f}</td><td>{s['p99_ms']:.3f}</td><td>{s['mean_ms']:.3f}</td><td>{s['max_ms']:.3f}</td></tr>\\n\"\nhtml += \"</tbody></table>\\n\"\nif 'baseline_comparison' in d:\n    html += f\"<h2>Baseline Comparison</h2><p>Compared to: <code>{d['baseline_comparison']['compared_to']}</code></p>\\n<table><thead><tr><th>Stage</th><th>p50 Δ%</th><th>p90 Δ%</th><th>p99 Δ%</th><th>Status</th></tr></thead><tbody>\\n\"\n    for s in d['baseline_comparison']['stages']:\n        status_class = f\"status-{s['direction']}\"\n        html += f\"<tr><td>{s['name']}</td><td>{s['p50_change_percent']:+.1f}</td><td>{s['p90_change_percent']:+.1f}</td><td>{s['p99_change_percent']:+.1f}</td><td><span style='color: {\\\"#27ae60\\\" if s['direction']==\"improved\" else (\\\"#e74c3c\\\" if s['direction']==\"degraded\" else \\\"#95a5a6\\\")}'>{s['direction'].upper()}</span></td></tr>\\n\"\n    html += \"</tbody></table>\\n\"\nif d['recommendations']:\n    html += \"<h2>Recommendations</h2>\\n\"\n    for r in d['recommendations']:\n        html += f\"<div class='severity-{r['severity']}'><strong>[{r['severity'].upper()}] {r['type'].replace('_', ' ').title()}</strong><div>Stage: {r['stage']}</div><div>Message: {r['message']}</div><div style='font-style: italic; color: #555; margin-top: 5px;'>💡 {r['suggested_action']}</div></div>\\n\"\nhtml += \"</div></body></html>\"\nprint(html)\nif len(sys.argv) > 2 and sys.argv[2] and sys.argv[2] != 'null':\n    import os\n    os.makedirs(os.path.dirname(sys.argv[2]), exist_ok=True)\n    with open(sys.argv[2], 'w') as f:\n        f.write(html)\n        print(f\"\\n[metrics-report] ✓ HTML report saved to {sys.argv[2]}\", file=__import__('sys').stderr)\nHTML_EOF\n    ;;\nesac\n\necho ''\necho '[metrics-report] ✓ Report complete'\n"
+    },
     "steps": [
       {
         "name": "setup_environment",
-        "description": "Configure Rust logging to capture metrics tracing output",
-        "environment": {
-          "RUST_LOG": "${log_level}",
-          "RUST_BACKTRACE": "1"
-        }
+        "description": "Configure Rust logging and create temporary working directory for intermediate files"
       },
       {
         "name": "run_pipeline",
-        "description": "Run cargo-cicd with advanced feature (enables MetricsCollector)",
-        "command": "cargo run --features advanced --quiet",
-        "capture_output": true,
-        "timeout_seconds": 300
+        "description": "Execute cargo-cicd with advanced feature enabled to enable MetricsCollector and capture tracing output"
       },
       {
         "name": "extract_metrics",
-        "description": "Parse structured metric events from output",
-        "processor": "parse_metrics_output"
+        "description": "Parse histogram data from MetricsCollector output using regex pattern matching on stage metric lines"
       },
       {
         "name": "aggregate_histograms",
-        "description": "Aggregate histogram data by stage",
-        "processor": "aggregate_stage_metrics"
+        "description": "Convert microsecond measurements to milliseconds, calculate summary statistics (total, slowest, fastest)"
       },
       {
         "name": "calculate_deltas",
-        "description": "If compare_to provided, calculate trend analysis",
-        "condition": "${compare_to != null}",
-        "processor": "calculate_trend_deltas"
+        "description": "If compare_to baseline provided, compute percentage changes and detect regressions (>10% slower)"
       },
       {
         "name": "generate_report",
-        "description": "Format metrics into selected output format",
-        "processor": "format_report"
+        "description": "Build comprehensive report with per-stage metrics, summary stats, and actionable recommendations"
+      },
+      {
+        "name": "generate_recommendations",
+        "description": "Analyze metrics and produce recommendations: threshold_exceeded, performance_hotspot, high_variance, regression_detected"
+      },
+      {
+        "name": "format_output",
+        "description": "Render report in requested format (text table, JSON object, or standalone HTML)"
       },
       {
         "name": "save_report",
-        "description": "Persist report if save_to path provided",
-        "condition": "${save_to != null}",
-        "processor": "persist_report"
+        "description": "Persist report to file if save_to parameter provided, creating parent directories as needed"
       }
     ]
   },
   "processors": {
     "parse_metrics_output": {
-      "description": "Extract stage latency metrics from MetricsCollector.report() output format",
-      "input": "stdout from cargo run",
-      "pattern": "^([a-z_]+):\\s+p50=([0-9]+)µs,\\s+p90=([0-9]+)µs,\\s+p99=([0-9]+)µs",
+      "description": "Extract stage latency metrics from MetricsCollector.report() output by parsing tracing logs. MetricsCollector emits one line per stage in format: 'stage_name: p50=XXXXµs, p90=XXXXµs, p99=XXXXµs'",
+      "input": "stdout from 'cargo run --features advanced' - contains tracing output from RUST_LOG",
+      "pattern": "^([a-z_]+):\\s+p50=([0-9]+)µs,\\s+p90=([0-9]+)µs,\\s+p99=([0-9]+)µs(?:.*count=([0-9]+))?(?:.*mean=([0-9.]+)µs)?(?:.*max=([0-9]+)µs)?",
+      "example_line": "scan: p50=12500µs, p90=18200µs, p99=22800µs, count=42, mean=13100.5µs, max=45000µs",
+      "implementation": "Use regex to extract stage name and percentile values (mandatory), plus optional count, mean, max fields. Convert all values from microseconds to internal representation. Aggregate multiple occurrences of same stage by merging histograms.",
       "output": {
         "stage_events": [
           {
             "stage": "string - pipeline stage name (e.g., 'scan', 'test', 'publish')",
-            "elapsed_ms": "integer - converted from microseconds to milliseconds",
-            "percentiles": {
-              "p50": "integer - 50th percentile latency in ms",
-              "p90": "integer - 90th percentile latency in ms",
-              "p99": "integer - 99th percentile latency in ms"
-            }
+            "p50_us": "integer - 50th percentile in microseconds",
+            "p90_us": "integer - 90th percentile in microseconds",
+            "p99_us": "integer - 99th percentile in microseconds",
+            "count": "integer - number of samples recorded in histogram",
+            "mean_us": "float - arithmetic mean in microseconds",
+            "max_us": "integer - maximum recorded value in microseconds"
           }
         ]
       }
     },
     "aggregate_stage_metrics": {
-      "description": "Compute aggregate statistics for each stage from histogram data",
-      "logic": "For each stage histogram: extract count, p50, p90, p99, mean, max. Convert from microseconds to milliseconds for readability.",
+      "description": "Compute aggregate statistics for each stage from histogram data. Sort stages by p99 latency descending to highlight bottlenecks. Calculate summary metrics.",
+      "logic": "For each unique stage name from parsed metrics: convert p50/p90/p99/mean/max from microseconds to milliseconds. Preserve original microsecond values for detailed analysis. Sort stages by p99_ms descending. Calculate total_pipeline_ms (sum of means), identify slowest (highest p99) and fastest (lowest p99) stages.",
+      "edge_cases": [
+        "If count=0 for a stage, mark as no-data",
+        "If mean is absent, estimate from p50",
+        "If only p99 is available (count=1), use p99 as p50/p90 proxy",
+        "Handle very large values (up to 60s = 60,000,000µs)"
+      ],
       "output": {
         "stages": [
           {
-            "name": "string - stage name",
+            "name": "string - stage name (e.g., 'scan', 'test', 'publish')",
             "count": "integer - number of measurements recorded",
-            "p50_ms": "number - median latency",
-            "p90_ms": "number - 90th percentile latency",
-            "p99_ms": "number - 99th percentile latency",
-            "mean_ms": "number - arithmetic mean latency",
-            "max_ms": "number - maximum recorded latency",
-            "min_ms": "number - minimum recorded latency"
+            "p50_ms": "number - median latency in milliseconds",
+            "p90_ms": "number - 90th percentile latency in milliseconds",
+            "p99_ms": "number - 99th percentile latency in milliseconds",
+            "mean_ms": "number - arithmetic mean latency in milliseconds",
+            "max_ms": "number - maximum recorded latency in milliseconds",
+            "p50_us": "integer - median latency in microseconds (preserved for detail)",
+            "p90_us": "integer - 90th percentile in microseconds",
+            "p99_us": "integer - 99th percentile in microseconds",
+            "mean_us": "float - arithmetic mean in microseconds",
+            "max_us": "integer - maximum in microseconds"
           }
         ],
         "summary": {
-          "total_pipeline_ms": "number - sum of mean latencies across all stages",
+          "total_stages": "integer - count of unique stages with metrics",
+          "total_time_ms": "number - sum of mean latencies across all stages (approximation of total pipeline time)",
           "slowest_stage": "string - stage name with highest p99 latency",
+          "slowest_stage_p99_ms": "number - p99 of slowest stage in milliseconds",
           "fastest_stage": "string - stage name with lowest p99 latency",
+          "fastest_stage_p99_ms": "number - p99 of fastest stage in milliseconds",
           "total_measurements": "integer - sum of count across all stages",
           "timestamp": "ISO 8601 timestamp of report generation"
         }
       }
     },
     "calculate_trend_deltas": {
-      "description": "Compare current metrics to previous baseline file",
-      "logic": "For each stage in current metrics: lookup stage in previous metrics and compute (current - previous) / previous * 100 for percent change. Mark regressions (>10% slower) and improvements (>10% faster).",
+      "description": "Compare current metrics to previous baseline file. Load baseline JSON, match stages by name, compute percentage deltas, and identify regressions vs improvements.",
+      "logic": "For each stage in current metrics: (1) lookup stage in baseline by name; (2) compute delta_pct = (current - baseline) / baseline * 100 for p50, p90, p99; (3) mark as regression if p99_delta_pct > +10%, improved if < -10%, stable otherwise; (4) emit comparison records with delta percentages and direction.",
+      "file_format": "Baseline file is JSON export from prior run with structure: {stages: [{name, p50_ms, p90_ms, p99_ms, ...}], timestamp, ...}",
+      "regression_threshold": "10% - if current p99 > baseline p99 * 1.10, flag as regression",
+      "improvement_threshold": "-10% - if current p99 < baseline p99 * 0.90, flag as improved",
       "input": {
-        "current_metrics": "object from aggregate_stage_metrics",
-        "previous_metrics": "JSON file from compare_to parameter"
+        "current_metrics": "aggregated metrics from current run with stage_list",
+        "baseline_path": "file path from compare_to parameter",
+        "baseline_data": "parsed JSON from baseline_path"
       },
       "output": {
         "trends": [
           {
             "stage": "string - stage name",
-            "p50_delta_pct": "number - percent change in p50 latency",
-            "p90_delta_pct": "number - percent change in p90 latency",
-            "p99_delta_pct": "number - percent change in p99 latency",
-            "status": "enum - 'regression' (>10% slower), 'stable' (-10% to +10%), 'improved' (>10% faster)",
+            "p50_delta_pct": "number - percent change since baseline (negative=faster, positive=slower)",
+            "p90_delta_pct": "number - percent change since baseline",
+            "p99_delta_pct": "number - percent change since baseline (primary metric for regression detection)",
+            "regression": "boolean - true if p99 > baseline_p99 * 1.1",
+            "direction": "string enum - 'improved' (p99_delta_pct < -5), 'degraded' (p99_delta_pct > +5), or 'stable' (between -5 and +5)",
+            "previous_p50_ms": "number - baseline p50 from previous run",
+            "previous_p90_ms": "number - baseline p90",
             "previous_p99_ms": "number - baseline p99 from previous run",
+            "current_p50_ms": "number - current p50",
+            "current_p90_ms": "number - current p90",
             "current_p99_ms": "number - current p99"
           }
         ]
       }
     },
     "format_report": {
-      "description": "Render aggregated metrics in requested output format",
+      "description": "Render aggregated metrics in requested output format. Each format is self-contained (text is readable as-is, JSON is parseable, HTML is viewable in browsers)",
       "output_formats": {
         "text": {
-          "description": "Human-readable text report with aligned columns",
-          "example": "=== CARGO-CICD Pipeline Metrics Report ===\nGenerated: 2026-06-14T10:45:22Z\n\nPer-Stage Latency Distribution:\n  Stage      Count  P50(ms)  P90(ms)  P99(ms)  Mean(ms)  Max(ms)\n  ─────────────────────────────────────────────────────────────\n  scan         42    12.5     18.2     22.8     13.1      45.0\n  test         42    285.0    510.0    680.0    315.2     920.0\n  publish       8     45.0     75.0     95.0     52.3      120.0\n\nSummary:\n  Total Pipeline Time: 380.6 ms (sum of means)\n  Slowest Stage: test (p99=680.0ms)\n  Fastest Stage: scan (p99=22.8ms)\n  Total Measurements: 92\n\nRecommendations:\n  - Stage 'test' exceeds threshold (5000ms): 680.0ms p99\n    Investigate: High variance between p50 (285ms) and p99 (680ms) suggests outlier tests"
+          "description": "Human-readable text report with aligned columns, suitable for terminal output and logs",
+          "features": [
+            "Header with timestamp and stage count",
+            "Per-stage table sorted by p99 descending (slowest first)",
+            "Columns: Stage, Count, p50(ms), p90(ms), p99(ms), Mean(ms), Max(ms)",
+            "Summary section: total stages, total time, slowest/fastest stage names and values",
+            "Baseline comparison table (if compare_to provided): Stage, p50Δ%, p90Δ%, p99Δ%, Status",
+            "Recommendations section with [SEVERITY] prefix for each item"
+          ],
+          "example": "=== CARGO-CICD Pipeline Metrics Report ===\nGenerated: 2026-06-14T10:45:22Z\nStages collected: 3\n\n--- Per-Stage Statistics ---\nStage          Count     p50(ms)     p90(ms)     p99(ms)    Mean(ms)    Max(ms)\n--------------------------------------------------------------------------\ntest              42      285.000     510.000     680.000     315.200     920.000\npublish            8       45.000      75.000      95.000      52.300     120.000\nscan              42       12.500      18.200      22.800      13.100      45.000\n\n--- Summary ---\nTotal Stages: 3\nTotal Time: 380.600ms\nSlowest Stage: test (680.000ms p99)\nFastest Stage: scan (22.800ms p99)\n\n--- Baseline Comparison ---\nCompared to: metrics/2026-06-13.json\nStage          p50 Δ%     p90 Δ%     p99 Δ%       Status\n-------------------------------------------------------\ntest             +2.5      +5.0      +8.2       STABLE\npublish          -10.0     -8.0      -5.0       IMPROVED\n\n--- Recommendations ---\n[INFO] high_variance\n  Stage: test\n  Message: Stage 'test' has high variance (p99/p50 = 2.4x)\n  Action: Investigate source of latency variance; consider caching or pre-warming"
         },
         "json": {
-          "description": "Structured JSON for programmatic consumption and storage",
-          "example": {
-            "report_version": "1.0",
-            "generated_at": "2026-06-14T10:45:22Z",
+          "description": "Structured JSON for programmatic consumption, persistence, and historical comparison. Suitable for piping to jq, storing in databases, or loading as baseline for future runs.",
+          "schema": {
+            "metadata": {
+              "timestamp": "ISO 8601 UTC timestamp of report generation",
+              "stages_collected": "count of unique stages with metrics",
+              "threshold_ms": "alert threshold used during report generation"
+            },
             "stages": [
               {
-                "name": "scan",
-                "count": 42,
-                "p50_ms": 12.5,
-                "p90_ms": 18.2,
-                "p99_ms": 22.8,
-                "mean_ms": 13.1,
-                "max_ms": 45.0,
-                "min_ms": 8.0
+                "name": "stage identifier",
+                "count": "sample count in histogram",
+                "p50_ms": "median in milliseconds (3 decimal places)",
+                "p90_ms": "90th percentile in milliseconds",
+                "p99_ms": "99th percentile in milliseconds",
+                "mean_ms": "arithmetic mean in milliseconds",
+                "max_ms": "maximum observed value in milliseconds",
+                "p50_us": "median in microseconds (original units)",
+                "p90_us": "90th percentile in microseconds",
+                "p99_us": "99th percentile in microseconds",
+                "mean_us": "mean in microseconds",
+                "max_us": "max in microseconds"
               }
             ],
             "summary": {
-              "total_pipeline_ms": 380.6,
-              "slowest_stage": "test",
-              "fastest_stage": "scan",
-              "total_measurements": 92
+              "total_stages": "number of unique stages",
+              "total_time_ms": "sum of all stage means",
+              "slowest_stage": "stage name",
+              "slowest_stage_p99_ms": "p99 of slowest stage",
+              "fastest_stage": "stage name",
+              "fastest_stage_p99_ms": "p99 of fastest stage"
             },
-            "trends": null,
+            "baseline_comparison": {
+              "compared_to": "file path of baseline",
+              "comparison_timestamp": "baseline timestamp",
+              "stages": [
+                {
+                  "name": "stage name",
+                  "p50_change_percent": "delta percentage",
+                  "p90_change_percent": "delta percentage",
+                  "p99_change_percent": "delta percentage",
+                  "regression": "boolean",
+                  "direction": "improved|degraded|stable"
+                }
+              ]
+            },
             "recommendations": [
               {
-                "severity": "info",
-                "stage": "test",
-                "message": "High variance detected (cv=0.45)"
+                "type": "performance_hotspot|high_variance|threshold_exceeded|regression_detected",
+                "stage": "stage name",
+                "severity": "info|warning|critical",
+                "message": "human-readable description",
+                "metric_value": "relevant metric",
+                "suggested_action": "actionable recommendation"
               }
+            ]
+          },
+          "example": {
+            "metadata": {"timestamp": "2026-06-14T10:45:22Z", "stages_collected": 3, "threshold_ms": 5000},
+            "stages": [
+              {"name": "test", "count": 42, "p50_ms": 285.0, "p90_ms": 510.0, "p99_ms": 680.0, "mean_ms": 315.2, "max_ms": 920.0, "p50_us": 285000, "p90_us": 510000, "p99_us": 680000, "mean_us": 315200, "max_us": 920000}
+            ],
+            "summary": {"total_stages": 3, "total_time_ms": 380.6, "slowest_stage": "test", "slowest_stage_p99_ms": 680.0, "fastest_stage": "scan", "fastest_stage_p99_ms": 22.8},
+            "recommendations": [
+              {"type": "high_variance", "stage": "test", "severity": "info", "message": "High variance (p99/p50=2.4x)", "suggested_action": "Investigate latency variance"}
             ]
           }
         },
         "html": {
-          "description": "Rendered HTML with charts and interactive tables",
+          "description": "Standalone HTML document with embedded CSS and responsive design. Self-contained (no external dependencies) and viewable in any modern browser. Suitable for sharing reports and archiving.",
           "features": [
-            "Responsive table of per-stage metrics",
-            "Bar chart comparing p50/p90/p99 across stages",
-            "Trend sparklines if compare_to provided",
-            "Color-coded alerts for threshold exceedances",
-            "Exportable as PDF or PNG"
+            "Responsive grid layout (adapts to mobile/tablet/desktop)",
+            "Header with execution metadata (timestamp, stage count, threshold)",
+            "Summary cards: Total Stages, Total Time, Slowest Stage, Fastest Stage",
+            "Per-stage metrics table with color coding (green <50% threshold, yellow 50-100%, red >100%)",
+            "Baseline comparison table if available (status indicators: IMPROVED/STABLE/DEGRADED/REGRESSION)",
+            "Recommendations section with severity-based styling (info/warning/critical)",
+            "Inline CSS for styling (no external stylesheets required)",
+            "Embedded emojis for visual indicators"
+          ],
+          "color_scheme": {
+            "healthy": "#27ae60 (green) for p99 < 50% of threshold",
+            "caution": "#f39c12 (yellow) for p99 between 50-100% of threshold",
+            "alert": "#e74c3c (red) for p99 > threshold",
+            "improved": "#27ae60 (green) for >10% improvement vs baseline",
+            "degraded": "#e74c3c (red) for >10% regression vs baseline",
+            "stable": "#95a5a6 (gray) for ±10% of baseline"
+          },
+          "sections": [
+            "Page header with title and execution metadata",
+            "Summary box grid (4 cards) showing key metrics",
+            "Per-stage statistics table (sorted by p99 descending)",
+            "Baseline comparison table (if compare_to provided)",
+            "Recommendations alerts with [SEVERITY] badges"
           ]
         }
       }
