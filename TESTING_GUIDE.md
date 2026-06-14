@@ -1690,35 +1690,100 @@ fn test_autonomic_policy_target_pressure() {
 }
 ```
 
-### Pattern 5: Test Evidence-Gate with Oracle Fallback
+### Example 5: Complete Evidence-Gate Test with Oracle Fallback
+
+This example demonstrates proper evidence-gate testing with graceful oracle fallback:
 
 ```rust
+use cargo_cicd::evidence::{
+    assert_wpm_verdict, emit_xes, ExpectedWpmVerdict,
+    ProcessEvent, WpmEvidenceOracle,
+};
+use tempfile::TempDir;
+
 #[test]
-fn test_evidence_gate_with_fallback() {
-    use cargo_cicd::evidence::{
-        assert_wpm_verdict, emit_xes, ExpectedWpmVerdict,
-        ProcessEvent, WpmEvidenceOracle,
-    };
-    use tempfile::TempDir;
-    
+fn evidence_gate_test_changed_accepted() {
+    // Step 1: Create temporary directory for XES output
     let dir = TempDir::new().unwrap();
+    
+    // Step 2: Emit process evidence
     let events = vec![ProcessEvent::new("test changed", "PASS")];
     let xes_path = dir.path().join("events.xes");
-    emit_xes(&events, &xes_path).expect("emit_xes");
+    emit_xes(&events, &xes_path)
+        .expect("emit_xes must succeed");
+    
+    // Step 3: Verify XES file exists before oracle invocation
+    assert!(
+        xes_path.exists(),
+        "XES file must exist on disk before oracle call (INVARIANT: E2)"
+    );
+    
+    // Step 4: Get the oracle
+    let oracle = WpmEvidenceOracle::new();
+    
+    // Step 5: Assert verdict (with graceful fallback)
+    if oracle.is_available() {
+        // Oracle installed: assert on actual verdict
+        eprintln!("Oracle available; checking actual verdict");
+        assert_wpm_verdict(
+            &oracle,
+            &xes_path,
+            &ExpectedWpmVerdict::Accept,
+        );
+    } else {
+        // Oracle not installed: assert Blocked (graceful degradation)
+        eprintln!("Oracle unavailable; graceful fallback to Blocked");
+        assert_wpm_verdict(
+            &oracle,
+            &xes_path,
+            &ExpectedWpmVerdict::Blocked,
+        );
+    }
+}
+
+/// Optional helper for tests that require the oracle
+fn absent_oracle_verdict(test_name: &str) -> ExpectedWpmVerdict {
+    if std::env::var("REQUIRE_WPM_ORACLE").as_deref() == Ok("1") {
+        panic!(
+            "REQUIRE_WPM_ORACLE=1 is set but wpm oracle is absent. \
+             Test '{}' cannot proceed without oracle. \
+             Ensure /Users/sac/wasm4pm/target/release/wpm exists.",
+            test_name
+        );
+    }
+    ExpectedWpmVerdict::Blocked
+}
+
+#[test]
+fn evidence_gate_with_required_oracle() {
+    let dir = TempDir::new().unwrap();
+    let events = vec![ProcessEvent::new("git close", "PASS")];
+    let xes_path = dir.path().join("events.xes");
+    emit_xes(&events, &xes_path).unwrap();
     
     let oracle = WpmEvidenceOracle::new();
     
+    // Use helper to enforce oracle presence if REQUIRE_WPM_ORACLE=1
     if oracle.is_available() {
-        // Oracle present: verify Accept
         assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Accept);
     } else {
-        // Oracle absent: verify Blocked (graceful degradation)
-        assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Blocked);
+        assert_wpm_verdict(
+            &oracle,
+            &xes_path,
+            &absent_oracle_verdict("evidence_gate_with_required_oracle"),
+        );
     }
 }
 ```
 
-### Pattern 6: Test Public Boundary (No Forbidden Terms)
+**Key Patterns:**
+- XES file must exist on disk BEFORE oracle invocation
+- Always check `oracle.is_available()` before asserting on actual verdicts
+- Use `absent_oracle_verdict()` helper to enforce oracle presence with `REQUIRE_WPM_ORACLE=1`
+- Accept `Blocked` as a valid verdict (oracle absence)
+- Include descriptive comments and eprintln! for debugging
+
+### Example 6: Testing Evidence Mutation (Negative Case)
 
 ```rust
 #[test]
