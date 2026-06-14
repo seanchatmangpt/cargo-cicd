@@ -107,9 +107,13 @@ impl VerbCommand for GitCloseVerb {
         let dirty_before = status.dirty_files.len() + status.untracked_files.len();
         if status.dirty_files.is_empty() && status.untracked_files.is_empty() {
             println!("tree is clean — phase already closed");
-            let event = ProcessEvent::new("git close", "PASS");
-            let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
-            if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+            let evidence_dir = crate::evidence::evidence_dir();
+            let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+            let (mut start_evt, t0) = ProcessEvent::started("git:close");
+            start_evt.case_id = Some(case_id.clone());
+            let mut complete_evt = ProcessEvent::completed("git:close", t0, "PASS");
+            complete_evt.case_id = Some(case_id);
+            if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
                 eprintln!("warning: evidence emission failed: {}", e);
             }
             return Ok(());
@@ -121,9 +125,13 @@ impl VerbCommand for GitCloseVerb {
         println!("stage and commit your changes before closing the phase.");
         println!();
         println!("refusing to hide unrelated dirty files — no silent batch commit.");
-        let event = ProcessEvent::new("git close", "FAIL");
-        let evidence_path = crate::evidence::evidence_dir().join("events.jsonl");
-        if let Err(e) = crate::evidence::emit_events_jsonl(&[event], &evidence_path) {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("git:close");
+        start_evt.case_id = Some(case_id.clone());
+        let mut complete_evt = ProcessEvent::completed("git:close", t0, "FAIL");
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         let _ = dirty_before;
