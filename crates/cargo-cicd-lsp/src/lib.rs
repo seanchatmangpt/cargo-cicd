@@ -7,6 +7,8 @@ pub mod server;
 pub mod state;
 pub mod watcher;
 
+pub use analyzers::run_all;
+
 /// Start the LSP server over stdin/stdout.
 pub fn run_server() {
     server::start();

@@ -34,7 +34,7 @@ pub trait CicdPolicy {
     fn name(&self) -> &'static str;
     fn enabled(&self) -> bool;
     fn mode(&self) -> PolicyMode;
-    fn evaluate(&self) -> PolicyResult;
+    fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult;
 }
 
 #[derive(Debug, Clone)]

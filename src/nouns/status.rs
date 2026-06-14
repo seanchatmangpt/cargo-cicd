@@ -97,6 +97,22 @@ impl StatusShowVerb {
             }
         }
 
+        // Run LSP analyzers and display findings.
+        let snapshot = cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(".");
+        let findings = cargo_cicd_lsp::run_all(&snapshot);
+
+        if !findings.is_empty() {
+            println!();
+            println!("diagnostic findings (from LSP analyzers)");
+            println!("=======================================");
+            for finding in findings {
+                println!("[{}] {}: {}", finding.severity, finding.code.as_str(), finding.message);
+                for repair in &finding.repairs {
+                    println!("  → {}", repair);
+                }
+            }
+        }
+
         Ok(())
     }
 }

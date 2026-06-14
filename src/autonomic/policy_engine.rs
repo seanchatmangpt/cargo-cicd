@@ -48,8 +48,8 @@ pub fn evaluate_policy(name: &str, mode: PolicyMode, signals: Vec<String>) -> Po
 /// Collect all active policy recommendations from the full policy registry.
 ///
 /// Returns one string per non-passing policy, suitable for display.
-pub fn run_suggestions(_state: &EngineState) -> Vec<String> {
-    run_with_mode(_state, AutonomicMode::Suggest)
+pub fn run_suggestions(state: &EngineState) -> Vec<String> {
+    run_with_mode(state, AutonomicMode::Suggest)
 }
 
 /// Run all registered policies under the given `mode` and return
@@ -61,7 +61,7 @@ pub fn run_suggestions(_state: &EngineState) -> Vec<String> {
 /// - `evidence_stale`          → runs `cargo cicd test changed` subprocess
 /// - `branch_behind`           → warning only (never auto-pull)
 /// - `publish_not_adjudicated` → warning only
-pub fn run_with_mode(_state: &EngineState, mode: AutonomicMode) -> Vec<String> {
+pub fn run_with_mode(state: &EngineState, mode: AutonomicMode) -> Vec<String> {
     let policies: Vec<Box<dyn CicdPolicy>> = vec![
         Box::new(GitPhaseDirtyPolicy),
         Box::new(TargetPressurePolicy::default()),
@@ -79,7 +79,7 @@ pub fn run_with_mode(_state: &EngineState, mode: AutonomicMode) -> Vec<String> {
             continue;
         }
 
-        let result = policy.evaluate();
+        let result = policy.evaluate(state);
         let non_passing = result.verdict != "pass";
 
         if non_passing {

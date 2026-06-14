@@ -236,6 +236,35 @@ impl CicdCode {
             Self::WpmVerdictKeyMismatch => "align court output schema with audit reader",
         }
     }
+
+    /// Returns the category of this diagnostic code extracted from its code string.
+    /// Categories are: GIT, EVIDENCE, GGEN, PUBLISH, SPEC, TARGET, TEST, TESTS, WPM, WORKSPACE, PIPELINE, CLOSE, PUBLIC.
+    pub fn category(&self) -> &'static str {
+        match self {
+            Self::BoundaryPublicApiLeak => "PUBLIC",
+            Self::BranchBehindRemote | Self::GitDirtyTreeBlocksClose | Self::GitUntrackedArtifacts => "GIT",
+            Self::EvidenceHardcodedTimestamp | Self::EvidenceMissing | Self::EvidenceMissingCaseId | Self::EvidenceStale | Self::ReceiptBeforeCourt => "EVIDENCE",
+            Self::FalseCloseRisk => "CLOSE",
+            Self::GgenCustomRegionMissing | Self::GgenDriftDetected | Self::GgenRenderedSurfaceDrift => "GGEN",
+            Self::NoCicdTomlFound | Self::PipelineStageFailed => "PIPELINE",
+            Self::PublicPrivateTermLeak => "PUBLIC",
+            Self::PublishDryRunWithoutReceipt | Self::PublishNoCicdToml | Self::PublishNoReceipt => "PUBLISH",
+            Self::SpecMissingForChange | Self::TaskDoneWithoutEvidence => "SPEC",
+            Self::TargetDirOversize | Self::TargetPruneRequiresDryRun => "TARGET",
+            Self::TestFailuresBlockClose | Self::TrybuildFixtureChanged => "TEST",
+            Self::TestsImpactUnknown | Self::TestsStaleMapping => "TESTS",
+            Self::WpmCommandUnavailable | Self::WpmRuntimeCourtNotInvoked | Self::WpmUnconfirmedReceiptCourt | Self::WpmVerdictKeyMismatch => "WPM",
+            Self::WorkspaceStructureInvalid => "WORKSPACE",
+        }
+    }
+
+    /// Returns all diagnostic codes that match the given category string.
+    pub fn codes_by_category(category: &str) -> Vec<Self> {
+        Self::all_variants()
+            .into_iter()
+            .filter(|c| c.category() == category)
+            .collect()
+    }
 }
 
 impl std::fmt::Display for CicdCode {
@@ -333,5 +362,46 @@ mod tests {
     #[test]
     fn all_variants_returns_non_empty() {
         assert!(!CicdCode::all_variants().is_empty());
+    }
+
+    #[test]
+    fn cicd_code_category_not_empty() {
+        for code in CicdCode::all_variants() {
+            assert!(!code.category().is_empty(), "Code {:?} has empty category", code);
+        }
+    }
+
+    #[test]
+    fn cicd_code_category_matches_codes_by_category() {
+        for code in CicdCode::all_variants() {
+            let cat = code.category();
+            assert!(
+                CicdCode::codes_by_category(cat).contains(&code),
+                "Code {:?} with category {} not found in codes_by_category",
+                code,
+                cat
+            );
+        }
+    }
+
+    #[test]
+    fn codes_by_category_returns_correct_codes() {
+        let git_codes = CicdCode::codes_by_category("GIT");
+        assert!(!git_codes.is_empty());
+        for code in git_codes {
+            assert_eq!(code.category(), "GIT");
+        }
+
+        let test_codes = CicdCode::codes_by_category("TEST");
+        assert!(!test_codes.is_empty());
+        for code in test_codes {
+            assert_eq!(code.category(), "TEST");
+        }
+    }
+
+    #[test]
+    fn codes_by_category_empty_for_unknown() {
+        let codes = CicdCode::codes_by_category("UNKNOWN_CATEGORY");
+        assert!(codes.is_empty());
     }
 }
