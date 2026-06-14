@@ -26,3 +26,13 @@ pub use git_status::GitStatusAdapter;
 pub use target_scanner::TargetScannerAdapter;
 pub use toolchain_detector::ToolchainDetector;
 pub use trybuild_detector::TrybuildDetector;
+
+// Advanced capability integrations (feature-gated)
+#[cfg(feature = "advanced")]
+pub mod cached;
+#[cfg(feature = "advanced")]
+pub mod fingerprint;
+#[cfg(feature = "advanced")]
+pub mod governance_patterns;
+#[cfg(feature = "advanced")]
+pub mod state_snapshot;

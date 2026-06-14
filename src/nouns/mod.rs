@@ -8,3 +8,7 @@ pub mod target;
 pub mod test;
 pub mod trybuild;
 pub mod workspace;
+
+// Advanced nouns (feature-gated)
+#[cfg(feature = "advanced")]
+pub mod analyze;

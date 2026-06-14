@@ -26,7 +26,7 @@ const SIGFIGS: u8 = 3;
 /// Durations are stored in microseconds in an HdrHistogram bounded to
 /// `1us..=60s` at three significant figures of precision, which keeps the
 /// memory footprint small while preserving accurate high-percentile values.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StageLatencies {
     stage: String,
     hist: Histogram<u64>,
