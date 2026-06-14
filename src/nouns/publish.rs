@@ -49,6 +49,11 @@ impl VerbCommand for PublishRunVerb {
         "Emit cicd.toml with current workspace state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("publish:run");
+        start_evt.case_id = Some(case_id.clone());
+
         let mut cicd = CicdToml::from_current_workspace();
         let target_gb = TargetScannerAdapter::total_size_gb(&cicd.workspace.target_dir);
         cicd.state.target_size_gb = (target_gb * 100.0).round() / 100.0;
@@ -73,7 +78,6 @@ impl VerbCommand for PublishRunVerb {
         //   RECEIPT_DOCTOR:accepted   — oracle admitted the receipt; proceed.
         //   WARN:oracle_unavailable   — wpm not found; proceed with a warning.
         //   (bail!)                   — oracle refused receipt; publish is blocked.
-        let evidence_dir = crate::evidence::evidence_dir();
         let publish_readiness = match crate::evidence::ReceiptDoctor::discover() {
             None => {
                 eprintln!(
@@ -112,6 +116,11 @@ impl VerbCommand for PublishRunVerb {
                     ReceiptDoctorVerdict::Refused { ref stdout, .. } => {
                         eprintln!("AndonPull: receipt doctor refused — publish blocked");
                         eprint!("{}", stdout);
+                        let mut complete_evt = ProcessEvent::completed("publish:run", t0, "FAIL");
+                        complete_evt.case_id = Some(case_id);
+                        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+                            eprintln!("warning: evidence emission failed: {}", e);
+                        }
                         return Err(clap_noun_verb::error::NounVerbError::execution_error(
                             "wpm receipt doctor refused admission — publish blocked".to_string(),
                         ));
@@ -144,6 +153,11 @@ impl VerbCommand for PublishRunVerb {
                 .unwrap_or(false);
             if !dry_run_status {
                 eprintln!("AndonPull: cargo publish --dry-run failed — publish blocked");
+                let mut complete_evt = ProcessEvent::completed("publish:run", t0, "FAIL");
+                complete_evt.case_id = Some(case_id);
+                if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+                    eprintln!("warning: evidence emission failed: {}", e);
+                }
                 return Err(clap_noun_verb::error::NounVerbError::execution_error(
                     "cargo publish --dry-run failed — crate is not publishable".to_string(),
                 ));
@@ -156,11 +170,9 @@ impl VerbCommand for PublishRunVerb {
         println!("  dirty:        {}", cicd.state.dirty);
         println!("  changed:      {}", cicd.state.changed_files);
 
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let mut event = ProcessEvent::new("publish:run", "PASS");
-        event.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[event], &evidence_dir) {
+        let mut complete_evt = ProcessEvent::completed("publish:run", t0, "PASS");
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
