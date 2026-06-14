@@ -291,6 +291,22 @@ static CICD_CATALOG: &[CicdCodeEntry] = &[
         repair: "run the manufacturing pipeline to produce fresh evidence for the task",
         clears_when: "admitted evidence exists for all completed tasks",
     },
+    CicdCodeEntry {
+        code: "CICD-TESTS-001",
+        title: "tests_stale_mapping",
+        severity: "Warning",
+        observed: "tests/changed_tests.rs",
+        repair: "run 'cargo cicd test changed' to refresh the test-to-source mapping",
+        clears_when: "test mapping is current with all changed source files",
+    },
+    CicdCodeEntry {
+        code: "CICD-TESTS-002",
+        title: "tests_impact_unknown",
+        severity: "Warning",
+        observed: "changed_files state in cicd.toml",
+        repair: "run 'cargo cicd test run' to determine test impact of recent changes",
+        clears_when: "all changed files have associated test coverage mapped",
+    },
 ];
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 ///
 /// Each test verifies that a public command parses, runs, and respects its
 /// invariants. These are integration tests against the compiled binary.
+mod verb_registry;
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use tempfile::TempDir;
