@@ -5,10 +5,10 @@ target_dir = "target"
 
 [state]
 dirty = true
-target_size_gb = 2.16
-changed_files = 3
-changed_tests = 0
-changed_trybuild_fixtures = 0
+target_size_gb = 3.61
+changed_files = 159
+changed_tests = 88
+changed_trybuild_fixtures = 61
 
 [target]
 max_size_gb = 20

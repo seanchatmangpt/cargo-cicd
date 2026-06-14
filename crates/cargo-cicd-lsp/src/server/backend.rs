@@ -32,7 +32,7 @@ impl Backend {
     }
 
     /// Run all analyzers against the workspace root and publish diagnostics.
-    async fn analyze_and_publish(&self, uri: &Url) {
+    async fn refresh_diagnostics(&self, uri: &Url) {
         let root = {
             let lock = self.workspace_root.read().await;
             lock.clone()
@@ -81,11 +81,15 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.analyze_and_publish(&params.text_document.uri).await;
+        self.refresh_diagnostics(&params.text_document.uri).await;
+    }
+
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        self.refresh_diagnostics(&params.text_document.uri).await;
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        self.analyze_and_publish(&params.text_document.uri).await;
+        self.refresh_diagnostics(&params.text_document.uri).await;
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
