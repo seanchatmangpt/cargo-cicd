@@ -1,0 +1,48 @@
+# CODEOWNERS — cargo-cicd
+#
+# Changes to these paths require review from a designated owner before merging.
+# GitHub enforces this automatically when branch protection requires CODEOWNERS review.
+#
+# Format: <path pattern>  <@user or @org/team>
+# Patterns are evaluated in order; last match wins.
+
+# ── Default: all files ─────────────────────────────────────────────────────────
+*                              @seanchatmangpt
+
+# ── Level 5 engine internals ───────────────────────────────────────────────────
+# EngineState is the aggregate root; changes here affect all noun/verb behavior.
+src/engine/                    @seanchatmangpt
+
+# ── Adapter layer ──────────────────────────────────────────────────────────────
+# Adapters translate external sources into internal state — no business logic
+# should live here. Changes risk breaking the state model contract.
+src/adapters/                  @seanchatmangpt
+
+# ── Policy layer ───────────────────────────────────────────────────────────────
+# Autonomic policies must remain suggest-only; no destructive actions.
+src/policies/                  @seanchatmangpt
+
+# ── Public boundary invariants ─────────────────────────────────────────────────
+# The 7 non-negotiable invariants MUST NOT weaken. Any change needs careful review.
+tests/invariants.rs            @seanchatmangpt
+
+# ── wasm4pm evidence-gate tests ───────────────────────────────────────────────
+# These are the release-closing tests — internal tests alone do not gate a release.
+tests/wasm4pm_evidence_gate.rs    @seanchatmangpt
+tests/wasm4pm_evidence_mutation.rs @seanchatmangpt
+tests/wasm4pm_refusal_cases.rs    @seanchatmangpt
+
+# ── Cargo manifests ────────────────────────────────────────────────────────────
+# Dependency or feature-flag changes affect the entire crate surface.
+Cargo.toml                     @seanchatmangpt
+Cargo.lock                     @seanchatmangpt
+crates/cargo-cicd-core/Cargo.toml @seanchatmangpt
+crates/cargo-cicd-lsp/Cargo.toml  @seanchatmangpt
+
+# ── CI/CD workflows ────────────────────────────────────────────────────────────
+# Workflow changes can affect release gates and security scanning.
+.github/                       @seanchatmangpt
+
+# ── cicd.toml schema ──────────────────────────────────────────────────────────
+# The cicd.toml carrier schema is the public contract for emitted state.
+src/cicd_toml.rs               @seanchatmangpt

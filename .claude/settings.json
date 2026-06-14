@@ -1,0 +1,82 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'true'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'true'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'true'"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cargo build*)",
+      "Bash(cargo build --release*)",
+      "Bash(cargo check*)",
+      "Bash(cargo test*)",
+      "Bash(cargo make*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo clippy*)",
+      "Bash(cargo clean*)",
+      "Bash(cargo install cargo-make*)",
+      "Bash(cargo metadata*)",
+      "Bash(cargo cicd*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git branch*)",
+      "Bash(git stash*)",
+      "Bash(wpm*)",
+      "Bash(rustc --version*)",
+      "Bash(rustup*)",
+      "Bash(cargo make --version*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf /*)"
+    ]
+  },
+  "env": {
+    "RUST_LOG": "warn",
+    "WPM_PATH": "/Users/sac/wasm4pm/target/release/wpm",
+    "CARGO_TERM_COLOR": "always"
+  }
+}

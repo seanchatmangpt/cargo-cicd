@@ -1,0 +1,253 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  # ── PR Title Validation ─────────────────────────────────────────────────────
+  validate-title:
+    name: Validate PR title format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR title follows conventional commit format
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Format: <type>(<scope>): <description>
+          # Allowed types: feat, fix, docs, refactor, test, chore, perf, ci, build
+          # Allowed scopes: core, cli, target, test, git, autonomic, docs, receipts
+          PATTERN='^(feat|fix|docs|refactor|test|chore|perf|ci|build)(\((core|cli|target|test|git|autonomic|docs|receipts)\))?: .{3,}'
+
+          echo "PR title: $PR_TITLE"
+
+          if echo "$PR_TITLE" | grep -Eq "$PATTERN"; then
+            echo "PR title format is valid."
+          else
+            echo "::error::PR title does not follow the required format."
+            echo ""
+            echo "Expected format: <type>(<scope>): <description>"
+            echo "  Types:  feat, fix, docs, refactor, test, chore, perf, ci, build"
+            echo "  Scopes: core, cli, target, test, git, autonomic, docs, receipts"
+            echo ""
+            echo "Examples:"
+            echo "  feat(cli): add --dry-run flag to publish verb"
+            echo "  fix(core): handle empty workspace gracefully"
+            echo "  docs: update README with autonomic policy examples"
+            exit 1
+          fi
+
+  # ── PR Description Check ────────────────────────────────────────────────────
+  validate-description:
+    name: Validate PR has description
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR body is not empty
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ -z "$PR_BODY" ] || [ ${#PR_BODY} -lt 30 ]; then
+            echo "::error::PR description is missing or too short (< 30 characters)."
+            echo "Please fill out the PR template with a meaningful description."
+            exit 1
+          fi
+          echo "PR description check passed (${#PR_BODY} characters)."
+
+      - name: Check PR template checklist is not left entirely unchecked
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Detect if the body still has every checkbox unchecked ([ ])
+          TOTAL=$(echo "$PR_BODY" | grep -c '\- \[' || true)
+          UNCHECKED=$(echo "$PR_BODY" | grep -c '- \[ \]' || true)
+          if [ "$TOTAL" -gt 0 ] && [ "$TOTAL" -eq "$UNCHECKED" ]; then
+            echo "::warning::Every checklist item is unchecked. Please review the PR template checklist."
+          fi
+
+  # ── Forbidden Term Check ────────────────────────────────────────────────────
+  forbidden-terms-pr:
+    name: Forbidden term check (changed files)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan only changed files for forbidden terms
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA".."$HEAD_SHA" \
+            | grep -E '\.(rs|md|toml)$' \
+            | grep -v '^\.github/' \
+            || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No relevant files changed."
+            exit 0
+          fi
+
+          echo "Scanning changed files:"
+          echo "$CHANGED_FILES"
+
+          FORBIDDEN="ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|Truex|Field8|Instinct8"
+          VIOLATIONS=""
+          while IFS= read -r FILE; do
+            [ -f "$FILE" ] || continue
+            MATCH=$(grep -En "$FORBIDDEN" "$FILE" | grep -v '^\s*//' || true)
+            if [ -n "$MATCH" ]; then
+              VIOLATIONS="${VIOLATIONS}${FILE}:\n${MATCH}\n"
+            fi
+          done <<< "$CHANGED_FILES"
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::Forbidden terms found in changed files:"
+            echo -e "$VIOLATIONS"
+            exit 1
+          fi
+
+          echo "Forbidden term scan passed."
+
+  # ── Auto-Label PRs ──────────────────────────────────────────────────────────
+  auto-label:
+    name: Auto-label by commit type
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Apply labels based on PR title prefix
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = context.payload.pull_request.title;
+            const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Map commit types to GitHub label names
+            const labelMap = {
+              feat:     'enhancement',
+              fix:      'bug',
+              docs:     'documentation',
+              refactor: 'refactoring',
+              test:     'tests',
+              chore:    'chore',
+              perf:     'performance',
+              ci:       'ci',
+              build:    'build',
+            };
+
+            const match = title.match(/^(\w+)[\((:]/);
+            if (!match) {
+              console.log('No recognized commit type prefix in title, skipping labels.');
+              return;
+            }
+
+            const type = match[1].toLowerCase();
+            const labelName = labelMap[type];
+            if (!labelName) {
+              console.log(`Unknown type '${type}', skipping labels.`);
+              return;
+            }
+
+            // Ensure the label exists (create if missing)
+            const labelColors = {
+              enhancement:   '84b6eb',
+              bug:           'd73a4a',
+              documentation: '0075ca',
+              refactoring:   'e4e669',
+              tests:         '0e8a16',
+              chore:         'ededed',
+              performance:   'f9d0c4',
+              ci:            'bfd4f2',
+              build:         'fef2c0',
+            };
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+            } catch (e) {
+              if (e.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner, repo,
+                  name: labelName,
+                  color: labelColors[labelName] || 'ededed',
+                });
+                console.log(`Created label: ${labelName}`);
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner, repo,
+              issue_number: prNumber,
+              labels: [labelName],
+            });
+            console.log(`Applied label '${labelName}' to PR #${prNumber}`);
+
+  # ── CODEOWNERS Review Request ───────────────────────────────────────────────
+  request-review:
+    name: Request CODEOWNERS review for sensitive paths
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if sensitive paths changed and annotate
+        uses: actions/github-script@v7
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+            const baseSha = process.env.BASE_SHA;
+            const headSha = process.env.HEAD_SHA;
+
+            const changedFiles = execSync(
+              `git diff --name-only ${baseSha}..${headSha}`
+            ).toString().trim().split('\n').filter(Boolean);
+
+            const sensitivePaths = [
+              { pattern: /^src\/engine\//, label: 'engine' },
+              { pattern: /^src\/adapters\//, label: 'adapters' },
+              { pattern: /^tests\/invariants\.rs$/, label: 'invariants' },
+              { pattern: /^Cargo\.toml$/, label: 'cargo-manifest' },
+              { pattern: /^crates\/cargo-cicd-core\//, label: 'core-crate' },
+            ];
+
+            const touched = new Set();
+            for (const file of changedFiles) {
+              for (const { pattern, label } of sensitivePaths) {
+                if (pattern.test(file)) touched.add(label);
+              }
+            }
+
+            if (touched.size === 0) {
+              console.log('No sensitive paths changed.');
+              return;
+            }
+
+            const areas = [...touched].join(', ');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `**Sensitive path review required.**\n\nThis PR modifies protected areas: **${areas}**.\n\nPer CODEOWNERS, changes to these paths require careful review before merging.`,
+            });
+            console.log(`Commented on PR about sensitive paths: ${areas}`);

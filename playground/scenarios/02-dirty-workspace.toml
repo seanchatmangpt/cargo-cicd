@@ -1,0 +1,58 @@
+# Scenario 02 — Dirty workspace
+#
+# A workspace with an untracked file should trigger the dirty policy warning.
+# This validates the GitPhaseDirtyPolicy path and the WARN verdict surface.
+# Expected final verdict: WARN (not PASS, not FAIL).
+
+[scenario]
+name        = "02-dirty-workspace"
+description = "Verify that an untracked file triggers a WARN verdict via the dirty-workspace policy"
+verdict_expected = "WARN"
+
+[setup]
+description = """
+Create a temporary untracked file in the workspace root before running
+the scenario. This simulates a developer leaving uncommitted work in
+progress before running status checks.
+"""
+requires_git = true
+requires_cargo_toml = true
+
+# Manual setup steps for interactive use:
+#
+#   touch /tmp/dirty-playground/scratch.txt
+#
+# The run-all-scenarios.sh script handles this automatically via
+# the setup.create_files list below.
+
+[setup.create_files]
+# Relative paths inside a temp workspace copy.
+# run-all-scenarios.sh writes each file before executing steps.
+"scratch.txt" = "# intentionally untracked\n"
+
+[[steps]]
+label       = "Check status reports dirty"
+command     = "cargo cicd status"
+expected_exit_code = 0
+# A dirty workspace yields a warn, not a hard failure.
+# The exact text depends on GitPhaseDirtyPolicy output.
+expected_output_contains = ["dirty", "warn"]
+evidence_event = "status show"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+label       = "Git status confirms untracked file"
+command     = "cargo cicd git status"
+expected_exit_code = 0
+expected_output_contains = ["untracked", "scratch.txt"]
+evidence_event = "git status"
+wasm4pm_verdict = "accept"
+
+[teardown]
+# The temp workspace is discarded; nothing persists to the real tree.
+description = "Delete scratch.txt and confirm workspace is clean again."
+delete_files = ["scratch.txt"]
+
+[teardown.verify]
+command = "cargo cicd git status"
+expected_output_contains = ["clean"]

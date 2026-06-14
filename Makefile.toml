@@ -1,0 +1,532 @@
+# Makefile.toml — cargo-make task definitions for cargo-cicd
+# Run tasks with: cargo make <task>
+# Install cargo-make: cargo install cargo-make
+
+[config]
+default_to_workspace = true
+skip_core_tasks = false
+
+# ---------------------------------------------------------------------------
+# Global environment defaults (override via shell or .env)
+# ---------------------------------------------------------------------------
+[env]
+RUST_LOG = { value = "cargo_cicd=info", condition = { env_not_set = ["RUST_LOG"] } }
+RUST_BACKTRACE = { value = "1", condition = { env_not_set = ["RUST_BACKTRACE"] } }
+WPM_PATH = { value = "/Users/sac/wasm4pm/target/release/wpm", condition = { env_not_set = ["WPM_PATH"] } }
+EVIDENCE_DIR = { value = "target/cargo-cicd/evidence", condition = { env_not_set = ["EVIDENCE_DIR"] } }
+REQUIRE_WPM_ORACLE = { value = "0", condition = { env_not_set = ["REQUIRE_WPM_ORACLE"] } }
+TEST_NAME = { value = "", condition = { env_not_set = ["TEST_NAME"] } }
+CARGO_TERM_COLOR = { value = "always", condition = { env_not_set = ["CARGO_TERM_COLOR"] } }
+
+# ---------------------------------------------------------------------------
+# Forbidden symbols in public-facing content (must never appear in docs/help)
+# ---------------------------------------------------------------------------
+[env.FORBIDDEN_PATTERNS]
+value = "ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|AGI|Truex|Field8|Instinct8"
+
+# ===========================================================================
+# BUILD TASKS
+# ===========================================================================
+
+[tasks.build]
+description = "Build the workspace in debug mode"
+category = "Build"
+command = "cargo"
+args = ["build", "--workspace"]
+
+[tasks.build-release]
+description = "Build the workspace in release mode"
+category = "Build"
+command = "cargo"
+args = ["build", "--workspace", "--release"]
+
+[tasks.build-all-features]
+description = "Build with all feature combinations that must compile"
+category = "Build"
+dependencies = [
+  "build-features-default",
+  "build-features-process-data",
+  "build-features-autonomic",
+  "build-features-wasm4pm",
+]
+
+[tasks.build-features-default]
+description = "Build with default features"
+category = "Build"
+private = true
+command = "cargo"
+args = ["build", "--workspace"]
+
+[tasks.build-features-process-data]
+description = "Build with process-data feature"
+category = "Build"
+private = true
+command = "cargo"
+args = ["build", "--workspace", "--features", "process-data"]
+
+[tasks.build-features-autonomic]
+description = "Build with autonomic feature"
+category = "Build"
+private = true
+command = "cargo"
+args = ["build", "--workspace", "--features", "autonomic"]
+
+[tasks.build-features-wasm4pm]
+description = "Build with wasm4pm feature"
+category = "Build"
+private = true
+command = "cargo"
+args = ["build", "--workspace", "--features", "wasm4pm"]
+
+[tasks.build-lsp]
+description = "Build the cargo-cicd-lsp crate only"
+category = "Build"
+command = "cargo"
+args = ["build", "-p", "cargo-cicd-lsp"]
+
+[tasks.clean]
+description = "Remove build artifacts (cargo clean)"
+category = "Build"
+command = "cargo"
+args = ["clean"]
+
+[tasks.clean-evidence]
+description = "Remove generated wasm4pm evidence files from target/cargo-cicd/evidence/"
+category = "Build"
+command = "rm"
+args = ["-rf", "${EVIDENCE_DIR}"]
+
+# ===========================================================================
+# QUALITY / LINT TASKS
+# ===========================================================================
+
+[tasks.fmt]
+description = "Format all source files with rustfmt"
+category = "Quality"
+command = "cargo"
+args = ["fmt", "--all"]
+
+[tasks.fmt-check]
+description = "Check formatting without modifying files (CI-safe)"
+category = "Quality"
+command = "cargo"
+args = ["fmt", "--all", "--", "--check"]
+
+[tasks.clippy]
+description = "Run clippy lints with -D warnings (deny all warnings)"
+category = "Quality"
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+[tasks.clippy-fix]
+description = "Run clippy and automatically apply suggested fixes"
+category = "Quality"
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--all-features", "--fix", "--allow-staged"]
+
+[tasks.audit]
+description = "Run cargo-audit to check for known security vulnerabilities in dependencies"
+category = "Quality"
+install_crate = { crate_name = "cargo-audit", binary = "cargo-audit", test_arg = "--version" }
+command = "cargo"
+args = ["audit"]
+
+[tasks.check-forbidden]
+description = "Grep public-facing content for symbols that must never appear (docs, help text, CLI output)"
+category = "Quality"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+FORBIDDEN="ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|AGI|Truex|Field8|Instinct8"
+SEARCH_PATHS="src README.md docs"
+FOUND=0
+
+echo "Scanning for forbidden symbols in public content..."
+for path in $SEARCH_PATHS; do
+  if [ -e "$path" ]; then
+    if grep -rEn "$FORBIDDEN" "$path" 2>/dev/null; then
+      FOUND=1
+    fi
+  fi
+done
+
+if [ "$FOUND" -eq 1 ]; then
+  echo ""
+  echo "ERROR: Forbidden symbols found in public content. Remove them before publishing."
+  exit 1
+else
+  echo "OK: No forbidden symbols found in public content."
+fi
+'''
+
+[tasks.check]
+description = "Run fmt-check + clippy + compile tests without running them (fast sanity check)"
+category = "Quality"
+dependencies = ["fmt-check", "clippy", "check-compile"]
+
+[tasks.check-compile]
+description = "Compile all tests without running (catches type errors fast)"
+category = "Quality"
+private = true
+command = "cargo"
+args = ["test", "--workspace", "--all-features", "--no-run"]
+
+# ===========================================================================
+# TEST TASKS — non-closing (unit / smoke / projection)
+# ===========================================================================
+
+[tasks.test]
+description = "Run all non-closing tests (invariants, cli, cicd-toml, autonomic, feature-projection, changed, git)"
+category = "Test"
+dependencies = [
+  "test-invariants",
+  "test-cli",
+  "test-cicd-toml",
+  "test-autonomic",
+  "test-feature-projection",
+  "test-changed",
+  "test-git",
+]
+
+[tasks.test-invariants]
+description = "Run the 7 non-negotiable public boundary invariants test suite"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "invariants"]
+
+[tasks.test-cli]
+description = "Run CLI command projection tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "cli"]
+
+[tasks.test-cicd-toml]
+description = "Run cicd.toml schema truth tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "cicd_toml_truth"]
+
+[tasks.test-autonomic]
+description = "Run autonomic policy tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "autonomic_policies"]
+
+[tasks.test-feature-projection]
+description = "Run feature flag surface contract / projection tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "feature_projection"]
+
+[tasks.test-changed]
+description = "Run changed-file detection tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "changed_tests"]
+
+[tasks.test-git]
+description = "Run git phase closure tests"
+category = "Test"
+command = "cargo"
+args = ["test", "--test", "git_phase_closure"]
+
+[tasks.test-single]
+description = "Run a single test by name (set TEST_NAME=<name>)"
+category = "Test"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -z "${TEST_NAME:-}" ]; then
+  echo "ERROR: TEST_NAME env var is required. Example: cargo make test-single TEST_NAME=my_test_fn"
+  exit 1
+fi
+echo "Running test: ${TEST_NAME}"
+cargo test "${TEST_NAME}"
+'''
+
+# ===========================================================================
+# TEST TASKS — wasm4pm evidence-gate (closing / release gate)
+# ===========================================================================
+
+[tasks.test-wasm4pm]
+description = "Run wasm4pm evidence-gate tests; skips gracefully if wpm binary is absent"
+category = "Test:wasm4pm"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+WPM="${WPM_PATH:-/Users/sac/wasm4pm/target/release/wpm}"
+
+if [ ! -x "$WPM" ]; then
+  echo "SKIP: wpm binary not found at $WPM — set WPM_PATH to override."
+  echo "      Use test-wasm4pm-strict to hard-fail when wpm is absent."
+  exit 0
+fi
+
+echo "wpm binary: $WPM"
+export WPM_PATH="$WPM"
+
+cargo test --test wasm4pm_evidence_gate
+cargo test --test wasm4pm_evidence_mutation
+cargo test --test wasm4pm_refusal_cases
+cargo test --test wasm4pm_harness
+'''
+
+[tasks.test-wasm4pm-strict]
+description = "Run wasm4pm evidence-gate tests; FAILS if wpm binary is absent (release certification)"
+category = "Test:wasm4pm"
+env = { REQUIRE_WPM_ORACLE = "1" }
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+WPM="${WPM_PATH:-/Users/sac/wasm4pm/target/release/wpm}"
+
+if [ ! -x "$WPM" ]; then
+  echo "ERROR: REQUIRE_WPM_ORACLE=1 but wpm binary not found at $WPM"
+  echo "       Build wpm first: cd /Users/sac/wasm4pm && cargo build --release"
+  exit 1
+fi
+
+echo "wpm binary: $WPM"
+export WPM_PATH="$WPM"
+export REQUIRE_WPM_ORACLE=1
+
+cargo test --test wasm4pm_evidence_gate
+cargo test --test wasm4pm_evidence_mutation
+cargo test --test wasm4pm_refusal_cases
+cargo test --test wasm4pm_harness
+
+echo ""
+echo "wasm4pm evidence-gate: PASS"
+'''
+
+# ===========================================================================
+# TEST TASKS — feature matrix
+# ===========================================================================
+
+[tasks.test-all-features]
+description = "Run non-closing tests across all feature flag combinations: default, process-data, autonomic, wasm4pm"
+category = "Test"
+dependencies = [
+  "test-matrix-default",
+  "test-matrix-process-data",
+  "test-matrix-autonomic",
+  "test-matrix-wasm4pm",
+]
+
+[tasks.test-matrix-default]
+description = "Test matrix: default features"
+category = "Test"
+private = true
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.test-matrix-process-data]
+description = "Test matrix: process-data feature"
+category = "Test"
+private = true
+command = "cargo"
+args = ["test", "--workspace", "--features", "process-data"]
+
+[tasks.test-matrix-autonomic]
+description = "Test matrix: autonomic feature"
+category = "Test"
+private = true
+command = "cargo"
+args = ["test", "--workspace", "--features", "autonomic"]
+
+[tasks.test-matrix-wasm4pm]
+description = "Test matrix: wasm4pm feature"
+category = "Test"
+private = true
+command = "cargo"
+args = ["test", "--workspace", "--features", "wasm4pm"]
+
+# ===========================================================================
+# CI/CD PIPELINE TASKS
+# ===========================================================================
+
+[tasks.ci]
+description = "Standard CI pipeline: fmt-check + clippy + test + check-forbidden"
+category = "CI"
+dependencies = ["fmt-check", "clippy", "test", "check-forbidden"]
+
+[tasks.ci-full]
+description = "Full CI pipeline: ci + wasm4pm evidence-gate + full feature matrix"
+category = "CI"
+dependencies = ["ci", "test-wasm4pm", "test-all-features"]
+
+[tasks.pre-commit]
+description = "Fast pre-commit gate: fmt-check + clippy + invariants (completes in seconds)"
+category = "CI"
+dependencies = ["fmt-check", "clippy", "test-invariants"]
+
+[tasks.pre-push]
+description = "Pre-push gate: full ci pipeline"
+category = "CI"
+dependencies = ["ci"]
+
+[tasks.release-gate]
+description = "Release certification: ci-full (includes wasm4pm evidence-gate in strict mode)"
+category = "CI"
+env = { REQUIRE_WPM_ORACLE = "1" }
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== release-gate: cargo-cicd v$(cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['packages'][0]['version'])") ==="
+echo ""
+
+WPM="${WPM_PATH:-/Users/sac/wasm4pm/target/release/wpm}"
+if [ ! -x "$WPM" ]; then
+  echo "ERROR: Release gate requires wpm binary at $WPM"
+  echo "       No release may claim ALIVE solely from cargo-cicd internal tests."
+  exit 1
+fi
+
+# Phase 1: quality
+cargo make fmt-check
+cargo make clippy
+cargo make check-forbidden
+
+# Phase 2: non-closing tests
+cargo make test
+
+# Phase 3: feature matrix
+cargo make test-all-features
+
+# Phase 4: wasm4pm evidence-gate (closing — release gate)
+export REQUIRE_WPM_ORACLE=1
+export WPM_PATH="$WPM"
+cargo make test-wasm4pm-strict
+
+echo ""
+echo "=== release-gate: PASS — all phases complete ==="
+'''
+
+# ===========================================================================
+# UTILITY / CARGO-CICD RUNTIME TASKS
+# ===========================================================================
+
+[tasks.status]
+description = "Show cargo-cicd workspace status (cargo cicd status)"
+category = "Utility"
+command = "cargo"
+args = ["run", "--bin", "cargo-cicd", "--", "cicd", "status"]
+
+[tasks.doctor]
+description = "Run workspace doctor (cargo cicd workspace doctor)"
+category = "Utility"
+command = "cargo"
+args = ["run", "--bin", "cargo-cicd", "--", "cicd", "workspace", "doctor"]
+
+[tasks.evidence]
+description = "Run evidence doctor against the latest XES receipt (wpm receipt doctor)"
+category = "Utility"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+WPM="${WPM_PATH:-/Users/sac/wasm4pm/target/release/wpm}"
+EVDIR="${EVIDENCE_DIR:-target/cargo-cicd/evidence}"
+
+if [ ! -x "$WPM" ]; then
+  echo "ERROR: wpm binary not found at $WPM — set WPM_PATH to override."
+  exit 1
+fi
+
+# Find most recent receipt JSON
+RECEIPT=$(ls -t "$EVDIR"/*.json 2>/dev/null | head -1 || true)
+if [ -z "$RECEIPT" ]; then
+  echo "No receipt JSON found in $EVDIR"
+  echo "Run tests first to generate evidence."
+  exit 1
+fi
+
+echo "Running receipt doctor on: $RECEIPT"
+"$WPM" receipt doctor --format json --strict "$RECEIPT"
+
+# Also check most recent XES
+XES=$(ls -t "$EVDIR"/*.xes 2>/dev/null | head -1 || true)
+if [ -n "$XES" ]; then
+  echo ""
+  echo "Running XES audit on: $XES"
+  "$WPM" audit "$XES"
+fi
+'''
+
+[tasks.evidence-dir]
+description = "List files in the evidence directory (target/cargo-cicd/evidence/)"
+category = "Utility"
+script = '''
+#!/usr/bin/env bash
+EVDIR="${EVIDENCE_DIR:-target/cargo-cicd/evidence}"
+if [ -d "$EVDIR" ]; then
+  echo "Evidence directory: $EVDIR"
+  ls -lh "$EVDIR"
+else
+  echo "Evidence directory does not exist yet: $EVDIR"
+  echo "Run 'cargo make test-wasm4pm' to generate evidence."
+fi
+'''
+
+# ===========================================================================
+# DOCUMENTATION TASKS
+# ===========================================================================
+
+[tasks.docs]
+description = "Generate rustdoc documentation for the workspace"
+category = "Docs"
+command = "cargo"
+args = ["doc", "--workspace", "--no-deps", "--document-private-items"]
+
+[tasks.docs-open]
+description = "Generate and open rustdoc documentation in the browser"
+category = "Docs"
+command = "cargo"
+args = ["doc", "--workspace", "--no-deps", "--open"]
+
+[tasks.ggen]
+description = "Regenerate noun modules and CLI scaffolding from the ontology pipeline (requires ggen in PATH)"
+category = "Docs"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v ggen &>/dev/null; then
+  echo "SKIP: ggen not found in PATH."
+  echo "      ggen is the ontology → clap-noun-verb → cargo-cicd manufacturing pipeline."
+  echo "      Install it or add it to PATH to regenerate from ontology changes."
+  exit 0
+fi
+
+echo "Running ggen with ggen.toml..."
+ggen
+echo "ggen complete."
+'''
+
+# ===========================================================================
+# CONVENIENCE ALIASES / COMPOSITE TASKS
+# ===========================================================================
+
+[tasks.default]
+description = "Default task: build then run non-closing tests"
+category = "Meta"
+dependencies = ["build", "test"]
+
+[tasks.ready]
+description = "Alias for pre-commit — quick readiness check before committing"
+category = "Meta"
+dependencies = ["pre-commit"]
+
+[tasks.full]
+description = "Alias for ci-full — complete pipeline including wasm4pm evidence-gate"
+category = "Meta"
+dependencies = ["ci-full"]
+
+[tasks.verify]
+description = "Build, check formatting, lint, and run all non-closing tests in one shot"
+category = "Meta"
+dependencies = ["build", "fmt-check", "clippy", "test"]

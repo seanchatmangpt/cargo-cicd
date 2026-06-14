@@ -1,0 +1,259 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Format & Lint ───────────────────────────────────────────────────────────
+  fmt-clippy:
+    name: fmt + clippy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable (with fmt + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy (default features)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run Clippy (all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ── Core Test Matrix ────────────────────────────────────────────────────────
+  test:
+    name: test (${{ matrix.os }} / ${{ matrix.toolchain }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        toolchain: [stable, "1.85"]   # stable + MSRV
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.toolchain }}
+
+      - name: Build workspace
+        run: cargo build --workspace
+
+      - name: Run invariants tests
+        run: cargo test --test invariants
+
+      - name: Run CLI tests
+        run: cargo test --test cli
+
+      - name: Run cicd_toml_truth tests
+        run: cargo test --test cicd_toml_truth
+
+      - name: Run autonomic_policies tests
+        run: cargo test --test autonomic_policies
+
+      - name: Run changed_tests tests
+        run: cargo test --test changed_tests
+
+      - name: Run git_phase_closure tests
+        run: cargo test --test git_phase_closure
+
+      - name: Run feature_projection tests
+        run: cargo test --test feature_projection
+
+      - name: Run all tests (default features)
+        run: cargo test --workspace
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.toolchain }}
+          path: |
+            target/nextest/
+            target/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ── Feature Flag Matrix ─────────────────────────────────────────────────────
+  feature-matrix:
+    name: features / ${{ matrix.features }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""                # default (no features)
+          - "process-data"
+          - "autonomic"
+          - "wasm4pm"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: features-${{ matrix.features }}
+
+      - name: Build (features=${{ matrix.features || 'default' }})
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo build --workspace
+          else
+            cargo build --workspace --features "${{ matrix.features }}"
+          fi
+
+      - name: Test (features=${{ matrix.features || 'default' }})
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo test --workspace
+          else
+            cargo test --workspace --features "${{ matrix.features }}"
+          fi
+
+      - name: Upload feature-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-feature-${{ matrix.features || 'default' }}
+          path: |
+            target/nextest/
+            target/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ── Forbidden Term Scan ─────────────────────────────────────────────────────
+  forbidden-terms:
+    name: Forbidden term scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan for forbidden terms in public surface
+        # These terms must never appear in CLI help text, public docs, or
+        # user-facing strings. They are allowed only inside internal comments
+        # or this workflow file itself.
+        run: |
+          FORBIDDEN_TERMS="ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|wasm4pm.*wall|Cargo Court|Truex|Field8|Instinct8"
+
+          echo "Scanning src/ for forbidden public-surface terms..."
+
+          # Scan Rust source — exclude comments (lines starting with //)
+          # and this CI file itself
+          VIOLATIONS=$(grep -rEn --include="*.rs" \
+            "$FORBIDDEN_TERMS" \
+            src/ \
+            --exclude-dir=.git \
+            | grep -v '^\s*//' \
+            | grep -v '//.*'"$FORBIDDEN_TERMS" \
+            || true)
+
+          # Scan CLI help strings specifically
+          HELP_VIOLATIONS=$(grep -rEn --include="*.rs" \
+            'help\s*=\s*"[^"]*'"(ALIVE|Nehemiah|CONSTRUCT8)" \
+            src/ || true)
+
+          # Scan public doc files
+          DOC_VIOLATIONS=$(grep -rEn --include="*.md" \
+            "ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|Truex" \
+            . \
+            --exclude-dir=.git \
+            --exclude-dir=target \
+            --exclude="CLAUDE.md" \
+            || true)
+
+          FOUND=0
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::Forbidden terms found in Rust source (non-comment lines):"
+            echo "$VIOLATIONS"
+            FOUND=1
+          fi
+          if [ -n "$HELP_VIOLATIONS" ]; then
+            echo "::error::Forbidden terms found in CLI help strings:"
+            echo "$HELP_VIOLATIONS"
+            FOUND=1
+          fi
+          if [ -n "$DOC_VIOLATIONS" ]; then
+            echo "::error::Forbidden terms found in public documentation:"
+            echo "$DOC_VIOLATIONS"
+            FOUND=1
+          fi
+
+          if [ "$FOUND" -eq 1 ]; then
+            exit 1
+          fi
+
+          echo "Forbidden term scan passed — no violations found."
+
+  # ── Workspace Integrity ─────────────────────────────────────────────────────
+  workspace-integrity:
+    name: Workspace integrity check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify Cargo.lock is up to date
+        run: cargo update --locked --workspace 2>&1 | grep -v "^$" || true
+
+      - name: Check all workspace members resolve
+        run: cargo metadata --format-version 1 --no-deps > /dev/null
+
+      - name: Verify MSRV is declared and matches rust-version field
+        run: |
+          MSRV=$(cargo metadata --format-version 1 --no-deps \
+            | python3 -c "import sys,json; m=json.load(sys.stdin); \
+              pkgs=[p for p in m['packages'] if p['name']=='cargo-cicd']; \
+              print(pkgs[0].get('rust_version','MISSING') if pkgs else 'NOT FOUND')")
+          echo "Declared MSRV: $MSRV"
+          if [ "$MSRV" = "MISSING" ] || [ "$MSRV" = "NOT FOUND" ]; then
+            echo "::error::rust-version field missing from Cargo.toml"
+            exit 1
+          fi
+          if [ "$MSRV" != "1.85" ]; then
+            echo "::error::MSRV mismatch — expected 1.85, got $MSRV"
+            exit 1
+          fi
+          echo "MSRV check passed: $MSRV"

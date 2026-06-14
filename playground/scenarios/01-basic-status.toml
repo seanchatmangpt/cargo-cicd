@@ -1,0 +1,48 @@
+# Scenario 01 — Basic status check
+#
+# A clean, committed workspace should report PASS across all dimensions.
+# This is the baseline scenario: nothing unusual, nothing dirty.
+
+[scenario]
+name        = "01-basic-status"
+description = "Verify that status show reports a fully healthy workspace"
+verdict_expected = "PASS"
+
+[setup]
+# Start from a clean git-committed workspace.
+# The playground/crates/app workspace is already in this state after
+# `cargo build` completes, so no extra steps are required.
+description = "Workspace must have a Cargo.toml, be under git, and have no uncommitted changes."
+requires_git = true
+requires_cargo_toml = true
+requires_clean_git = true
+
+[[steps]]
+label       = "Show workspace status"
+command     = "cargo cicd status"
+expected_exit_code = 0
+# Output must contain a passing status indicator.
+# The exact token varies by version; look for "pass" or "[OK]".
+expected_output_contains = ["pass", "toolchain"]
+evidence_event = "status show"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+label       = "Show git state"
+command     = "cargo cicd git status"
+expected_exit_code = 0
+expected_output_contains = ["clean"]
+evidence_event = "git status"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+label       = "Show workspace doctor"
+command     = "cargo cicd workspace doctor"
+expected_exit_code = 0
+expected_output_contains = ["pass", "ok"]
+evidence_event = "workspace doctor"
+wasm4pm_verdict = "accept"
+
+[teardown]
+# Nothing to clean up; the workspace was not mutated.
+description = "No teardown required."
