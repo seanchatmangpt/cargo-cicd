@@ -172,6 +172,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "cargo-cicd-core",
+ "cargo-cicd-lsp",
  "clap",
  "clap-noun-verb",
  "predicates",

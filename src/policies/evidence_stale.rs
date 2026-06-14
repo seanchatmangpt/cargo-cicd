@@ -17,9 +17,8 @@ impl CicdPolicy for EvidenceStalePoliciy {
         PolicyMode::Suggest
     }
 
-    fn evaluate(&self) -> PolicyResult {
-        let changed = ChangedFileDetector::changed_rs_files("origin/main");
-        let has_changes = !changed.is_empty();
+    fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
+        let has_changes = state.changed_files.total_changed > 0;
 
         // Check whether evidence directory has recent output.
         let evidence_dir = std::path::Path::new("target/cargo-cicd/evidence");

@@ -23,6 +23,7 @@ predicates = "3"
 tempfile = "3"
 # Internal crates
 cargo-cicd-core = { path = "crates/cargo-cicd-core" }
+cargo-cicd-lsp = { path = "crates/cargo-cicd-lsp" }
 
 [package]
 name = "cargo-cicd"
@@ -64,6 +65,7 @@ wasm4pm = ["process-data"]  # capability scan complete; integration deferred to 
 
 [dependencies]
 cargo-cicd-core = { workspace = true }
+cargo-cicd-lsp = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 clap-noun-verb = "26.6.2"
 serde = { workspace = true }

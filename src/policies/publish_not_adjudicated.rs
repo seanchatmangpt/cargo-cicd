@@ -17,7 +17,7 @@ impl CicdPolicy for PublishNotAdjudicatedPolicy {
         PolicyMode::Suggest
     }
 
-    fn evaluate(&self) -> PolicyResult {
+    fn evaluate(&self, _state: &crate::engine::EngineState) -> PolicyResult {
         let receipt_path = Path::new("target/cargo-cicd/evidence/receipts/latest.json");
         let evidence_dir = Path::new("target/cargo-cicd/evidence");
 

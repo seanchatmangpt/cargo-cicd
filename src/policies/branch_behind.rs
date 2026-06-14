@@ -17,8 +17,12 @@ impl CicdPolicy for BranchBehindPolicy {
         PolicyMode::Suggest
     }
 
-    fn evaluate(&self) -> PolicyResult {
-        let behind_count = count_commits_behind();
+    fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
+        let behind_count = if state.git_phase.behind > 0 {
+            Some(state.git_phase.behind as usize)
+        } else {
+            None
+        };
 
         let (verdict, rec) = match behind_count {
             Some(n) if n > 0 => (

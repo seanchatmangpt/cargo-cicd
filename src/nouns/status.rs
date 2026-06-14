@@ -98,8 +98,8 @@ impl StatusShowVerb {
         }
 
         // Run LSP analyzers and display findings.
-        let snapshot = cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(".");
-        let findings = cargo_cicd_lsp::run_all(&snapshot);
+        let snapshot = cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(std::path::Path::new("."));
+        let findings = cargo_cicd_lsp::analyzers::run_all(&snapshot);
 
         if !findings.is_empty() {
             println!();

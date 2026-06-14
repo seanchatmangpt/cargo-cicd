@@ -13,8 +13,8 @@ impl CicdPolicy for ToolchainMismatchPolicy {
     fn mode(&self) -> PolicyMode {
         PolicyMode::Suggest
     }
-    fn evaluate(&self) -> PolicyResult {
-        let active = ToolchainDetector::active_toolchain();
+    fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
+        let active = &state.toolchain.active;
         let required = if std::path::Path::new("rust-toolchain.toml").exists() {
             std::fs::read_to_string("rust-toolchain.toml")
                 .ok()
