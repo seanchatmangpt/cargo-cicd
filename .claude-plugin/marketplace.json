@@ -1,0 +1,13 @@
+{
+  "name": "cargo-cicd-marketplace",
+  "owner": {
+    "name": "cargo-cicd"
+  },
+  "plugins": [
+    {
+      "name": "cargo-cicd-kit",
+      "source": "./plugins/cargo-cicd-kit",
+      "description": "Slash commands, a diagnostic subagent, a workspace-clean skill, and a session hook for cargo-cicd Rust CI/CD workspaces."
+    }
+  ]
+}
