@@ -1,5 +1,8 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::evidence::ProcessEvent;
+use crate::ui::badge::{self, Verdict};
+use crate::ui::theme::{self, Role};
+use crate::ui::{chart, panel};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct StatusNoun;
@@ -42,20 +45,42 @@ impl StatusShowVerb {
         let (mut start_evt, t0) = ProcessEvent::started("status:show");
         start_evt.case_id = Some(case_id.clone());
 
-        println!("cargo-cicd workspace status");
-        println!("===========================");
+        println!("{}", panel::header("cargo-cicd workspace status"));
+
         let toolchain = ToolchainDetector::active_toolchain();
-        println!("toolchain:    {}", toolchain);
+        let max_gb = 20.0_f64;
         let target_gb = TargetScannerAdapter::total_size_gb("target");
-        let verdict_str = TargetScannerAdapter::verdict(target_gb, 20.0);
-        println!("target:       {:.2} GB [{}]", target_gb, verdict_str);
+        let verdict_str = TargetScannerAdapter::verdict(target_gb, max_gb);
         let git = GitStatusAdapter::query().unwrap_or_default();
-        println!("branch:       {}", git.branch);
-        println!("dirty files:  {}", git.dirty_files.len());
-        println!("untracked:    {}", git.untracked_files.len());
         let dirty = !git.dirty_files.is_empty() || !git.untracked_files.is_empty();
         let dirty_word = if dirty { "dirty" } else { "clean" };
-        println!("git:          {}", dirty_word);
+
+        // Owned, styled value cells. Required literal tokens (the gauge readout's
+        // "GB", branch, counts) survive plain mode because color auto-disables
+        // off-TTY and `paint` wraps the cell without splitting its text.
+        let toolchain_v = theme::paint(&toolchain, Role::Value);
+        let target_v = format!(
+            "{}  {:.2} GB  {}",
+            chart::gauge(target_gb, max_gb, 16),
+            target_gb,
+            badge::tag(Verdict::from_tag(verdict_str)),
+        );
+        let branch_v = theme::paint(&git.branch, Role::Value);
+        let dirty_n = git.dirty_files.len().to_string();
+        let untracked_n = git.untracked_files.len().to_string();
+        let git_v = badge::tag(Verdict::from_tag(dirty_word));
+
+        println!(
+            "{}",
+            panel::kv(&[
+                ("toolchain", toolchain_v.as_str()),
+                ("target", target_v.as_str()),
+                ("branch", branch_v.as_str()),
+                ("dirty files", dirty_n.as_str()),
+                ("untracked", untracked_n.as_str()),
+                ("git", git_v.as_str()),
+            ])
+        );
 
         let ev_verdict = if dirty { "WARN" } else { "PASS" };
         let mut complete_evt = ProcessEvent::completed("status:show", t0, ev_verdict);
@@ -94,21 +119,31 @@ impl StatusAuditVerb {
         let xes = evidence_dir.join("events.xes");
 
         if !xes.exists() {
-            println!("BLOCKED: no evidence at {}", xes.display());
+            println!(
+                "{} no evidence at {}",
+                badge::tag(Verdict::Blocked),
+                xes.display()
+            );
             return Ok(());
         }
 
         // Detect wpm oracle.
         let wpm = crate::integrations::Wasm4pmShell::detect();
         let Some(wpm_shell) = wpm else {
-            println!("BLOCKED: wpm oracle not found");
+            println!("{} wpm oracle not found", badge::tag(Verdict::Blocked));
             return Ok(());
         };
 
-        println!("wasm4pm evidence audit");
-        println!("======================");
-        println!("evidence: {}", xes.display());
-        println!("wpm:      {}", wpm_shell.binary_path());
+        println!("{}", panel::header("wasm4pm evidence audit"));
+        let xes_disp = xes.display().to_string();
+        let wpm_path = wpm_shell.binary_path().to_string();
+        println!(
+            "{}",
+            panel::kv(&[
+                ("evidence", theme::paint(&xes_disp, Role::Value).as_str()),
+                ("wpm", theme::paint(&wpm_path, Role::Value).as_str()),
+            ])
+        );
 
         let result = wpm_shell
             .audit(xes.to_str().unwrap_or(""))
@@ -120,17 +155,26 @@ impl StatusAuditVerb {
                 verdict: crate::integrations::WpmVerdict::Fail,
             });
 
-        println!(
-            "exit:     {}",
-            if result.success { "0" } else { "non-zero" }
-        );
-        println!("stdout:   {}", result.stdout.trim());
-        if !result.stderr.trim().is_empty() {
-            println!("stderr:   {}", result.stderr.trim());
+        let exit_v = if result.success { "0" } else { "non-zero" };
+        let stdout_v = result.stdout.trim().to_string();
+        let mut result_rows: Vec<(&str, String)> = vec![
+            ("exit", theme::paint(exit_v, Role::Value)),
+            ("stdout", stdout_v.clone()),
+        ];
+        let stderr_trim = result.stderr.trim().to_string();
+        if !stderr_trim.is_empty() {
+            result_rows.push(("stderr", theme::paint(&stderr_trim, Role::Warning)));
         }
+        let rows_ref: Vec<(&str, &str)> =
+            result_rows.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        println!("{}", panel::kv(&rows_ref));
 
         let oracle_verdict = if result.success { "ACCEPT" } else { "REFUSE" };
-        println!("verdict:  {}", oracle_verdict);
+        println!(
+            "{} {}",
+            theme::paint("verdict:", Role::Label),
+            badge::tag(Verdict::from_tag(oracle_verdict))
+        );
 
         let case_id = crate::session::read_or_create_session_id(&evidence_dir);
 
