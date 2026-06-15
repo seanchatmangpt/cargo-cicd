@@ -1,0 +1,65 @@
+[config]
+default_to_workspace = false
+
+[tasks.build]
+description = "Build the cargo-cicd binary"
+command = "cargo"
+args = ["build"]
+
+[tasks.build-release]
+description = "Build release binary with all features"
+command = "cargo"
+args = ["build", "--release", "--features", "autonomic,wasm4pm"]
+
+[tasks.check]
+description = "Lint and type-check without building"
+command = "cargo"
+args = ["check", "--all-targets", "--all-features"]
+
+[tasks.test]
+description = "Run all test suites"
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.test-verbose]
+description = "Run all tests with output"
+command = "cargo"
+args = ["test", "--workspace", "--", "--nocapture"]
+
+[tasks.test-features]
+description = "Run tests with all feature flags"
+command = "cargo"
+args = ["test", "--features", "process-data,autonomic"]
+
+[tasks.lint]
+description = "Run clippy on all targets"
+command = "cargo"
+args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+[tasks.fmt]
+description = "Format all code"
+command = "cargo"
+args = ["fmt", "--all"]
+
+[tasks.fmt-check]
+description = "Check formatting without writing"
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.invariants]
+description = "Run the 7 public boundary invariants"
+command = "cargo"
+args = ["test", "--test", "invariants"]
+
+[tasks.gate]
+description = "Run evidence gate tests (requires wpm binary)"
+command = "cargo"
+args = ["test", "--test", "wasm4pm_evidence_gate", "--features", "wasm4pm", "--", "--nocapture"]
+
+[tasks.ci]
+description = "Full CI pipeline: fmt-check + lint + test + invariants"
+dependencies = ["fmt-check", "lint", "test", "invariants"]
+
+[tasks.release-check]
+description = "Pre-release verification gate"
+dependencies = ["ci", "test-features"]
