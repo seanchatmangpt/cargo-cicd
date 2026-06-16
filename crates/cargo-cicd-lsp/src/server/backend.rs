@@ -57,7 +57,7 @@ impl Backend {
         {
             let mut store = self.diagnostic_store.write().await;
             // Clear all existing findings for this URI before raising new ones.
-            store.clear_uri(&uri.to_string());
+            store.clear_uri(uri.as_ref());
             for finding in &findings {
                 raise(&mut store, uri.to_string(), finding.clone());
             }
@@ -132,7 +132,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
         {
             let mut store = self.diagnostic_store.write().await;
-            store.clear_uri(&uri.to_string());
+            store.clear_uri(uri.as_ref());
         }
         // Publish empty diagnostics to clear squiggles in the editor.
         self.client.publish_diagnostics(uri, vec![], None).await;
