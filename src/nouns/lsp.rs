@@ -92,6 +92,14 @@ static CICD_CATALOG: &[CicdCodeEntry] = &[
         clears_when: "all tests pass",
     },
     CicdCodeEntry {
+        code: "CICD-TEST-002",
+        title: "trybuild_fixture_changed",
+        severity: "Warning",
+        observed: "tests/",
+        repair: "re-run trybuild to confirm fixtures still compile and fail as expected",
+        clears_when: "trybuild run after fixture change with no unexpected passes or failures",
+    },
+    CicdCodeEntry {
         code: "CICD-WORKSPACE-001",
         title: "workspace_structure_invalid",
         severity: "Error",
@@ -282,6 +290,22 @@ static CICD_CATALOG: &[CicdCodeEntry] = &[
         observed: "specs/*/tasks.md",
         repair: "run the manufacturing pipeline to produce fresh evidence for the task",
         clears_when: "admitted evidence exists for all completed tasks",
+    },
+    CicdCodeEntry {
+        code: "CICD-TESTS-001",
+        title: "tests_stale_mapping",
+        severity: "Warning",
+        observed: "tests/changed_tests.rs",
+        repair: "run 'cargo cicd test changed' to refresh the test-to-source mapping",
+        clears_when: "test mapping is current with all changed source files",
+    },
+    CicdCodeEntry {
+        code: "CICD-TESTS-002",
+        title: "tests_impact_unknown",
+        severity: "Warning",
+        observed: "changed_files state in cicd.toml",
+        repair: "run 'cargo cicd test run' to determine test impact of recent changes",
+        clears_when: "all changed files have associated test coverage mapped",
     },
 ];
 
@@ -489,44 +513,6 @@ impl VerbCommand for LspExplainVerb {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// Return a human-readable explanation for a diagnostic code like "CICD-GIT-001".
-pub fn explain_diagnostic_code(code: &str) -> String {
-    match code {
-        "CICD-GIT-001" => "dirty_tree_blocks_close: the working tree has uncommitted changes. Run 'cargo cicd git status' to inspect, then commit or stash before closing the phase.".to_string(),
-        "CICD-GIT-002" => "untracked_artifacts: untracked files exist that may represent unintended output. Run 'cargo cicd git status' to review.".to_string(),
-        "CICD-GIT-003" => "source_changed_after_close: source was modified after the last git close. Re-run the manufacturing pipeline.".to_string(),
-        "CICD-EVIDENCE-001" => "evidence_missing: no process evidence directory found. Run a cargo cicd command to emit evidence.".to_string(),
-        "CICD-EVIDENCE-002" => "stale_evidence: evidence is older than the last source change. Run 'cargo cicd test changed' and 'cargo cicd workspace doctor'.".to_string(),
-        "CICD-EVIDENCE-003" => "hardcoded_timestamp: evidence contains a hardcoded timestamp instead of a real UTC time. Fix the emission code to use SystemTime::now().".to_string(),
-        "CICD-EVIDENCE-004" => "missing_case_id: evidence events lack a session/case identifier. Ensure case_id is set on all emitted events.".to_string(),
-        "CICD-EVIDENCE-005" => "receipt_before_court: a receipt was written before wpm adjudicated the evidence. Run 'cargo cicd evidence doctor' to adjudicate first.".to_string(),
-        "CICD-WPM-001" => "unconfirmed_receipt_court: wpm binary not found or receipt doctor not confirmed. Install wasm4pm or set WPM_BIN env var.".to_string(),
-        "CICD-WPM-002" => "capability_scan_missing: wpm capability scan has not been run. Run 'cargo cicd lsp doctor' to check.".to_string(),
-        "CICD-WPM-003" => "runtime_court_not_invoked: wpm receipt doctor has not been called for the current evidence. Run 'cargo cicd evidence doctor'.".to_string(),
-        "CICD-WPM-004" => r#"Code:     CICD-WPM-004
-Title:    verdict_key_mismatch
-Severity: Error
-Observed: audit surface / verdict reader
-Repair:   align court output schema with audit reader — court emits overall_fitness; reader must read overall_fitness
-Clears when: regression fixture proves audit reads correct key without silent zero fallback"#.to_string(),
-        "CICD-TEST-001" => "changed_test_not_run: changed test files have not been run. Run 'cargo cicd test changed'.".to_string(),
-        "CICD-TEST-002" => "trybuild_fixture_changed: trybuild fixtures were modified. Re-run trybuild to confirm.".to_string(),
-        "CICD-TARGET-001" => "target_growth_warning: target directory is large. Run 'cargo cicd target show' then 'cargo cicd target prune' if needed.".to_string(),
-        "CICD-PUBLISH-001" => "dry_run_missing: cargo publish --dry-run has not been run. Run it before publishing.".to_string(),
-        "CICD-PUBLISH-002" => "dry_run_without_receipt: publish dry-run completed but no receipt exists. Run 'cargo cicd evidence doctor' then 'cargo cicd publish'.".to_string(),
-        "CICD-PUBLISH-003" => "package_changed_after_dry_run: package was modified after the last dry-run. Re-run cargo publish --dry-run.".to_string(),
-        "CICD-PUBLIC-001" => "private_term_leak: a private/forbidden term was found in a public-facing document. Remove or replace the term.".to_string(),
-        "CICD-PUBLIC-002" => "public_boundary_scan_stale: the public boundary scan is out of date. Re-run workspace doctor.".to_string(),
-        "CICD-GGEN-001" => "rendered_surface_stale: a ggen-rendered surface is out of date. Run 'ggen sync' to regenerate.".to_string(),
-        "CICD-GGEN-002" => "rendered_surface_drift: a ggen-rendered block differs from its source law. Run 'ggen sync' to realign.".to_string(),
-        "CICD-GGEN-003" => "custom_region_missing: a ggen-managed file is missing its custom region markers. Add the expected custom block.".to_string(),
-        "CICD-CLOSE-001" => "false_close_risk: one or more serious diagnostics are active. Resolve all Error-severity findings before claiming phase closure.".to_string(),
-        "CICD-SPEC-001" => "spec_missing_for_change: changed files have no corresponding spec entry. Add a spec or plan entry for this change.".to_string(),
-        "CICD-SPEC-002" => "task_done_without_evidence: a task is marked complete but no fresh evidence exists for it. Run the manufacturing pipeline to produce evidence.".to_string(),
-        _ => format!("Unknown diagnostic code: {}. Run 'cargo cicd lsp doctor' to list active diagnostics.", code),
-    }
-}
 
 fn which_binary(name: &str) -> Option<String> {
     std::process::Command::new("which")

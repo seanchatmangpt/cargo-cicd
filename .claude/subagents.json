@@ -1,0 +1,32 @@
+{
+  "subagents": [
+    {
+      "name": "evidence-auditor",
+      "description": "Specialized agent for analyzing XES evidence files and wasm4pm receipts. Use when debugging evidence gate failures, verifying receipt integrity, or understanding adjudication verdicts.",
+      "capabilities": ["Read XES files", "Parse JSONL evidence", "Invoke wpm oracle", "Validate receipt schema"],
+      "tools": ["Read", "Bash", "Grep"],
+      "context": "Focus on files in target/cargo-cicd/evidence/ and receipts/. Look for verdict_claimed vs verdict_adjudicated discrepancies."
+    },
+    {
+      "name": "policy-analyzer",
+      "description": "Specialized agent for evaluating autonomic policies and diagnosing workspace state. Use when investigating policy verdicts, adding new policies, or debugging policy false positives.",
+      "capabilities": ["Read EngineState", "Evaluate PolicyResult", "Diagnose workspace signals"],
+      "tools": ["Read", "Bash", "Grep"],
+      "context": "Focus on src/policies/, src/autonomic/, and the 7 policy modules. PolicyVerdict: Pass, Warn, Suggest."
+    },
+    {
+      "name": "test-validator",
+      "description": "Specialized agent for running targeted tests and validating test coverage. Use when a specific test suite is failing, when adding regression tests, or verifying test isolation.",
+      "capabilities": ["Run cargo test", "Identify coverage gaps", "Write test fixtures"],
+      "tools": ["Bash", "Read", "Write"],
+      "context": "Tests in tests/ directory. Integration tests use assert_cmd + tempfile. Always check tests/invariants.rs first — it gates everything."
+    },
+    {
+      "name": "architecture-reviewer",
+      "description": "Specialized agent for verifying code follows cargo-cicd patterns: noun-verb CLI, evidence emission, adapter pattern, EngineState as aggregate root.",
+      "capabilities": ["Read source files", "Check pattern compliance", "Identify anti-patterns"],
+      "tools": ["Read", "Grep", "Glob"],
+      "context": "See .claude/PATTERNS.md for all patterns. Key invariants: adapters never call each other, policies only read, evidence always emitted as start+complete pairs with case_id."
+    }
+  ]
+}

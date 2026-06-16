@@ -1,5 +1,3 @@
-use std::process::Command;
-
 pub struct CargoMetadataAdapter;
 
 impl CargoMetadataAdapter {
@@ -23,20 +21,52 @@ impl CargoMetadataAdapter {
     }
 
     pub fn workspace_members() -> Vec<String> {
-        let output = Command::new("cargo")
-            .args(["metadata", "--no-deps", "--format-version=1"])
-            .output()
-            .ok();
-        if let Some(out) = output {
-            if let Ok(s) = String::from_utf8(out.stdout) {
-                // Parse workspace_members array from JSON output.
-                // Simplified: real impl would use serde_json.
-                if s.find("\"workspace_members\"").is_some() {
-                    return vec![];
+        Self::workspace_members_from(".")
+    }
+
+    pub fn workspace_members_from(workspace_root: &str) -> Vec<String> {
+        let cargo_toml_path = format!("{}/Cargo.toml", workspace_root);
+        let content = match std::fs::read_to_string(&cargo_toml_path) {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
+
+        // Parse [workspace] members array using a simple line-by-line scan.
+        let mut in_workspace = false;
+        let mut in_members = false;
+        let mut members = Vec::new();
+
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed == "[workspace]" {
+                in_workspace = true;
+                continue;
+            }
+            if in_workspace && trimmed.starts_with('[') && trimmed != "[workspace]" {
+                in_workspace = false;
+                in_members = false;
+            }
+            if in_workspace && trimmed.starts_with("members") {
+                in_members = true;
+            }
+            if in_members {
+                // Extract quoted strings from the line.
+                let mut chars = trimmed.chars().peekable();
+                while let Some(c) = chars.next() {
+                    if c == '"' {
+                        let member: String = chars.by_ref().take_while(|&c| c != '"').collect();
+                        if !member.is_empty() {
+                            members.push(member);
+                        }
+                    }
+                }
+                if trimmed.contains(']') {
+                    in_members = false;
                 }
             }
         }
-        vec![]
+
+        members
     }
 }
 

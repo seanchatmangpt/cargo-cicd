@@ -19,6 +19,11 @@ pub fn build_server_capabilities() -> ServerCapabilities {
             work_done_progress_options: Default::default(),
         })),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        hover_provider: Some(HoverProviderCapability::Simple(true)),
+        completion_provider: Some(CompletionOptions {
+            trigger_characters: Some(vec!["-".to_string()]),
+            ..CompletionOptions::default()
+        }),
         ..Default::default()
     }
 }

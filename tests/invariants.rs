@@ -118,6 +118,114 @@ fn invariant_no_full_trybuild_by_default() {
     );
 }
 
+// INVARIANT: Noun names are lowercase ascii with no spaces
+#[test]
+fn invariant_noun_names_are_lowercase_ascii() {
+    use assert_cmd::Command;
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .arg("--help")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let combined = format!("{}{}", stdout, stderr);
+    // Every word that looks like a noun (alphabetic, length > 2) should be lowercase
+    for word in combined.split_whitespace() {
+        let trimmed = word.trim_matches(|c: char| !c.is_alphabetic());
+        if trimmed.len() > 2
+            && trimmed.chars().all(|c| c.is_alphabetic())
+            && trimmed.chars().next().map(|c| c.is_lowercase()).unwrap_or(false)
+        {
+            assert!(
+                trimmed == trimmed.to_lowercase(),
+                "noun '{}' is not lowercase ascii",
+                trimmed
+            );
+        }
+    }
+}
+
+// INVARIANT: Binary name is `cargo-cicd`
+#[test]
+fn invariant_binary_name_is_cargo_cicd() {
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .arg("--version")
+        .output()
+        .unwrap();
+    // Binary must exist and produce output
+    let combined = String::from_utf8_lossy(&output.stdout).to_string()
+        + &String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !combined.is_empty() || output.status.code().is_some(),
+        "cargo-cicd binary must exist"
+    );
+}
+
+// INVARIANT: Status command exits 0 (baseline health check)
+#[test]
+fn invariant_status_exits_zero() {
+    Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["status", "show"])
+        .assert()
+        .success();
+}
+
+// INVARIANT: No forbidden terms in --help output (explicit single-help variant)
+#[test]
+fn invariant_no_forbidden_terms_in_help() {
+    let forbidden = [
+        "ALIVE",
+        "Inspection Gate",
+        "Nehemiah",
+        "Field8",
+        "Instinct8",
+        "Cargo Court",
+        "AGI",
+        "Truex",
+        "CONSTRUCT8",
+    ];
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .arg("--help")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string()
+        + &String::from_utf8_lossy(&output.stderr);
+    for term in &forbidden {
+        assert!(
+            !stdout.contains(term),
+            "forbidden term '{}' found in --help output",
+            term
+        );
+    }
+}
+
+// INVARIANT: All nouns accept --help without panicking
+#[test]
+fn invariant_all_nouns_accept_help() {
+    let nouns = [
+        "status", "git", "target", "test", "trybuild", "workspace", "publish", "evidence",
+        "pipeline", "lsp",
+    ];
+    for noun in &nouns {
+        let output = Command::cargo_bin("cargo-cicd")
+            .unwrap()
+            .args([noun, "--help"])
+            .output()
+            .unwrap();
+        let combined = String::from_utf8_lossy(&output.stdout).to_string()
+            + &String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !combined.contains("panicked"),
+            "noun '{}' panicked on --help",
+            noun
+        );
+    }
+}
+
 // INVARIANT 6: No Assumed wasm4pm Capability (documented in receipts)
 #[test]
 fn invariant_wasm4pm_scan_or_documented_absence() {

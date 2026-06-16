@@ -1,0 +1,21 @@
+[alias]
+# cargo-cicd specific shortcuts
+cicd-status = "cicd status"
+cicd-doctor = "cicd workspace doctor"
+cicd-git = "cicd git status"
+cicd-test = "cicd test changed"
+cicd-gate = "cicd evidence doctor"
+
+# Development shortcuts
+t = "test --workspace"
+b = "build"
+c = "check --all-targets"
+l = "clippy --all-targets --all-features -- -D warnings"
+f = "fmt --all"
+
+[build]
+# Disable incremental for reproducible builds (important for evidence)
+incremental = false
+
+[term]
+color = "always"
