@@ -172,12 +172,7 @@ pub fn gauge(value: f64, max: f64, width: usize) -> String {
     // Right-align the "value/max" field to a width based on the larger
     // magnitude so a column of gauges stays aligned.
     let num_w = format!("{:.1}", value.abs().max(max.abs())).len();
-    let readout = format!(
-        "{:>w$}/{:.1}",
-        format!("{:.1}", value),
-        max,
-        w = num_w
-    );
+    let readout = format!("{:>w$}/{:.1}", format!("{:.1}", value), max, w = num_w);
     let pct = format!("{:>4}", format!("{:.0}%", frac * 100.0));
 
     format!(

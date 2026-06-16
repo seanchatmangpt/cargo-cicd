@@ -349,10 +349,7 @@ mod tests {
         let out = steps(&[("a", true), ("b", false)]);
         assert!(out.contains('a'), "expected label 'a' in: {out:?}");
         assert!(out.contains('b'), "expected label 'b' in: {out:?}");
-        assert!(
-            out.contains("1/2 complete"),
-            "expected summary in: {out:?}"
-        );
+        assert!(out.contains("1/2 complete"), "expected summary in: {out:?}");
         // One line per item plus the summary line.
         assert_eq!(out.lines().count(), 3);
         caps::set_color_override(None);

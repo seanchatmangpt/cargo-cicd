@@ -77,10 +77,7 @@ impl VerbCommand for WorkspaceDoctorVerb {
         );
 
         let toolchain = ToolchainDetector::active_toolchain();
-        println!(
-            "{}",
-            check_row("OK", &format!("toolchain: {}", toolchain))
-        );
+        println!("{}", check_row("OK", &format!("toolchain: {}", toolchain)));
 
         let has_toolchain_file = std::path::Path::new("rust-toolchain.toml").exists()
             || std::path::Path::new("rust-toolchain").exists();

@@ -87,7 +87,11 @@ pub fn columns(blocks: &[&str], gap: usize) -> String {
     let mut height = 0usize;
     for b in &blocks {
         let lines: Vec<&str> = b.split('\n').collect();
-        let w = lines.iter().map(|l| text::display_width(l)).max().unwrap_or(0);
+        let w = lines
+            .iter()
+            .map(|l| text::display_width(l))
+            .max()
+            .unwrap_or(0);
         height = height.max(lines.len());
         cols.push(lines);
         widths.push(w);
@@ -220,7 +224,10 @@ mod tests {
     fn hyperlink_emits_osc8_when_color_on() {
         let _g = CapsGuard::acquire(true, true);
         let out = hyperlink("docs", "https://example.com");
-        assert_eq!(out, "\u{1b}]8;;https://example.com\u{1b}\\docs\u{1b}]8;;\u{1b}\\");
+        assert_eq!(
+            out,
+            "\u{1b}]8;;https://example.com\u{1b}\\docs\u{1b}]8;;\u{1b}\\"
+        );
     }
 
     #[test]
