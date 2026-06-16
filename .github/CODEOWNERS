@@ -1,0 +1,23 @@
+# Default owner for all files
+* @seanchatmangpt
+
+# Critical architecture files require extra review
+CLAUDE.md @seanchatmangpt
+.claude/ @seanchatmangpt
+src/engine/ @seanchatmangpt
+src/evidence.rs @seanchatmangpt
+
+# Test invariants — always require review
+tests/invariants.rs @seanchatmangpt
+
+# Evidence gate — release-critical
+tests/wasm4pm_evidence_gate.rs @seanchatmangpt
+tests/wasm4pm_evidence_mutation.rs @seanchatmangpt
+tests/wasm4pm_refusal_cases.rs @seanchatmangpt
+
+# Ontology — manufacturing pipeline
+ontology/ @seanchatmangpt
+
+# CI/CD configuration
+.github/ @seanchatmangpt
+Makefile.toml @seanchatmangpt
