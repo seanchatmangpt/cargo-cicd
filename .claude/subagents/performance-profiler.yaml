@@ -24,7 +24,7 @@ purpose: |
   - Recommend concrete optimizations (parallelization, caching, feature gating, I/O reduction)
 
 specializations:
-  - Latency Percentile Analysis
+  - name: Latency Percentile Analysis
     description: |
       Extract p50/p90/p95/p99/max duration_ms from ProcessEvent lifecycle pairs.
       Compute percentiles across multiple runs; detect outliers and tail latencies.
@@ -32,7 +32,7 @@ specializations:
     applies_to: "src/evidence.rs ProcessEvent; duration_ms: Option<u64>; lifecycle_transition: start/complete"
     tools: "HdrHistogram percentile tracking (src/advanced/histogram.rs::StageLatencies)"
 
-  - Per-Stage Performance Comparison
+  - name: Per-Stage Performance Comparison
     description: |
       Measure individual pipeline nouns (status, target, test, publish, workspace, git, trybuild)
       against baseline and across runs. Break down compound operations into sub-stages.
@@ -40,7 +40,7 @@ specializations:
     applies_to: "Noun execution timing; ProcessEvent::started/completed lifecycle pairs; cicd.toml [state] snapshots"
     tools: "EngineState::ProcessEventState; ProcessTimeline span_between() and total_span()"
 
-  - Feature Flag Overhead Profiling
+  - name: Feature Flag Overhead Profiling
     description: |
       Compare feature combinations (default, process-data, autonomic, wasm4pm, advanced, contrib)
       for latency and memory overhead. Measure build-time vs. runtime cost. Identify overhead-to-benefit
@@ -48,7 +48,7 @@ specializations:
     applies_to: "Cargo.toml features: [process-data, autonomic, wasm4pm, contrib, advanced]"
     tools: "Feature flag matrix testing; feature_projection.rs test scaffold"
 
-  - Adapter Efficiency Scanning
+  - name: Adapter Efficiency Scanning
     description: |
       Profile the seven external-source adapters for I/O intensity, subprocess latency, and
       data structure efficiency. Measure WalkDir parallelization effectiveness, git subprocess
@@ -58,7 +58,7 @@ specializations:
       TrybuildDetector, FingerprintAdapter, CachedAdapter (src/adapters/)
     tools: "Adapter lifecycle instrumentation; src/advanced/observability.rs PipelineStage"
 
-  - Parallel Scanning Efficiency
+  - name: Parallel Scanning Efficiency
     description: |
       Analyze rayon-based data parallelization and ignore crate's multi-threaded walking.
       Measure thread pool utilization, work distribution, and sync overhead. Compare
@@ -66,7 +66,7 @@ specializations:
     applies_to: "src/advanced/parallel_scan.rs; ignore::WalkBuilder; rayon::prelude"
     tools: "ProcessTimeline event correlation; observability traces"
 
-  - Cache Hit Ratio Analysis
+  - name: Cache Hit Ratio Analysis
     description: |
       Measure moka EngineCache effectiveness: entry_count, TTL expiry patterns, capacity
       eviction frequency, per-adapter hit/miss ratios. Recommend cache sizing and TTL tuning.
@@ -74,7 +74,7 @@ specializations:
     applies_to: "src/advanced/cache.rs EngineCache; src/adapters/cached.rs CachedAdapter"
     tools: "EngineCache metrics (entry_count, run_pending_tasks); observability instrumentation"
 
-  - Regression Detection & Alerting
+  - name: Regression Detection & Alerting
     description: |
       Detect performance degradation by comparing current runs against baseline (stored in
       cicd.toml [state] or prior runs). Flag p95 > 1.5x baseline as WARN; p99 > 3x baseline
@@ -82,7 +82,7 @@ specializations:
     applies_to: "ProcessEvent historical snapshots; cicd.toml [state] [[events]]; baseline tracking"
     tools: "ProcessTimeline correlation; evidence file XES/JSONL comparison"
 
-  - XES Evidence Stream Correlation
+  - name: XES Evidence Stream Correlation
     description: |
       Parse XML Event Stream (XES) format emitted to target/cargo-cicd/evidence/events.xes.
       Correlate events by case_id, trace_id, and lifecycle transitions. Validate event
@@ -102,30 +102,38 @@ when_to_use: |
   - "Compare feature combinations. Which overhead is acceptable (<10%), which is problematic (>20%)?"
 
 constraints:
-  read_only: true
+  read_only:
+    enabled: true
     rationale: |
       Performance profiling must not mutate code, configuration, or test fixtures.
       Recommendations are advisory only; implementation is out-of-scope.
 
-  no_code_modifications: true
+  no_code_modifications:
+    enabled: true
     rationale: "Analysis and diagnosis only; optimization implementation is caller's responsibility."
 
-  no_test_modification: true
+  no_test_modification:
+    enabled: true
     rationale: "Cannot modify test files or test fixtures; must analyze existing evidence and output."
 
-  evidence_location: "target/cargo-cicd/evidence/ must exist and contain *.xes or *.jsonl event streams"
+  evidence_location:
+    requirement: "target/cargo-cicd/evidence/ must exist and contain *.xes or *.jsonl event streams"
     rationale: "ProcessEvent lifecycle pairs are the primary data source; analysis is post-hoc only."
 
-  xes_format_validation: "Must validate XES event structure (case_id, lifecycle_transition, duration_ms) before analysis"
+  xes_format_validation:
+    requirement: "Must validate XES event structure (case_id, lifecycle_transition, duration_ms) before analysis"
     rationale: "Malformed events invalidate latency calculations and percentile extraction; fail fast with diagnostics."
 
-  feature_flag_variants: "Baseline comparison requires separate builds with each feature combination"
+  feature_flag_variants:
+    requirement: "Baseline comparison requires separate builds with each feature combination"
     rationale: "Overhead analysis depends on deterministic compilation and execution contexts."
 
-  no_live_instrumentation: "Does not inject timing code or modify ProcessEvent emission logic"
+  no_live_instrumentation:
+    requirement: "Does not inject timing code or modify ProcessEvent emission logic"
     rationale: "Timing is already captured by ProcessEvent lifecycle; this is post-hoc analysis."
 
-  minimum_samples: "Report uncertainty if sample size < 5 runs per stage"
+  minimum_samples:
+    requirement: "Report uncertainty if sample size < 5 runs per stage"
     rationale: "Percentiles require sufficient data; small samples introduce noise."
 
 data_sources:
@@ -176,9 +184,9 @@ tools_and_integrations:
       HdrHistogram-backed StageLatencies. Records measurements in microseconds; generates
       human-readable reports (p50/p90/p99/max). Merges metrics from parallel workers.
     methods:
-      - record_stage(stage_name, micros): record single latency measurement
-      - report(): human-readable summary with percentiles
-      - merge(other): combine metrics from parallel workers
+      - "record_stage(stage_name, micros): record single latency measurement"
+      - "report(): human-readable summary with percentiles"
+      - "merge(other): combine metrics from parallel workers"
     example: |
       let mut collector = MetricsCollector::new();
       collector.record_stage("scan", 150_000);  // 150ms
@@ -193,12 +201,12 @@ tools_and_integrations:
       microseconds; extracts p50, p90, p99, max, mean, count. Merges histograms
       for aggregation across parallel runs.
     methods:
-      - new(stage_name): create empty tracker
-      - record(micros): record duration in microseconds (auto-clamped to bounds)
-      - record_duration(Duration): convert Duration to microseconds and record
-      - p50/p90/p99/max/mean/count: extract percentiles and statistics
-      - merge(other): combine samples from parallel worker
-      - percentiles(): snapshot Percentiles struct
+      - "new(stage_name): create empty tracker"
+      - "record(micros): record duration in microseconds (auto-clamped to bounds)"
+      - "record_duration(Duration): convert Duration to microseconds and record"
+      - "p50/p90/p99/max/mean/count: extract percentiles and statistics"
+      - "merge(other): combine samples from parallel worker"
+      - "percentiles(): snapshot Percentiles struct"
     fields: "count, p50, p90, p99, max, mean (all in microseconds)"
 
   timeline_correlation:
@@ -210,11 +218,11 @@ tools_and_integrations:
       computation from first to last event. All timestamps are nanosecond-precise
       and ISO-8601 serializable.
     methods:
-      - record(label): timestamp at Timestamp::now()
-      - record_at(label, ts): record at explicit timestamp (for test fixtures)
-      - span_between(from_label, to_label): signed span from event to event
-      - total_span(): span from first to last event
-      - to_iso8601(): vec of (label, iso8601_string) for export
+      - "record(label): timestamp at Timestamp::now()"
+      - "record_at(label, ts): record at explicit timestamp (for test fixtures)"
+      - "span_between(from_label, to_label): signed span from event to event"
+      - "total_span(): span from first to last event"
+      - "to_iso8601(): vec of (label, iso8601_string) for export"
     use_case: "Measure duration between stages; detect out-of-order events"
 
   observability_instrumentation:
@@ -226,9 +234,9 @@ tools_and_integrations:
       (via tracing_subscriber) for downstream process-data ingestion. Idempotent
       init_tracing() call installs global subscriber safely.
     methods:
-      - init_tracing(): install global JSON-formatted subscriber (idempotent)
-      - PipelineStage::enter(name): open span and start timer
-      - record_event(name, success): emit structured event at any point
+      - "init_tracing(): install global JSON-formatted subscriber (idempotent)"
+      - "PipelineStage::enter(name): open span and start timer"
+      - "record_event(name, success): emit structured event at any point"
     output: "JSON traces to stdout/stderr with stage name, elapsed_ms, structured fields"
 
   engine_cache_metrics:
@@ -239,13 +247,13 @@ tools_and_integrations:
       adapter results. Bounded by capacity and per-entry TTL. Lazily evicts;
       forces eviction/expiry with run_pending_tasks(). Metrics: entry_count().
     methods:
-      - new(capacity, ttl): create cache
-      - put/put_labeled(key, bytes, [label]): insert entry
-      - get(key): retrieve entry
-      - get_or_insert_with(key, f): get or compute on miss
-      - invalidate(key): remove entry
-      - entry_count(): current entries (after pending maintenance)
-      - run_pending_tasks(): force eviction/expiry settlement
+      - "new(capacity, ttl): create cache"
+      - "put/put_labeled(key, bytes, [label]): insert entry"
+      - "get(key): retrieve entry"
+      - "get_or_insert_with(key, f): get or compute on miss"
+      - "invalidate(key): remove entry"
+      - "entry_count(): current entries (after pending maintenance)"
+      - "run_pending_tasks(): force eviction/expiry settlement"
     use_case: "Measure cache occupancy over time; detect thrashing vs. good hit rates"
 
   parallel_scan_report:
@@ -257,15 +265,15 @@ tools_and_integrations:
       per_extension breakdown (BTreeMap), and target_dirs with reclaimable bytes.
       Deterministic iteration order (BTreeMap) for stable receipts.
     struct:
-      - total_files: u64
-      - total_bytes: u64
-      - per_extension: BTreeMap<String, ExtensionStats>
-      - target_dirs: BTreeMap<PathBuf, u64>
+      - "total_files: u64"
+      - "total_bytes: u64"
+      - "per_extension: BTreeMap<String, ExtensionStats>"
+      - "target_dirs: BTreeMap<PathBuf, u64>"
     methods:
-      - reclaimable_bytes(): sum of target_dirs
-      - distinct_extensions(): count of unique extensions
-      - largest_extension(): (ext, stats) with most bytes
-      - extension(ext): per-extension stats lookup
+      - "reclaimable_bytes(): sum of target_dirs"
+      - "distinct_extensions(): count of unique extensions"
+      - "largest_extension(): (ext, stats) with most bytes"
+      - "extension(ext): per-extension stats lookup"
     use_case: |
       Measure scanning throughput (files/sec); detect I/O bottlenecks;
       correlate file count with latency degradation
@@ -279,16 +287,16 @@ tools_and_integrations:
       to XES (XML Event Stream) and JSONL for downstream analysis and wasm4pm
       oracle consumption.
     fields:
-      - command: String (logical operation name, e.g., "status:show")
-      - lifecycle_transition: "start" | "complete"
-      - duration_ms: Option<u64> (only populated on complete events)
-      - timestamp_iso: String (ISO-8601 UTC)
-      - verdict_claimed: "PASS" | "WARN" | "FAIL"
-      - case_id: String (session correlation identifier)
-      - trace_id: Optional String (for trace instrumentation)
+      - 'command: String (logical operation name, e.g., "status:show")'
+      - 'lifecycle_transition: "start" | "complete"'
+      - "duration_ms: Option<u64> (only populated on complete events)"
+      - "timestamp_iso: String (ISO-8601 UTC)"
+      - 'verdict_claimed: "PASS" | "WARN" | "FAIL"'
+      - "case_id: String (session correlation identifier)"
+      - "trace_id: Optional String (for trace instrumentation)"
     output_formats:
-      - XES: target/cargo-cicd/evidence/events.xes (XML Event Stream; wasm4pm format)
-      - JSONL: target/cargo-cicd/evidence/events.jsonl (machine-readable companion)
+      - "XES: target/cargo-cicd/evidence/events.xes (XML Event Stream; wasm4pm format)"
+      - "JSONL: target/cargo-cicd/evidence/events.jsonl (machine-readable companion)"
 
   adapter_profiling:
     module: "src/adapters/"
@@ -417,29 +425,37 @@ example_prompts:
     "Analyze moka EngineCache metrics: entry_count, TTL expiry, capacity eviction frequency.
      Estimate hit/miss ratio. Recommend capacity and TTL tuning."
 
-constraints:
-  read_only: true
+constraints_summary:
+  read_only:
+    enabled: true
     rationale: "Performance profiling must not mutate code, tests, or configuration."
 
-  no_code_modifications: true
+  no_code_modifications:
+    enabled: true
     rationale: "Analysis and diagnosis only. Implementation is caller's responsibility."
 
-  no_artifact_modification: true
+  no_artifact_modification:
+    enabled: true
     rationale: "Cannot delete, modify, or corrupt evidence files or workspace artifacts."
 
-  evidence_location: "target/cargo-cicd/evidence/ must exist and be readable"
+  evidence_location:
+    requirement: "target/cargo-cicd/evidence/ must exist and be readable"
     rationale: "ProcessEvent lifecycle pairs (XES or JSONL) are the primary data source."
 
-  xes_format_validation: "Must validate XES structure before percentile extraction"
+  xes_format_validation:
+    requirement: "Must validate XES structure before percentile extraction"
     rationale: "Malformed events invalidate latency calculations. Fail fast with diagnostics."
 
-  feature_flag_variants: "Baseline comparison requires separate builds with each feature combination"
+  feature_flag_variants:
+    requirement: "Baseline comparison requires separate builds with each feature combination"
     rationale: "Overhead analysis depends on deterministic compilation and execution contexts."
 
-  no_live_instrumentation: "Does not inject timing code or modify ProcessEvent emission"
+  no_live_instrumentation:
+    requirement: "Does not inject timing code or modify ProcessEvent emission"
     rationale: "Timing is already captured by ProcessEvent lifecycle. Post-hoc analysis only."
 
-  minimum_sample_size: "Report uncertainty if sample size < 5 runs per stage/variant"
+  minimum_sample_size:
+    requirement: "Report uncertainty if sample size < 5 runs per stage/variant"
     rationale: "Percentile extraction is noise-sensitive; small samples introduce artifacts."
 
 guidance:
@@ -505,27 +521,33 @@ guidance:
     6. Recommend capacity/TTL tuning based on patterns
 
 related_documents:
-  CLAUDE_md: "/CLAUDE.md"
+  CLAUDE_md:
+    path: "/CLAUDE.md"
     sections:
-      - "Noun-Verb CLI Grammar": Execution entry points for profiling
-      - "Level 5 Engine State": All runtime dimensions subject to analysis
-      - "Adapters": Seven external-source adapters to profile
-      - "Advanced Capabilities": Feature modules (histogram, timeline, cache, etc.)
-      - "wasm4pm Evidence Gate": XES evidence format and oracle integration
+      - "Noun-Verb CLI Grammar: Execution entry points for profiling"
+      - "Level 5 Engine State: All runtime dimensions subject to analysis"
+      - "Adapters: Seven external-source adapters to profile"
+      - "Advanced Capabilities: Feature modules (histogram, timeline, cache, etc.)"
+      - "wasm4pm Evidence Gate: XES evidence format and oracle integration"
 
-  evidence_rs: "src/evidence.rs"
+  evidence_rs:
+    path: "src/evidence.rs"
     description: "ProcessEvent lifecycle and timestamp logic; XES serialization"
 
-  adapters_directory: "src/adapters/"
+  adapters_directory:
+    path: "src/adapters/"
     description: "Seven adapters: cargo_metadata, target_scanner, git_status, changed_files, trybuild, fingerprint, toolchain"
 
-  advanced_directory: "src/advanced/"
+  advanced_directory:
+    path: "src/advanced/"
     description: "Optimization modules: histogram, timeline, cache, parallel_scan, observability, diagnostics, fingerprint, pattern"
 
-  feature_projection_test: "tests/feature_projection.rs"
+  feature_projection_test:
+    path: "tests/feature_projection.rs"
     description: "Feature flag surface contract tests; used for overhead profiling"
 
-  engine_state_rs: "src/engine/mod.rs"
+  engine_state_rs:
+    path: "src/engine/mod.rs"
     description: "EngineState aggregate root and dimension definitions"
 
 approval_gates:
@@ -534,10 +556,3 @@ approval_gates:
   must_separate_concerns: "Performance analysis separate from optimization implementation"
   must_establish_baseline: "Compare against documented baseline (cicd.toml [state] or prior runs)"
   must_report_confidence: "Flag low-confidence findings if sample size < 5"
-
-# Session metadata for regeneration/updates
-session_id: claude.ai/code/session_018xSMZPwKaQrM3hLQvwnakL
-date_created: 2026-06-14T22:54:00Z
-date_updated: 2026-06-14T22:54:00Z
-codebase_path: /home/user/cargo-cicd
-codebase_status: "cargo-cicd v26.6.2 Level 5 process-data engine"

@@ -137,12 +137,6 @@ Five explicit approval gates ensure high-quality analysis:
 4. Must establish baseline (cicd.toml [state] or prior runs)
 5. Must report confidence level (flag if sample size < 5)
 
-### 8. **Session Metadata for Regeneration**
-- Session ID: claude.ai/code/session_018xSMZPwKaQrM3hLQvwnakL
-- Date created: 2026-06-14T22:54:00Z
-- Codebase path: /home/user/cargo-cicd
-- Codebase status: v26.6.2 Level 5 process-data engine
-
 ## Architecture Integration Points
 
 ### ProcessEvent Lifecycle Model

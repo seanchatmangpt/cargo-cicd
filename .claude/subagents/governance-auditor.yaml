@@ -228,9 +228,3 @@ design_rationale: |
 
   5. **Read-Only Enforcement**: The auditor can suggest fixes but never apply them. This prevents
      side effects and keeps the auditor suitable for CI/CD gates, linting passes, and non-blocking reports.
-
----
-# Session context for regeneration/updates
-session_id: claude.ai/code/session_018xSMZPwKaQrM3hLQvwnakL
-date_created: 2026-06-14T22:51:00Z
-codebase_path: /home/user/cargo-cicd
