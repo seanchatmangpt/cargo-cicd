@@ -188,14 +188,14 @@ jobs:
             'help\s*=\s*"[^"]*'"(ALIVE|Nehemiah|CONSTRUCT8)" \
             src/ || true)
 
-          # Scan public doc files
+          # Scan public doc files (only README.md and public reference docs)
+          # Exclude internal/deferred docs: docs/wasm4pm/, docs/release/, docs/design/, receipts/
+          # and developer guides that explain the policy
           DOC_VIOLATIONS=$(grep -rEn --include="*.md" \
             "ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|Truex" \
-            . \
+            README.md docs/reference/ docs/agents/ \
             --exclude-dir=.git \
-            --exclude-dir=target \
-            --exclude="CLAUDE.md" \
-            || true)
+            2>/dev/null || true)
 
           FOUND=0
           if [ -n "$VIOLATIONS" ]; then
