@@ -1,0 +1,34 @@
+{
+  "skills": [
+    {
+      "name": "pipeline-run",
+      "description": "Run the full cargo-cicd pipeline: check, test changed, git status, workspace doctor, evidence doctor",
+      "command": "cargo make check && cargo cicd test changed && cargo cicd git status && cargo cicd workspace doctor && cargo cicd evidence doctor",
+      "trigger": "When user wants to run the full CI pipeline locally or verify workspace is ready to push"
+    },
+    {
+      "name": "evidence-doctor",
+      "description": "Emit and inspect process evidence, then invoke wasm4pm oracle for adjudication",
+      "command": "cargo cicd evidence doctor",
+      "trigger": "When user wants to check evidence gate status, verify wpm oracle, or prepare for release"
+    },
+    {
+      "name": "test-all",
+      "description": "Run all test suites including invariants, CLI, feature projection, autonomic policies, and git phase closure",
+      "command": "cargo test --test invariants && cargo test --test cli && cargo test --test feature_projection && cargo test --test autonomic_policies && cargo test --test git_phase_closure",
+      "trigger": "When user wants comprehensive test coverage beyond just cargo make test"
+    },
+    {
+      "name": "check-workspace",
+      "description": "Run full workspace health check: doctor, validate, list members, git status, policies",
+      "command": "cargo cicd workspace doctor && cargo cicd workspace validate && cargo cicd workspace list && cargo cicd git status",
+      "trigger": "When user wants a complete workspace health assessment before committing or pushing"
+    },
+    {
+      "name": "release-gate",
+      "description": "Run complete release gate: tests, invariants, evidence gate, workspace health — must all pass before tagging",
+      "command": "cargo make test && cargo test --test invariants && cargo test --test wasm4pm_evidence_gate && cargo cicd workspace doctor && cargo cicd evidence doctor",
+      "trigger": "When user wants to verify the workspace is ready for a version release, or to check all gates before tagging"
+    }
+  ]
+}

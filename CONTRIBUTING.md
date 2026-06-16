@@ -1,745 +1,431 @@
 # Contributing to cargo-cicd
 
-Welcome! cargo-cicd is a local-first CI/CD helper that keeps Rust workspaces clean, fast, and push-ready. This guide will help you get started contributing in just a few minutes.
-
-## Quick Start (5 minutes)
-
-Get up and running with your first contribution:
-
-```sh
-# Clone the repository
-git clone https://github.com/seanchatmangpt/cargo-cicd.git
-cd cargo-cicd
-
-# Build the project
-cargo make build    # Uses cargo-make (preferred)
-# OR
-cargo build         # Standard fallback
-
-# Run the test suite
-cargo make test
-# OR
-cargo test
-
-# Open an issue or submit a PR
-# Visit: https://github.com/seanchatmangpt/cargo-cicd/issues
-```
-
-That's it! You're ready to contribute.
+cargo-cicd keeps Rust workspaces clean, fast, and push-ready. This guide covers
+everything you need to contribute correctly: code conventions, the evidence
+emission pattern, how to add verbs and policies, forbidden terms, test
+requirements, and the pull request process.
 
 ---
 
-## Development Environment Setup (15 minutes)
-
-### Prerequisites
-
-- **Rust 1.85 or later** — Check your version with `rustup --version` and update if needed:
-  ```sh
-  rustup update
-  ```
-
-### Recommended IDE Setup
-
-#### Visual Studio Code + Rust Analyzer (Recommended)
-
-1. Install [Visual Studio Code](https://code.visualstudio.com/)
-2. Install the [Rust Analyzer extension](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-3. Optional: Install [Better TOML](https://marketplace.visualstudio.com/items?itemName=bungcip.better-toml) for Cargo.toml highlighting
-
-#### JetBrains IntelliJ IDEA
-
-1. Install [IntelliJ IDEA](https://www.jetbrains.com/idea/)
-2. Install the bundled Rust plugin (IntelliJ → Settings → Plugins → Rust)
-3. Open the cargo-cicd project folder
-
-#### Emacs + rust-mode
-
-1. Install [rust-mode](https://github.com/rust-lang/rust-mode): `(add-to-list 'load-path "~/.emacs.d/rust-mode")`
-2. Install [flycheck-rust](https://github.com/flycheck/flycheck-rust) for real-time linting
-
-### Optional: Setup Tools
-
-#### cargo-make (Recommended)
-
-For faster builds and standardized task running:
-
-```sh
-cargo install cargo-make
-```
-
-Once installed, use `cargo make` commands throughout this guide.
-
-#### Pre-commit Hooks (Recommended)
-
-Auto-format and lint your code before commit:
-
-```sh
-# Copy pre-commit hooks
-cp .git/hooks/pre-commit.example .git/hooks/pre-commit  # if available
-chmod +x .git/hooks/pre-commit
-
-# Or use pre-commit framework (https://pre-commit.com/):
-pip install pre-commit
-pre-commit install
-```
-
-#### Claude Code (Optional)
-
-If you're using [Claude Code](https://claude.ai/code), the project includes a `CLAUDE.md` file with AI-specific guidance. The harness will automatically pick it up.
-
----
-
-## Project Structure Quick Tour (10 minutes)
-
-```
-cargo-cicd/
-├── src/                           # Main source code
-│   ├── main.rs                   # CLI entry point (noun-verb grammar)
-│   ├── adapters/                 # External data sources (git, cargo, filesystem)
-│   ├── nouns/                    # CLI nouns (status, target, test, git, etc.)
-│   ├── engine/                   # Level 5 engine state (aggregate root)
-│   ├── policies/                 # Autonomic policy rules (suggest mode)
-│   ├── autonomic/                # Autonomic subsystem (feature: autonomic)
-│   ├── advanced/                 # Advanced capabilities (feature: advanced)
-│   └── integrations/             # Integration hooks (wasm4pm, etc.)
-│
-├── crates/                        # Workspace crates
-│   ├── cargo-cicd-core/          # Core domain logic
-│   ├── cargo-cicd-lsp/           # LSP server implementation
-│   └── cargo-cicd/               # CLI binary
-│
-├── tests/                         # Integration tests
-│   ├── invariants.rs             # Public boundary invariants
-│   ├── cli/                      # CLI command tests
-│   ├── feature_projection.rs     # Feature flag coverage
-│   ├── cicd_toml_truth.rs        # State serialization tests
-│   ├── autonomic_policies.rs     # Policy engine tests
-│   ├── wasm4pm_*.rs              # Evidence-gate tests
-│   └── fixtures/                 # Test workspace fixtures
-│
-├── templates/                     # Tera templates for code generation
-├── ontology/                      # RDF/TTL ontology (source of truth)
-├── queries/                       # SPARQL queries for code generation
-├── Cargo.toml                     # Workspace manifest
-├── CLAUDE.md                      # AI-specific guidance
-└── CONTRIBUTING.md               # This file
-
-Key modules:
-- **src/adapters/** — GitStatusAdapter, TargetScannerAdapter, CargoMetadataAdapter, etc.
-  Each adapter owns one external data source and translates it into EngineState.
-- **src/engine/** — EngineState is the aggregate root; it holds all runtime dimensions.
-- **src/nouns/** — Verbs read from EngineState; default verbs are injected in main.rs.
-- **src/advanced/** — Hyper-fast scanning, caching, observability, dependency graphs (feature-gated).
-```
-
-### Key Files to Know
-
-| File | Purpose |
-|------|---------|
-| `CLAUDE.md` | AI coding guidance, architecture, test hierarchy, forbidden terms |
-| `Cargo.toml` | Workspace manifest, feature flags, dependencies |
-| `src/main.rs` | CLI entry point; inspect `inject_default_verbs()` for verb routing |
-| `src/engine/mod.rs` | EngineState definition (what all adapters populate) |
-| `cicd.toml` | Auto-generated state file (git-ignore by default) |
-
----
-
-## Common Workflows
-
-### Adding a New Adapter
-
-Adapters translate external data sources (git, cargo metadata, filesystem) into `EngineState`.
-
-**Step-by-step example: Adding a new "DependencyGraphAdapter"**
-
-1. **Create the adapter module:**
-   ```rust
-   // src/adapters/dependency_graph.rs
-   use crate::engine::EngineState;
-   use anyhow::Result;
-
-   pub struct DependencyGraphAdapter;
-
-   impl DependencyGraphAdapter {
-       pub fn scan(state: &mut EngineState) -> Result<()> {
-           // Read Cargo.toml, build dependency graph
-           let metadata = cargo_metadata::MetadataCommand::new().exec()?;
-           
-           // Populate state dimensions
-           for package in &metadata.packages {
-               // ... populate state ...
-           }
-           
-           Ok(())
-       }
-   }
-   ```
-
-2. **Register the adapter in `src/adapters/mod.rs`:**
-   ```rust
-   pub mod dependency_graph;
-   pub use dependency_graph::DependencyGraphAdapter;
-   ```
-
-3. **Call the adapter in the appropriate noun verb** (e.g., `src/nouns/workspace/doctor.rs`):
-   ```rust
-   DependencyGraphAdapter::scan(&mut engine_state)?;
-   ```
-
-4. **Add tests** — See "Adding a Test" below.
-
-5. **Update `cicd.toml` schema** if needed (edit `src/cicd_toml.rs`).
-
-### Adding a New Noun/Verb
-
-The CLI uses noun-verb grammar. Each noun is a module in `src/nouns/` implementing `NounCommand`.
-
-**Example: Adding a `cargo cicd lock` noun**
-
-1. **Create the noun module:**
-   ```rust
-   // src/nouns/lock/mod.rs
-   use clap::Subcommand;
-   use clap_noun_verb::NounCommand;
-
-   #[derive(Subcommand)]
-   pub enum LockVerb {
-       /// Update lock file
-       Update,
-       /// Verify lock is fresh
-       Verify,
-   }
-
-   pub struct LockNoun;
-
-   impl NounCommand for LockNoun {
-       type Verb = LockVerb;
-       // Implement handle_verb() ...
-   }
-   ```
-
-2. **Create verb modules:**
-   ```rust
-   // src/nouns/lock/update.rs
-   use crate::engine::EngineState;
-   use anyhow::Result;
-
-   pub fn update(state: &EngineState) -> Result<()> {
-       // Lock update logic
-       Ok(())
-   }
-   ```
-
-3. **Register in `src/main.rs`:**
-   ```rust
-   mod nouns {
-       pub mod lock;
-       // ... other nouns ...
-   }
-   ```
-
-4. **Add tests** in `tests/cli/`.
-
-### Adding a Test
-
-Tests live in `/home/user/cargo-cicd/tests/`. Choose the right file:
-
-- **Integration test (new command)** → `tests/cli/command_projection.rs`
-- **State invariants** → `tests/invariants.rs`
-- **Feature flags** → `tests/feature_projection.rs`
-- **cicd.toml serialization** → `tests/cicd_toml_truth.rs`
-- **Policy engine** → `tests/autonomic_policies.rs` (requires `autonomic` feature)
-- **Evidence gate** → `tests/wasm4pm_evidence_gate.rs` (requires integration with wpm oracle)
-
-**Example: Adding a test for a new adapter**
-
-```rust
-#[test]
-fn test_dependency_graph_adapter() -> Result<()> {
-    // Create a temp workspace
-    let temp_dir = tempfile::TempDir::new()?;
-    let workspace_path = temp_dir.path();
-
-    // Initialize a minimal Cargo.toml
-    let manifest = r#"
-        [package]
-        name = "test-crate"
-        version = "0.1.0"
-        edition = "2021"
-    "#;
-    std::fs::write(workspace_path.join("Cargo.toml"), manifest)?;
-
-    // Create engine state and run adapter
-    let mut engine_state = EngineState::new(workspace_path);
-    DependencyGraphAdapter::scan(&mut engine_state)?;
-
-    // Assert state was populated
-    assert!(!engine_state.dependency_graph.is_empty());
-    Ok(())
-}
-```
-
-**Running tests locally:**
-
-```sh
-# All tests
-cargo make test
-# or
-cargo test
-
-# Single test file
-cargo test --test invariants
-
-# Single test function
-cargo test --test invariants test_dependency_graph_adapter
-
-# With a specific feature
-cargo test --features process-data --test autonomic_policies
-
-# All feature combinations (slow)
-cargo test --features ""
-cargo test --features "process-data"
-cargo test --features "autonomic"
-cargo test --features "advanced"
-cargo test --features "autonomic,advanced"
-```
-
-### Running Tests with All Feature Combinations
-
-cargo-cicd has several feature flags. Ensure your changes work with all combinations:
-
-```sh
-# Test all feature combinations
-for features in "" "process-data" "autonomic" "advanced" "autonomic,advanced"; do
-    echo "Testing features: $features"
-    cargo test --features "$features" || exit 1
-done
-```
-
-Or use a helper script:
-
-```bash
-#!/bin/bash
-# scripts/test-all-features.sh
-set -e
-cargo test --features ""
-cargo test --features "process-data"
-cargo test --features "autonomic"
-cargo test --features "advanced"
-cargo test --features "autonomic,advanced"
-echo "All feature combinations passed!"
-```
-
-### Building Documentation
-
-```sh
-# Build inline docs
-cargo doc --open --no-deps
-
-# Documentation comments follow standard Rust convention:
-/// Brief description here.
-///
-/// Longer explanation. Include examples if helpful.
-///
-/// # Example
-/// ```rust
-/// let result = my_function()?;
-/// ```
-///
-/// # Errors
-/// Returns an error if ... (for functions returning Result)
-pub fn my_function() -> Result<()> {
-    // ...
-}
-```
-
----
-
-## Code Style & Standards
-
-### Rust Conventions
-
-Follow standard Rust idioms. Use `cargo clippy` to catch common mistakes:
-
-```sh
-# Run clippy linter
-cargo clippy --all-targets --all-features
-
-# Fix common issues automatically
-cargo clippy --fix
-```
-
-### Code Formatting
-
-All code must be formatted with `rustfmt`:
-
-```sh
-# Format code
-cargo fmt
-
-# Check formatting without modifying
-cargo fmt -- --check
-```
-
-### Error Handling
-
-Use `anyhow` for context-aware error propagation and `thiserror` for custom error types:
-
-```rust
-use anyhow::{Context, Result};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum MyError {
-    #[error("invalid configuration: {0}")]
-    InvalidConfig(String),
-}
-
-pub fn risky_operation() -> Result<()> {
-    let config = std::fs::read_to_string("config.toml")
-        .context("failed to read config.toml")?;
-    
-    parse_config(&config)
-        .context("failed to parse configuration")?;
-    
-    Ok(())
-}
-```
-
-### Documentation Comments
-
-Use doc comments for public APIs:
-
-```rust
-/// Scans the workspace for changed files since the last known good state.
-///
-/// This adapter reads the git index and compares file mtimes against
-/// cached metadata stored in `cicd.toml`.
-///
-/// # Arguments
-/// * `workspace_root` — Path to the Cargo workspace root
-///
-/// # Errors
-/// Returns an error if:
-/// - The workspace is not a valid git repository
-/// - File system metadata cannot be read
-///
-/// # Example
-/// ```rust
-/// let mut engine_state = EngineState::new(workspace_root);
-/// ChangedFileDetector::scan(&mut engine_state)?;
-/// assert!(!engine_state.changed_files.is_empty());
-/// ```
-pub fn scan(state: &mut EngineState) -> Result<()> {
-    // ...
-}
-```
+## 1. Code Conventions
 
 ### Commit Message Format
 
-Commits must follow this format:
-
 ```
-feat(core): add dependency graph adapter
-
-Brief description (under 72 chars).
-
-Longer explanation if needed. Reference issues:
-Closes #123
+feat(core|cli|target|test|git|autonomic|docs|receipts): description
 ```
 
-Allowed scopes: `core`, `cli`, `target`, `test`, `git`, `autonomic`, `docs`, `receipts`
+Pick the scope that best describes where the change lands:
 
-**Types:**
-- `feat:` — New feature
-- `fix:` — Bug fix
-- `refactor:` — Code reorganization (no logic change)
-- `test:` — Test additions/improvements
-- `docs:` — Documentation
-- `chore:` — Build, CI, tooling
+| Scope | Covers |
+|---|---|
+| `core` | EngineState, adapters, evidence emission internals |
+| `cli` | Noun/verb handlers, help text, argument parsing |
+| `target` | Target directory analysis and cleanup |
+| `test` | Test infrastructure, fixtures, harnesses |
+| `git` | Git phase tracking, branch detection, closure |
+| `autonomic` | Policy engine, policy modules, suggest mode |
+| `docs` | CLAUDE.md, CONTRIBUTING.md, reference docs, CHANGELOG |
+| `receipts` | wpm receipt artifacts, receipt doctor integration |
 
-### Forbidden Terms
+Examples:
 
-⚠️ **NEVER use these terms in public docs, CLI help text, or commit messages:**
+```
+feat(cli): add target repair verb with dry-run safety gate
+fix(core): changed_file_detector now handles renamed files
+test(git): add regression test for ahead/behind detection
+docs(autonomic): document suggest-only policy contract
+```
 
-- ALIVE
-- Inspection Gate
-- wall
-- Nehemiah
-- Field8
-- Instinct8
-- Cargo Court
-- AGI
-- Truex
-- CONSTRUCT8
+### Rust Style
 
-These are internal implementation details and must not leak into user-facing text.
+- **No clippy warnings.** Run `cargo clippy` before every commit. Fix all
+  warnings; do not suppress with `#[allow(...)]` unless you include a comment
+  explaining why suppression is correct for this specific site.
+- **No dead code.** Remove unused functions, fields, and imports. If something
+  must exist for a future invariant, gate it with a feature flag and add a
+  `// TODO(<issue>):` note.
+- **Comments only when the WHY is non-obvious.** Do not restate what the code
+  does. Explain an invariant, a workaround for an upstream bug, or a constraint
+  imposed by an external system. One sentence is usually enough.
+- **No panics in adapters.** Adapters must return defaults on failure. Use
+  `unwrap_or_default()`, `unwrap_or_else(|_| …)`, or early-return `None`.
+  Only nouns and the CLI entry point may terminate the process.
+- **Adapters are stateless.** All adapter methods are `fn(…)` or `&self` with
+  no mutable state. Adapters never call other adapters.
 
 ---
 
-## Testing Requirements
+## 2. Evidence Emission Pattern (Critical)
 
-All contributions must include tests. Here's what's expected:
+Every verb implementation MUST emit process evidence. This is non-negotiable:
+without evidence, wasm4pm cannot adjudicate, and the release gate fails.
 
-### Coverage Targets
-
-- **New adapters:** 80%+ coverage of public methods
-- **New nouns/verbs:** 90%+ of command paths tested
-- **Core engine changes:** 85%+ coverage
-
-Run coverage locally:
-
-```sh
-# Install tarpaulin (code coverage tool)
-cargo install cargo-tarpaulin
-
-# Generate coverage report
-cargo tarpaulin --out Html --output-dir coverage/
-```
-
-### Unit vs. Integration Tests
-
-- **Unit tests** — Live in `#[cfg(test)]` modules near the code they test
-- **Integration tests** — Live in `/tests/` directory, test CLI and public boundaries
-
-Example unit test (in `src/adapters/my_adapter.rs`):
+### The Pattern
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+use crate::evidence::ProcessEvent;
 
-    #[test]
-    fn test_adapter_handles_empty_workspace() -> Result<()> {
-        let temp_dir = tempfile::TempDir::new()?;
-        let mut state = EngineState::new(temp_dir.path());
-        MyAdapter::scan(&mut state)?;
-        assert_eq!(state.items.len(), 0);
+pub fn run(/* … */) -> anyhow::Result<()> {
+    let case_id = "noun_verb_phase".to_string(); // snake_case, stable identifier
+    let evidence_dir = crate::evidence::default_evidence_dir();
+
+    // 1. Emit start event BEFORE doing any work
+    let (mut start_evt, t0) = ProcessEvent::started("noun verb");
+    start_evt.case_id = Some(case_id.clone());
+    crate::evidence::append_events(&[start_evt], &evidence_dir);
+
+    // 2. Do the actual work
+    let outcome = do_work()?;
+
+    // 3. Determine verdict
+    let verdict_str = match outcome {
+        Outcome::Clean  => "PASS",
+        Outcome::Issues => "WARN",
+        Outcome::Fatal  => "FAIL",
+    };
+
+    // 4. Emit complete event AFTER work finishes
+    let mut complete_evt = ProcessEvent::completed("noun verb", t0, verdict_str);
+    complete_evt.case_id = Some(case_id);
+    crate::evidence::append_events(&[complete_evt], &evidence_dir);
+
+    Ok(())
+}
+```
+
+### Rules
+
+| Rule | Requirement |
+|---|---|
+| **E1** | cargo-cicd never adjudicates itself — only wasm4pm issues verdicts |
+| **E2** | XES file must exist on disk before `audit_xes()` is called |
+| **E3** | If oracle unavailable and expected verdict is not `Blocked`, panic |
+| **E4** | Tests assert only the wasm4pm verdict, never internal cargo-cicd state |
+| **E5** | XES groups events by `case_id` into `<trace>` elements |
+| **E6** | JSONL emission mirrors XES (same event set, machine-readable) |
+| **E7** | `Blocked` is a first-class expectation, not an error |
+
+### Verdict Values
+
+- `"PASS"` — Work completed; all conditions satisfied
+- `"WARN"` — Work completed with warnings; execution continues
+- `"FAIL"` — Blocking error; work halted
+- `"WARN:dry_run"` — Planning only; no mutation occurred
+- `"WARN:oracle_unavailable"` — wpm binary not found
+
+---
+
+## 3. Adding a New Verb
+
+Use this checklist whenever you add a verb to an existing noun.
+
+### Step 1 — Define the struct
+
+```rust
+// In src/nouns/<noun>.rs
+pub struct RepairVerb;
+```
+
+### Step 2 — Implement VerbCommand
+
+```rust
+impl VerbCommand for RepairVerb {
+    fn name(&self) -> &'static str { "repair" }
+
+    fn about(&self) -> &'static str {
+        "Repair target directory issues (e.g., stale locks)"
+        // Keep help text under 80 characters.
+        // NEVER use any forbidden term (see Section 5).
+    }
+
+    fn run(&self, matches: &clap::ArgMatches) -> anyhow::Result<()> {
+        let case_id = "target_repair_phase".to_string();
+        let evidence_dir = crate::evidence::default_evidence_dir();
+
+        let (mut start_evt, t0) = ProcessEvent::started("target repair");
+        start_evt.case_id = Some(case_id.clone());
+        crate::evidence::append_events(&[start_evt], &evidence_dir);
+
+        // --- do the actual work here ---
+        let verdict_str = "PASS";
+
+        let mut complete_evt = ProcessEvent::completed("target repair", t0, verdict_str);
+        complete_evt.case_id = Some(case_id);
+        crate::evidence::append_events(&[complete_evt], &evidence_dir);
+
         Ok(())
     }
 }
 ```
 
-### Feature Flag Testing
-
-Your change must work with all applicable feature combinations:
-
-```sh
-# Minimal (no features)
-cargo test --features ""
-
-# With process-data
-cargo test --features "process-data"
-
-# With autonomic (implies process-data)
-cargo test --features "autonomic"
-
-# With advanced (implies process-data)
-cargo test --features "advanced"
-
-# All features
-cargo test --all-features
-```
-
-### Performance Testing
-
-If your change adds computation (scanning, parsing, network I/O), measure performance:
+### Step 3 — Register the verb in the noun
 
 ```rust
-#[test]
-fn bench_adapter_on_large_workspace() -> Result<()> {
-    let temp_dir = large_fixture_workspace()?;
-    let start = std::time::Instant::now();
-    
-    let mut state = EngineState::new(temp_dir.path());
-    MyAdapter::scan(&mut state)?;
-    
-    let elapsed = start.elapsed();
-    println!("Scanned {} items in {:?}", state.items.len(), elapsed);
-    
-    // Assert reasonable performance (e.g., < 1 second for typical workspace)
-    assert!(elapsed.as_secs() < 1);
-    Ok(())
+// In the noun's verbs() or build() method
+fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
+    vec![
+        Box::new(ShowVerb),
+        Box::new(PruneVerb),
+        Box::new(RepairVerb), // ← add here
+    ]
 }
 ```
 
-### Evidence-Gate Tests (Release Closing)
+### Step 4 — Write at least one CLI test
 
-If your change touches critical paths (publish, git close, test changed), you may need to emit process evidence and pass the wasm4pm oracle. See `/home/user/cargo-cicd/CLAUDE.md` for details on the evidence-gate test hierarchy.
-
----
-
-## Review Process
-
-### Who Reviews
-
-- **Core maintainers:** @seanchatmangpt and team
-- **Domain experts:** Adapters reviewed by architecture owner; nouns reviewed by CLI owner
-- **All PRs** require at least one approval before merge
-
-### What Reviewers Check
-
-- **Correctness** — Does the code do what it claims?
-- **Testing** — Are edge cases covered? Do tests pass locally and in CI?
-- **Documentation** — Is the change documented? Are doc comments clear?
-- **Performance** — Does it regress on large workspaces?
-- **Style** — Does it follow the guidelines in this document?
-- **Boundaries** — Does it respect EngineState / adapter / noun separation?
-- **Forbidden terms** — No ALIVE, Inspection Gate, etc. in public text
-
-### Timeline Expectations
-
-- **Small fixes (< 50 lines)** — 24 hours
-- **Features (50-500 lines)** — 2-3 days
-- **Major changes (> 500 lines)** — 1 week (plan first!)
-
-### Responding to Feedback
-
-1. **Acknowledge** the comment (emoji or brief reply)
-2. **Discuss** if you disagree — be specific
-3. **Make changes** and push (no force-push unless asked)
-4. **Re-request review** once changes are made
-5. **Resolve threads** when feedback is addressed
-
----
-
-## Getting Help
-
-### Before Opening an Issue
-
-1. Check existing issues and discussions: https://github.com/seanchatmangpt/cargo-cicd/issues
-2. Search closed issues for similar problems
-3. Read CLAUDE.md for architectural context
-
-### Filing a Bug Report
-
-Use the issue template:
-
-```markdown
-## Description
-Brief summary of the bug.
-
-## Steps to Reproduce
-1. Clone the repo
-2. Run `cargo cicd <command>`
-3. Observe error
-
-## Expected Behavior
-What should happen instead.
-
-## Actual Behavior
-What actually happened.
-
-## Environment
-- Rust version: (output of `rustc --version`)
-- cargo-cicd version: (output of `cargo cicd --version`)
-- OS: (Linux / macOS / Windows)
+```rust
+// In tests/cli/test_<noun>.rs
+#[test]
+fn test_target_repair_dry_run_exits_zero() {
+    let dir = tempfile::TempDir::new().unwrap();
+    init_git_repo(dir.path()); // helper from tests/fixture_workspaces.rs
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["target", "repair", "--dry-run"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+}
 ```
 
-### Asking Questions
+### Step 5 — Verify no forbidden terms
 
-- **Architecture questions** → Open a discussion or ask in an issue
-- **Build/test failures** → Check that you're on Rust 1.85+ and have cargo-make installed
-- **Feature design** → Start with an RFC issue before implementing
-
-### Finding Examples
-
-The best examples are in the tests:
-
-- **CLI parsing** — `tests/cli/command_projection.rs`
-- **Adapter patterns** — `tests/fixtures/` and adapter implementations
-- **State mutations** — `src/engine/` and adapter implementations
-- **Error handling** — `src/adapters/` and error contexts in `anyhow`
+```bash
+cargo run -- target repair --help | grep -iE 'ALIVE|Inspection Gate|wall|Nehemiah|Field8|Instinct8|Cargo Court|AGI|Truex|CONSTRUCT8'
+# Must produce no output
+```
 
 ---
 
-## Development Checklists
+## 4. Adding a New Policy
 
-### Before Submitting a PR
+Policies run in **suggest mode only** — they read state and emit recommendations.
+They never mutate files, run commands, or take destructive action.
 
-- [ ] Code compiles: `cargo build`
-- [ ] All tests pass: `cargo make test` (or `cargo test`)
-- [ ] All feature combinations pass: See "Running Tests with All Feature Combinations"
-- [ ] Code is formatted: `cargo fmt`
-- [ ] Clippy passes: `cargo clippy --all-targets --all-features`
-- [ ] Doc comments added for public APIs
-- [ ] No forbidden terms in public text
-- [ ] Commit messages follow format: `feat(scope): description`
-- [ ] Tests added for new code
-- [ ] Coverage >= 80% for new code
+### Step 1 — Create the policy module
 
-### For Maintainers Merging PRs
+```rust
+// src/policies/cargo_lock_age.rs
 
-- [ ] All CI checks pass
-- [ ] At least one approval
-- [ ] Commit history is clean (squash if needed)
-- [ ] No merge conflicts
-- [ ] Evidence tests pass (if closing release)
+#[cfg(feature = "autonomic")]
+use crate::engine::EngineState;
+#[cfg(feature = "autonomic")]
+use crate::engine::policy_state::{PolicyEntry, PolicyVerdict};
+
+const MAX_AGE_DAYS: u64 = 30;
+
+#[cfg(feature = "autonomic")]
+pub fn eval(state: &EngineState) -> PolicyEntry {
+    let lock_path = format!("{}/Cargo.lock", state.workspace.root_path);
+    let age_days = lock_age_days(&lock_path).unwrap_or(0);
+
+    let (verdict, recommendation) = if age_days > MAX_AGE_DAYS {
+        (
+            PolicyVerdict::Warn,
+            "Run `cargo update` to refresh the lockfile".to_string(),
+        )
+    } else {
+        (PolicyVerdict::Pass, String::new())
+    };
+
+    PolicyEntry {
+        policy_name: "cargo_lock_age".to_string(),
+        verdict,
+        recommendation,
+        emitted_at: crate::evidence::now_iso8601(),
+    }
+}
+
+fn lock_age_days(path: &str) -> Option<u64> {
+    let meta = std::fs::metadata(path).ok()?;
+    let modified = meta.modified().ok()?;
+    let elapsed = modified.elapsed().ok()?;
+    Some(elapsed.as_secs() / 86_400)
+}
+```
+
+### Step 2 — Register in run_all_policies
+
+```rust
+// src/autonomic/policies.rs
+#[cfg(feature = "autonomic")]
+pub fn run_all_policies(state: &EngineState) -> Vec<PolicyEntry> {
+    vec![
+        crate::policies::target_pressure::eval(state),
+        crate::policies::toolchain_mismatch::eval(state),
+        crate::policies::trybuild_changed::eval(state),
+        crate::policies::branch_behind::eval(state),
+        crate::policies::evidence_stale::eval(state),
+        crate::policies::publish_not_adjudicated::eval(state),
+        crate::policies::git_phase_dirty::eval(state),
+        crate::policies::cargo_lock_age::eval(state), // ← add here
+    ]
+}
+```
+
+### Step 3 — Write tests in autonomic_policies.rs
+
+```rust
+// tests/autonomic_policies.rs
+#[cfg(feature = "autonomic")]
+#[test]
+fn test_cargo_lock_age_policy_warns_on_stale_lock() {
+    // Construct a state with a stale lock path
+    let state = EngineState {
+        workspace: WorkspaceState {
+            root_path: "/path/to/old/workspace".to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let entries = run_all_policies(&state);
+    let entry = entries.iter().find(|e| e.policy_name == "cargo_lock_age").unwrap();
+    assert_eq!(entry.verdict, PolicyVerdict::Warn);
+    assert!(entry.recommendation.contains("cargo update"));
+}
+
+#[cfg(feature = "autonomic")]
+#[test]
+fn test_cargo_lock_age_policy_passes_on_fresh_lock() {
+    // Construct a state pointing at the current workspace (lock is fresh)
+    let state = EngineState::default();
+    let entries = run_all_policies(&state);
+    let entry = entries.iter().find(|e| e.policy_name == "cargo_lock_age").unwrap();
+    assert_eq!(entry.verdict, PolicyVerdict::Pass);
+}
+```
+
+### Step 4 — Run with the feature enabled
+
+```bash
+cargo test --features autonomic --test autonomic_policies
+```
 
 ---
 
-## Quick Reference
+## 5. Forbidden Terms
 
-### Common Commands
+The following terms MUST NEVER appear in any public output: help text, status
+output, error messages, or log lines that a user can see. The invariant test
+`invariant_public_boundary_no_forbidden_terms_in_all_help()` scans all
+`--help` output and will fail the build if any of these are found.
 
-```sh
-# Build and test
-cargo make build        # or: cargo build
-cargo make test         # or: cargo test
-cargo make check        # lint + type-check, no build
+| Forbidden Term | Why |
+|---|---|
+| `ALIVE` | Level 5 engine status marker; internal only |
+| `Inspection Gate` | Manufacturing subsystem identity |
+| `wall` | Jargon from manufacturing pipeline |
+| `Nehemiah` | Code name for manufacturing layer (expose only as `ggen`) |
+| `Field8` | Internal capacity measurement |
+| `Instinct8` | Autonomic reasoning subsystem; not exposed in suggest mode |
+| `Cargo Court` | Internal adjudication metaphor |
+| `AGI` | AI system classification |
+| `Truex` | Internal truth engine |
+| `CONSTRUCT8` | Manufacturing directive system |
 
-# Code quality
-cargo fmt
-cargo clippy --fix
-cargo doc --open
+If you are unsure whether a term is safe, run:
 
-# Run specific tests
+```bash
+cargo run -- <noun> <verb> --help | grep -iF '<term>'
+```
+
+If the grep produces any output, the term must not appear there.
+
+---
+
+## 6. Test Requirements
+
+### What Every New Verb Needs
+
+- At least one test in `tests/cli/test_<noun>.rs` that invokes the verb and
+  asserts `output.status.success()`.
+- A test for each significant output path (PASS, WARN, FAIL) if the verb can
+  produce more than one verdict.
+- If the verb emits evidence, a test that confirms the XES file is created in
+  `target/cargo-cicd/evidence/`.
+
+### Evidence Tests — Assert the Oracle, Not Internal State
+
+```rust
+// WRONG — asserts on internal cargo-cicd state
+assert_eq!(state.target.total_size_bytes, expected_bytes);
+
+// CORRECT — asserts on wasm4pm verdict
+assert_eq!(wpm_verdict, ExpectedWpmVerdict::Accept);
+```
+
+Evidence tests live in `tests/wasm4pm_evidence_gate.rs`,
+`tests/wasm4pm_evidence_mutation.rs`, and `tests/wasm4pm_refusal_cases.rs`.
+Tests in those files must use `ExpectedWpmVerdict::Blocked` when running in
+environments without the `wpm` binary.
+
+### The Seven Invariants (tests/invariants.rs)
+
+These must always pass. Never introduce code that breaks them:
+
+1. No forbidden terms in any `--help` output
+2. No destructive action without `--confirm`
+3. No full trybuild run by default (conservative mode)
+4. Noun names are lowercase ASCII
+5. Binary name is `cargo-cicd`
+6. `cargo cicd status` exits 0 (baseline health check)
+7. `git close` emits safety warnings (no silent close)
+
+Run them with:
+
+```bash
 cargo test --test invariants
-cargo test --test feature_projection
-cargo test --test autonomic_policies --features autonomic
-
-# Feature combinations
-cargo test --features ""
-cargo test --features "process-data"
-cargo test --features "autonomic"
-cargo test --features "advanced"
-
-# Clean build
-cargo clean
-cargo build --release
 ```
 
-### Project Boundaries
+### Before Opening a PR
 
-| Layer | Module | Responsibilities |
-|-------|--------|------------------|
-| CLI | `src/nouns/` | Parse arguments, route to verbs |
-| Verbs | `src/nouns/*/` | Read EngineState, format output |
-| Engine | `src/engine/` | Aggregate root, dimensions, queries |
-| Adapters | `src/adapters/` | Populate EngineState from external sources |
-| Policies | `src/policies/` | Read PolicyState, emit recommendations |
-| Advanced | `src/advanced/` | Optional high-performance capabilities |
-
-### Key Abstractions
-
-- **EngineState** — Holds all runtime state; adapters write, nouns read
-- **NounCommand** — CLI noun implementation (clap + clap-noun-verb)
-- **Adapter** — Translates external data (git, cargo) into EngineState
-- **Verb** — Reads EngineState and produces output/side effects
-- **PolicyState** — Read-only state for autonomic policies
+```bash
+cargo make test            # all test suites
+cargo clippy               # no warnings
+cargo build --features autonomic,wasm4pm  # feature flags compile
+```
 
 ---
 
-## License
+## 7. Pull Request Process
 
-By contributing to cargo-cicd, you agree that your contributions will be licensed under the same terms as the project: [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE).
+### Title Format
 
----
+PR titles follow the same format as commit messages:
 
-## Questions or Feedback?
+```
+feat(cli): add target repair verb with dry-run safety gate
+fix(core): changed_file_detector handles renamed files correctly
+```
 
-- Open an issue: https://github.com/seanchatmangpt/cargo-cicd/issues
-- Start a discussion: https://github.com/seanchatmangpt/cargo-cicd/discussions
-- Email: xpointsh@gmail.com
+### Checklist Before Opening
 
-Happy contributing! 🚀
+- [ ] `cargo make test` passes locally (all suites)
+- [ ] `cargo clippy` produces no warnings
+- [ ] No forbidden terms in help output (`cargo test --test invariants`)
+- [ ] Evidence gate passes, or all evidence tests declare
+      `ExpectedWpmVerdict::Blocked` with a comment explaining why wpm is
+      unavailable in this context
+- [ ] New verbs have CLI tests in `tests/cli/`
+- [ ] New policies have tests in `tests/autonomic_policies.rs`
+- [ ] Commit message uses the correct scope and format
+
+### Review Criteria
+
+Reviewers will check:
+
+1. Evidence emission pattern is present and complete (start + complete, with
+   `case_id` set on both events).
+2. No forbidden terms anywhere in changed files.
+3. Adapters remain stateless and silently fail.
+4. EngineState remains the single aggregate root — nouns read from it, adapters
+   populate it, nothing else writes to it directly.
+5. Tests assert on behavior and oracle verdicts, not on internal structs.
+
+### After Merge
+
+The CI pipeline runs `cargo make test` including the evidence gate. If wpm is
+available in CI, the gate runs fully. If not, tests must declare `Blocked`.
+Releases require a full evidence gate pass with a live oracle.

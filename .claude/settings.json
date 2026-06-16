@@ -1,283 +1,128 @@
 {
-  "version": "1.0.0",
-  "metadata": {
-    "name": "cargo-cicd",
-    "type": "Rust CLI tool",
-    "description": "Level 5 process-data engine exposed as a boring Rust CI/CD helper. Local-first CI/CD helper for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml.",
-    "repository": "https://github.com/seanchatmangpt/cargo-cicd",
-    "version_number": "26.6.2",
-    "rust_version": "1.85"
-  },
+  "model": "claude-sonnet-4-6",
 
-  "environment": {
+  "includeCoAuthoredBy": true,
+
+  "context_files": [
+    "CLAUDE.md",
+    ".claude/ARCHITECTURE.md",
+    ".claude/PATTERNS.md",
+    "Cargo.toml",
+    "cicd.toml"
+  ],
+
+  "env": {
     "RUST_BACKTRACE": "1",
     "RUST_LOG": "info",
-    "CARGO_BUILD_JOBS": "4",
-    "CARGO_TERM_COLOR": "always",
-    "RUST_MIN_STACK": "8388608"
+    "CARGO_TERM_COLOR": "always"
   },
 
   "permissions": {
-    "description": "Control which commands require confirmation before execution",
-    "allow_without_confirmation": [
-      "cargo build",
-      "cargo test",
-      "cargo check",
-      "cargo clippy",
-      "cargo make build",
-      "cargo make check",
-      "cargo make test",
-      "cargo fmt --check",
-      "git status",
-      "git diff",
-      "git log",
-      "rustup show",
-      "rustfmt --check"
+    "allow": [
+      "Bash(cargo make*)",
+      "Bash(cargo build*)",
+      "Bash(cargo test*)",
+      "Bash(cargo check*)",
+      "Bash(cargo clippy*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo cicd*)",
+      "Bash(cargo run*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(git stash*)",
+      "Bash(git show*)",
+      "Bash(git tag*)",
+      "Bash(wpm audit*)",
+      "Bash(wpm receipt*)",
+      "Bash(wpm --version*)",
+      "Bash(ls*)",
+      "Bash(find . -name*)",
+      "Bash(cat Cargo.toml)",
+      "Bash(cat cicd.toml)",
+      "Bash(cat Cargo.lock)",
+      "Bash(cat rust-toolchain.toml)",
+      "Bash(rustc --version*)",
+      "Bash(rustup*)",
+      "Bash(which wpm*)",
+      "Read(*)",
+      "Write(src/*)",
+      "Write(tests/*)",
+      "Write(docs/*)",
+      "Write(.claude/*)",
+      "Write(.github/*)",
+      "Write(ontology/*)",
+      "Write(templates/*)",
+      "Write(queries/*)",
+      "Write(cicd.toml)",
+      "Write(CHANGELOG.md)"
     ],
-    "require_summary_preview": [
-      "git add",
-      "git commit",
-      "git push",
-      "git branch",
-      "git checkout"
-    ],
-    "require_explicit_confirmation": [
-      "git reset --hard",
-      "git push --force",
-      "git push --force-with-lease",
-      "rm -rf",
-      "cargo clean",
-      "cargo publish"
+    "deny": [
+      "Bash(git reset --hard*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git clean -f*)",
+      "Bash(git checkout -- *)",
+      "Bash(git branch -D*)",
+      "Bash(rm -rf*)"
     ]
   },
 
-  "build": {
-    "description": "Build configuration for cargo-cicd",
-    "default_command": "cargo make build",
-    "fallback_command": "cargo build",
-    "features": {
-      "default": [],
-      "process_data": "enables Level 5 engine internals",
-      "autonomic": "enables policy/suggest mode (implies process-data)",
-      "wasm4pm": "wasm4pm integration seam (implies process-data)",
-      "contrib": "contributor mode (implies process-data)",
-      "advanced": "advanced features: ignore, rayon, blake3, tracing, miette (implies process-data)"
-    },
-    "test_commands": {
-      "all": "cargo make test",
-      "unit": "cargo test --lib",
-      "integration": "cargo test --test '*'",
-      "invariants": "cargo test --test invariants",
-      "cli": "cargo test --test cli",
-      "cicd_toml": "cargo test --test cicd_toml_truth",
-      "autonomic": "cargo test --test autonomic_policies",
-      "changed": "cargo test --test changed_tests",
-      "git": "cargo test --test git_phase_closure",
-      "feature": "cargo test --test feature_projection",
-      "advanced": "cargo test --features advanced",
-      "wasm4pm": "cargo test --features wasm4pm"
-    }
-  },
-
   "hooks": {
-    "description": "Automated workflows for common development tasks",
-    "pre_commit": {
-      "enabled": false,
-      "description": "Run before git commit (optional; enable in .claude/settings.local.json if desired)",
-      "commands": [
-        "cargo fmt --check",
-        "cargo clippy -- -D warnings"
-      ]
-    },
-    "post_pull": {
-      "enabled": false,
-      "description": "Run after git pull (optional; enable in .claude/settings.local.json if desired)",
-      "commands": [
-        "cargo check",
-        "cargo test --lib"
-      ]
-    },
-    "on_branch_switch": {
-      "enabled": false,
-      "description": "Run when switching branches (optional; enable in .claude/settings.local.json if desired)",
-      "commands": [
-        "cargo clean --target-dir target/debug",
-        "cargo check"
-      ]
-    }
-  },
-
-  "skills": {
-    "description": "Custom skills for cargo-cicd workflows",
-    "enabled": [
-      "run-advanced-tests",
-      "benchmark-pipeline",
-      "validate-advanced-build",
-      "metrics-report",
-      "snapshot-state-manager"
-    ],
-    "directory": ".claude/skills"
-  },
-
-  "subagents": {
-    "description": "Specialized agent types for complex workflows",
-    "available": [
-      "test-coordinator",
-      "performance-profiler",
-      "governance-auditor",
-      "release-coordinator"
-    ],
-    "test_coordinator": {
-      "description": "Orchestrates multi-scope test runs and analyzes results",
-      "triggers": ["run-advanced-tests", "test failures"]
-    },
-    "performance_profiler": {
-      "description": "Analyzes build times and test performance metrics",
-      "triggers": ["benchmark-pipeline"]
-    },
-    "governance_auditor": {
-      "description": "Validates commit messages, feature flags, and policy compliance",
-      "triggers": ["pre-commit", "git commit"]
-    },
-    "release_coordinator": {
-      "description": "Manages release workflows, versioning, and publication",
-      "triggers": ["cargo publish", "version changes"]
-    }
-  },
-
-  "cli_grammar": {
-    "description": "Noun-Verb CLI structure using clap-noun-verb",
-    "nouns": [
-      "status",
-      "target",
-      "test",
-      "trybuild",
-      "git",
-      "publish",
-      "workspace"
-    ],
-    "default_verbs": {
-      "status": "show",
-      "target": "list",
-      "test": "run",
-      "trybuild": "check",
-      "git": "status",
-      "publish": "verify",
-      "workspace": "info"
-    },
-    "implementation_note": "Each noun is a module in src/nouns/ implementing NounCommand; default verbs are injected in main.rs::inject_default_verbs()"
-  },
-
-  "architecture": {
-    "description": "Key architectural components of cargo-cicd",
-    "engine": {
-      "path": "src/engine/",
-      "root": "EngineState (aggregate root)",
-      "state_dimensions": [
-        "WorkspaceState",
-        "ToolchainState",
-        "TargetState",
-        "ChangedFileState",
-        "TestPlanState",
-        "TrybuildState",
-        "GitPhaseState",
-        "ProcessEventState",
-        "ArtifactState",
-        "PolicyState",
-        "ProjectionProfile"
-      ]
-    },
-    "adapters": {
-      "path": "src/adapters/",
-      "description": "Translate external sources into internal state model",
-      "components": [
-        "GitStatusAdapter",
-        "TargetScannerAdapter",
-        "ToolchainDetector",
-        "CargoMetadataAdapter",
-        "ChangedFileDetector",
-        "CicdTomlWriter",
-        "TrybuildDetector"
-      ]
-    },
-    "configuration": {
-      "file": "cicd.toml",
-      "description": "Workspace configuration and process event carrier",
-      "schema": "CicdToml in src/cicd_toml.rs; writes handled by CicdTomlWriter adapter"
-    },
-    "manufacturing": {
-      "description": "Ontology-driven code generation pipeline",
-      "components": [
-        "ggen.toml (ontology configuration)",
-        "ontology/cargo-cicd.ttl (semantic definitions)",
-        "queries/ (SPARQL queries)",
-        "templates/ (Tera templates)"
-      ],
-      "note": "Run `ggen` to regenerate noun modules and CLI test scaffolding from ontology changes"
-    }
-  },
-
-  "testing": {
-    "description": "Test hierarchy and execution patterns",
-    "hierarchy": {
-      "unit_and_smoke": {
-        "type": "non-closing",
-        "description": "May use assert_cmd/tempfile; test CLI parsing, public boundaries, schemas",
-        "files": [
-          "tests/invariants.rs (enforces 7 non-negotiable public boundary invariants)",
-          "tests/cli/*",
-          "tests/feature_projection.rs",
-          "tests/cicd_toml_truth.rs",
-          "tests/autonomic_policies.rs",
-          "tests/changed_tests.rs",
-          "tests/git_phase_closure.rs"
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
         ]
-      },
-      "evidence_gate": {
-        "type": "closing (release gate)",
-        "description": "Must emit XES process evidence; invoke wasm4pm oracle; assert verdict",
-        "files": [
-          "tests/wasm4pm_evidence_gate.rs",
-          "tests/wasm4pm_evidence_mutation.rs",
-          "tests/wasm4pm_refusal_cases.rs"
-        ],
-        "commands": [
-          "wpm audit <file.xes>",
-          "wpm receipt doctor --format json --strict <receipt.json>"
-        ],
-        "evidence_dir": "target/cargo-cicd/evidence/",
-        "evidence_format": "XES (XML Event Stream)"
       }
-    },
-    "fixture_directory": "tests/fixtures/",
-    "critical_constraint": "No release may claim ALIVE solely from cargo-cicd internal tests; wasm4pm evidence-gate verdict is mandatory for closure"
+    ],
+    "session_start": [
+      {
+        "command": "bash .claude/hooks/session-start.sh",
+        "description": "Initialize session: verify wpm oracle, show workspace health, confirm forbidden terms gate"
+      }
+    ],
+    "pre_tool_use": [
+      {
+        "tool": "Bash",
+        "matcher": "git (reset --hard|push --force|push -f|clean -f|checkout -- |branch -D)",
+        "action": "warn",
+        "message": "DESTRUCTIVE GIT OPERATION DETECTED. This command may permanently destroy work. Confirm this is intentional before proceeding. Consider: git stash, git branch backup/<name>, or a dry-run alternative."
+      },
+      {
+        "tool": "Bash",
+        "matcher": "rm -rf",
+        "action": "warn",
+        "message": "Destructive rm -rf detected. Verify path is correct and does not include source files, evidence, or receipts."
+      },
+      {
+        "tool": "Bash",
+        "matcher": "cargo publish",
+        "action": "warn",
+        "message": "cargo publish will upload a crate to crates.io. Ensure the evidence gate has passed (wpm audit) and all invariants are green before proceeding."
+      }
+    ],
+    "post_tool_use": [
+      {
+        "tool": "Bash",
+        "matcher": "cargo (build|make|test)",
+        "description": "After builds and tests, evidence may be emitted to target/cargo-cicd/evidence/. Check for new .xes/.jsonl files if the evidence gate is relevant."
+      }
+    ]
   },
 
-  "policies": {
-    "description": "Autonomic policy engine (requires autonomic feature flag)",
-    "mode": "suggest (default, never destructive)",
-    "configuration_file": "cicd.toml [autonomic] section",
-    "behavior": "Read PolicyState and emit recommendations; require explicit user approval for any action"
-  },
-
-  "commit_conventions": {
-    "description": "Git commit message format for cargo-cicd contributions",
-    "format": "feat(core|cli|target|test|git|autonomic|docs|receipts): description",
-    "scopes": {
-      "core": "EngineState, adapters, core business logic",
-      "cli": "Noun-verb CLI, command parsing",
-      "target": "Target scanning, workspace analysis",
-      "test": "Test infrastructure, test suites",
-      "git": "Git phase tracking, status adapters",
-      "autonomic": "Autonomic policies, suggest mode",
-      "docs": "Documentation, CLAUDE.md, examples",
-      "receipts": "Process evidence, XES emission"
-    }
-  },
-
-  "forbidden_terminology": {
-    "description": "Terms forbidden in public docs/CLI/help text (internal-only)",
-    "terms": [
+  "notes": {
+    "project": "cargo-cicd v26.6.2 — Rust workspace CI/CD helper with noun-verb CLI grammar",
+    "branch": "claude/eloquent-cray-evgdo8",
+    "forbidden_terms": [
       "ALIVE",
       "Inspection Gate",
       "wall",
@@ -288,23 +133,17 @@
       "AGI",
       "Truex",
       "CONSTRUCT8"
-    ]
-  },
-
-  "local_overrides": {
-    "note": "Create .claude/settings.local.json to override any values above (e.g., enable hooks, adjust permissions, add local environment variables)",
-    "example": {
-      "hooks": {
-        "pre_commit": {
-          "enabled": true
-        }
-      },
-      "permissions": {
-        "allow_without_confirmation": [
-          "cargo fmt",
-          "cargo fmt --all"
-        ]
-      }
-    }
+    ],
+    "forbidden_terms_note": "These terms MUST NOT appear in any public output (help text, CLI, docs). The invariant test invariant_public_boundary_no_forbidden_terms_in_all_help() enforces this gate.",
+    "evidence_gate": "All release verdicts are adjudicated by the wasm4pm oracle (wpm binary). Tests assert wpm verdict (Accept/Refuse/Blocked), never internal cargo-cicd state.",
+    "oracle_unavailable": "If wpm is not on PATH, tests must declare ExpectedWpmVerdict::Blocked. Full release gate requires oracle to be available.",
+    "key_test_commands": [
+      "cargo test --test invariants",
+      "cargo test --test cli",
+      "cargo test --test wasm4pm_evidence_gate",
+      "cargo make test"
+    ],
+    "default_verb_injection": "Bare nouns auto-inject default verbs: status→show, publish→run, workspace→doctor, evidence→doctor",
+    "cicd_toml": "cicd.toml is a state carrier, not config. It is overwritten by each major operation. Do not rely on manual edits persisting."
   }
 }

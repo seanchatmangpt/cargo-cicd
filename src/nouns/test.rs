@@ -22,7 +22,91 @@ impl NounCommand for TestNoun {
         "Run changed tests"
     }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(TestChangedVerb)]
+        vec![
+            Box::new(TestChangedVerb),
+            Box::new(TestRunVerb),
+            Box::new(TestBenchVerb),
+        ]
+    }
+}
+
+pub struct TestRunVerb;
+impl VerbCommand for TestRunVerb {
+    fn name(&self) -> &'static str {
+        "run"
+    }
+    fn about(&self) -> &'static str {
+        "Run all tests in the workspace"
+    }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("test:run");
+        start_evt.case_id = Some(case_id.clone());
+
+        let output = std::process::Command::new("cargo").arg("test").output();
+
+        let verdict = match output {
+            Ok(ref out) if out.status.success() => {
+                println!("{}", String::from_utf8_lossy(&out.stdout));
+                "PASS"
+            }
+            Ok(ref out) => {
+                eprintln!("{}", String::from_utf8_lossy(&out.stderr));
+                "FAIL"
+            }
+            Err(e) => {
+                eprintln!("error running cargo test: {}", e);
+                "FAIL"
+            }
+        };
+
+        let mut complete_evt = ProcessEvent::completed("test:run", t0, verdict);
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
+        Ok(())
+    }
+}
+
+pub struct TestBenchVerb;
+impl VerbCommand for TestBenchVerb {
+    fn name(&self) -> &'static str {
+        "bench"
+    }
+    fn about(&self) -> &'static str {
+        "Run all benchmarks in the workspace"
+    }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = ProcessEvent::started("test:bench");
+        start_evt.case_id = Some(case_id.clone());
+
+        let output = std::process::Command::new("cargo").arg("bench").output();
+
+        let verdict = match output {
+            Ok(ref out) if out.status.success() => {
+                println!("{}", String::from_utf8_lossy(&out.stdout));
+                "PASS"
+            }
+            Ok(ref out) => {
+                eprintln!("{}", String::from_utf8_lossy(&out.stderr));
+                "FAIL"
+            }
+            Err(e) => {
+                eprintln!("error running cargo bench: {}", e);
+                "FAIL"
+            }
+        };
+
+        let mut complete_evt = ProcessEvent::completed("test:bench", t0, verdict);
+        complete_evt.case_id = Some(case_id);
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+            eprintln!("warning: evidence emission failed: {}", e);
+        }
+        Ok(())
     }
 }
 
@@ -66,7 +150,7 @@ impl VerbCommand for TestChangedVerb {
 
         let mut complete_evt = ProcessEvent::completed("test:changed", t0, "PASS");
         complete_evt.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[complete_evt], &evidence_dir) {
+        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())

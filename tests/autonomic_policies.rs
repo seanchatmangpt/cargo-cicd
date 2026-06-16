@@ -265,3 +265,301 @@ fn test_pass_verdict_has_empty_recommendation() {
         }
     }
 }
+
+// ── EvidenceStalePoliciy ─────────────────────────────────────────────────────
+
+use cargo_cicd::autonomic::policies::{
+    check_branch_behind, check_evidence_stale, check_publish_not_adjudicated, EvidenceState,
+    GitState, WorkspaceInfo,
+};
+
+#[test]
+fn policy_evidence_stale_with_no_evidence_suggests() {
+    // changed_file_count > 0, evidence_fresh = false → Suggest (stale alert)
+    let result = check_evidence_stale(3, false);
+    assert!(
+        !matches!(result.verdict, PolicyVerdict::Pass),
+        "stale evidence with changes should not pass, got {:?}",
+        result.verdict
+    );
+    assert!(
+        result.recommendation.contains("stale") || result.recommendation.contains("evidence"),
+        "recommendation should mention stale evidence, got: {}",
+        result.recommendation
+    );
+}
+
+#[test]
+fn policy_evidence_stale_with_fresh_evidence_passes() {
+    // changed_file_count = 0, evidence_fresh = true → Pass
+    let result = check_evidence_stale(0, true);
+    assert!(
+        matches!(result.verdict, PolicyVerdict::Pass),
+        "fresh evidence with no changes should pass, got {:?}",
+        result.verdict
+    );
+    assert!(
+        result.recommendation.is_empty(),
+        "pass verdict should have empty recommendation, got: {}",
+        result.recommendation
+    );
+}
+
+#[test]
+fn policy_evidence_stale_result_has_name() {
+    let result = check_evidence_stale(0, true);
+    assert_eq!(result.name, "evidence_stale");
+}
+
+#[test]
+fn policy_evidence_stale_changes_with_fresh_evidence_warns() {
+    // changed_file_count > 0, evidence_fresh = true → Warn (may be outdated)
+    let result = check_evidence_stale(2, true);
+    assert!(
+        matches!(result.verdict, PolicyVerdict::Warn),
+        "changes with present evidence should warn, got {:?}",
+        result.verdict
+    );
+}
+
+// ── BranchBehindPolicy ───────────────────────────────────────────────────────
+
+#[test]
+fn policy_branch_behind_evaluates_without_panic() {
+    // commits_behind = None (no upstream configured) → Pass gracefully
+    let result = check_branch_behind(None);
+    assert!(
+        matches!(result.verdict, PolicyVerdict::Pass),
+        "no upstream should pass gracefully, got {:?}",
+        result.verdict
+    );
+}
+
+#[test]
+fn policy_branch_behind_defaults_to_suggest_mode() {
+    let result = check_branch_behind(None);
+    assert!(
+        matches!(result.mode, PolicyMode::Suggest),
+        "branch_behind must default to Suggest mode, got {:?}",
+        result.mode
+    );
+}
+
+#[test]
+fn policy_branch_behind_zero_commits_passes() {
+    let result = check_branch_behind(Some(0));
+    assert!(
+        matches!(result.verdict, PolicyVerdict::Pass),
+        "zero commits behind should pass, got {:?}",
+        result.verdict
+    );
+}
+
+#[test]
+fn policy_branch_behind_nonzero_commits_suggests() {
+    let result = check_branch_behind(Some(3));
+    assert!(
+        !matches!(result.verdict, PolicyVerdict::Pass),
+        "3 commits behind should not pass, got {:?}",
+        result.verdict
+    );
+    assert!(
+        result.recommendation.contains("3") || result.recommendation.contains("pull"),
+        "recommendation should mention commit count or pull, got: {}",
+        result.recommendation
+    );
+}
+
+#[test]
+fn policy_branch_behind_result_has_name() {
+    let result = check_branch_behind(None);
+    assert_eq!(result.name, "branch_behind");
+}
+
+// ── PublishNotAdjudicatedPolicy ──────────────────────────────────────────────
+
+#[test]
+fn policy_publish_not_adjudicated_evaluates_without_panic() {
+    // receipt_exists = true, receipt_stale = false → Pass
+    let result = check_publish_not_adjudicated(true, false);
+    assert!(
+        matches!(result.verdict, PolicyVerdict::Pass),
+        "fresh receipt should pass, got {:?}",
+        result.verdict
+    );
+}
+
+#[test]
+fn policy_publish_not_adjudicated_suggest_mode_only() {
+    let result = check_publish_not_adjudicated(true, false);
+    assert!(
+        matches!(result.mode, PolicyMode::Suggest),
+        "publish_not_adjudicated must use Suggest mode, got {:?}",
+        result.mode
+    );
+}
+
+#[test]
+fn policy_publish_not_adjudicated_no_receipt_suggests() {
+    // receipt_exists = false → Suggest (alert)
+    let result = check_publish_not_adjudicated(false, false);
+    assert!(
+        !matches!(result.verdict, PolicyVerdict::Pass),
+        "missing receipt should not pass, got {:?}",
+        result.verdict
+    );
+    assert!(
+        result.recommendation.contains("receipt") || result.recommendation.contains("doctor"),
+        "recommendation should mention receipt or doctor, got: {}",
+        result.recommendation
+    );
+}
+
+#[test]
+fn policy_publish_not_adjudicated_stale_receipt_warns() {
+    // receipt_exists = true, receipt_stale = true → Warn
+    let result = check_publish_not_adjudicated(true, true);
+    assert!(
+        matches!(result.verdict, PolicyVerdict::Warn),
+        "stale receipt should warn, got {:?}",
+        result.verdict
+    );
+}
+
+#[test]
+fn policy_publish_not_adjudicated_result_has_name() {
+    let result = check_publish_not_adjudicated(true, false);
+    assert_eq!(result.name, "publish_not_adjudicated");
+}
+
+// ── run_all_policies: 7-result contract ─────────────────────────────────────
+
+use cargo_cicd::autonomic::policies::run_all_policies;
+
+#[test]
+fn run_all_policies_returns_seven_results() {
+    let workspace = WorkspaceInfo {
+        target_gb: 0.1,
+        max_gb: 20.0,
+        active_toolchain: "stable".to_string(),
+        pinned_toolchain: None,
+        changed_trybuild_fixtures: 0,
+    };
+    let git = GitState {
+        dirty_count: 0,
+        commits_behind: None,
+    };
+    let evidence = EvidenceState {
+        changed_file_count: 0,
+        evidence_fresh: true,
+        receipt_exists: true,
+        receipt_stale: false,
+    };
+    let results = run_all_policies(&workspace, &git, &evidence);
+    assert_eq!(
+        results.len(),
+        7,
+        "expected 7 policy results, got {}",
+        results.len()
+    );
+}
+
+#[test]
+fn run_all_policies_all_pass_on_clean_state() {
+    let workspace = WorkspaceInfo {
+        target_gb: 0.1,
+        max_gb: 20.0,
+        active_toolchain: "stable".to_string(),
+        pinned_toolchain: None,
+        changed_trybuild_fixtures: 0,
+    };
+    let git = GitState {
+        dirty_count: 0,
+        commits_behind: None,
+    };
+    let evidence = EvidenceState {
+        changed_file_count: 0,
+        evidence_fresh: true,
+        receipt_exists: true,
+        receipt_stale: false,
+    };
+    let results = run_all_policies(&workspace, &git, &evidence);
+    for r in &results {
+        assert!(
+            matches!(r.verdict, PolicyVerdict::Pass),
+            "policy '{}' should pass on clean state, got {:?}",
+            r.name,
+            r.verdict
+        );
+    }
+}
+
+#[test]
+fn run_all_policies_all_suggest_mode() {
+    let workspace = WorkspaceInfo {
+        target_gb: 0.1,
+        max_gb: 20.0,
+        active_toolchain: "stable".to_string(),
+        pinned_toolchain: None,
+        changed_trybuild_fixtures: 0,
+    };
+    let git = GitState {
+        dirty_count: 0,
+        commits_behind: None,
+    };
+    let evidence = EvidenceState {
+        changed_file_count: 0,
+        evidence_fresh: true,
+        receipt_exists: true,
+        receipt_stale: false,
+    };
+    let results = run_all_policies(&workspace, &git, &evidence);
+    for r in &results {
+        assert!(
+            matches!(r.mode, PolicyMode::Suggest),
+            "policy '{}' must be in Suggest mode, got {:?}",
+            r.name,
+            r.mode
+        );
+    }
+}
+
+// ── AutonomicMode / run_with_mode from policy_engine.rs ─────────────────────
+
+#[test]
+fn policy_engine_suggest_mode_never_applies() {
+    use cargo_cicd::autonomic::policy_engine::run_suggestions;
+    use cargo_cicd::engine::EngineState;
+
+    let state = EngineState::default();
+    // run_suggestions delegates to run_with_mode(Suggest) — must not panic
+    let results = run_suggestions(&state);
+    // All results are string recommendations; the invariant is that Suggest
+    // mode never performs workspace mutations. We can only assert no panic
+    // and that the return type is a Vec<String>.
+    let _ = results;
+}
+
+#[test]
+fn autonomic_mode_variants_are_distinct() {
+    use cargo_cicd::autonomic::policy_engine::AutonomicMode;
+    assert_ne!(AutonomicMode::Suggest, AutonomicMode::Apply);
+}
+
+#[test]
+fn policy_engine_run_with_mode_suggest_returns_vec() {
+    use cargo_cicd::autonomic::policy_engine::{run_with_mode, AutonomicMode};
+    use cargo_cicd::engine::EngineState;
+
+    let state = EngineState::default();
+    let results = run_with_mode(&state, AutonomicMode::Suggest);
+    // The result is a Vec<String>; each entry is a "[verdict] recommendation" string.
+    // In a clean test environment there may be non-passing policies (e.g. no evidence
+    // dir), but the call must not panic.
+    for rec in &results {
+        assert!(
+            !rec.is_empty(),
+            "non-passing policy recommendation string should not be empty"
+        );
+    }
+}

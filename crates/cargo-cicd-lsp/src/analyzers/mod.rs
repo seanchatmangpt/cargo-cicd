@@ -9,11 +9,14 @@ pub mod changed_tests;
 pub mod close_readiness;
 pub mod evidence;
 pub mod git_phase;
+pub mod pipeline_check;
 pub mod public_boundary;
 pub mod publish;
+pub mod remote_tracking;
 pub mod rendered_surface;
 pub mod runtime_court;
 pub mod target_hygiene;
+pub mod workspace_structure;
 
 /// A read-only workspace analyzer.
 pub trait CicdAnalyzer: Send + Sync {
@@ -28,6 +31,7 @@ pub trait CicdAnalyzer: Send + Sync {
 pub fn run_all(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
     let analyzers: Vec<Box<dyn CicdAnalyzer>> = vec![
         Box::new(git_phase::GitPhaseAnalyzer),
+        Box::new(remote_tracking::RemoteTrackingAnalyzer),
         Box::new(evidence::EvidenceAnalyzer),
         Box::new(publish::PublishAnalyzer),
         Box::new(public_boundary::PublicBoundaryAnalyzer),
@@ -37,6 +41,8 @@ pub fn run_all(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
         Box::new(close_readiness::CloseReadinessAnalyzer),
         Box::new(target_hygiene::TargetHygieneAnalyzer),
         Box::new(changed_tests::ChangedTestsAnalyzer),
+        Box::new(pipeline_check::PipelineCheckAnalyzer),
+        Box::new(workspace_structure::WorkspaceStructureAnalyzer),
     ];
     analyzers.iter().flat_map(|a| a.analyze(snapshot)).collect()
 }
