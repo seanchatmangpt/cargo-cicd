@@ -22,7 +22,11 @@ impl NounCommand for PipelineNoun {
         "Execute the full declared manufacturing pipeline"
     }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(PipelineRunVerb)]
+        vec![
+            Box::new(PipelineRunVerb),
+            Box::new(PipelineStatusVerb),
+            Box::new(PipelineValidateVerb),
+        ]
     }
 }
 
@@ -229,5 +233,143 @@ impl VerbCommand for PipelineRunVerb {
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         self.execute()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))
+    }
+}
+
+// ── pipeline status verb ──────────────────────────────────────────────────────
+
+pub struct PipelineStatusVerb;
+
+impl VerbCommand for PipelineStatusVerb {
+    fn name(&self) -> &'static str {
+        "status"
+    }
+    fn about(&self) -> &'static str {
+        "Show current pipeline state: cicd.toml fields and evidence files"
+    }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
+        let (mut start_evt, t0) = crate::evidence::ProcessEvent::started("pipeline:status");
+        start_evt.case_id = Some(case_id.clone());
+
+        println!("pipeline status");
+        println!("===============");
+
+        // Show cicd.toml state
+        let toml_path = std::path::Path::new("cicd.toml");
+        if toml_path.exists() {
+            println!("cicd.toml:      present");
+            if let Ok(content) = std::fs::read_to_string(toml_path) {
+                for line in content.lines() {
+                    if line.starts_with("target_size_gb")
+                        || line.starts_with("changed_files")
+                        || line.starts_with("dirty")
+                        || line.starts_with("changed_tests")
+                    {
+                        println!("  {}", line.trim());
+                    }
+                }
+            }
+        } else {
+            println!("cicd.toml:      MISSING — run 'cargo cicd pipeline run' first");
+        }
+
+        // Show evidence state
+        let events_jsonl = evidence_dir.join("events.jsonl");
+        if events_jsonl.exists() {
+            let line_count = std::fs::read_to_string(&events_jsonl)
+                .map(|s| s.lines().count())
+                .unwrap_or(0);
+            println!("evidence:       {} events in events.jsonl", line_count);
+        } else {
+            println!("evidence:       no events.jsonl");
+        }
+
+        let xes_path = evidence_dir.join("events.xes");
+        println!(
+            "events.xes:     {}",
+            if xes_path.exists() {
+                "present"
+            } else {
+                "missing"
+            }
+        );
+
+        // Count receipts
+        let receipt_dir = evidence_dir.join("receipts");
+        let receipt_count = std::fs::read_dir(&receipt_dir)
+            .map(|r| r.filter_map(|e| e.ok()).count())
+            .unwrap_or(0);
+        println!("receipts:       {}", receipt_count);
+
+        println!();
+        println!("next: run 'cargo cicd pipeline run' to execute the full pipeline");
+
+        let mut complete_evt =
+            crate::evidence::ProcessEvent::completed("pipeline:status", t0, "PASS");
+        complete_evt.case_id = Some(case_id);
+        let _ = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir);
+
+        Ok(())
+    }
+}
+
+// ── pipeline validate verb ────────────────────────────────────────────────────
+
+pub struct PipelineValidateVerb;
+
+impl VerbCommand for PipelineValidateVerb {
+    fn name(&self) -> &'static str {
+        "validate"
+    }
+    fn about(&self) -> &'static str {
+        "Validate pipeline preconditions before running"
+    }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        println!("pipeline validate");
+        println!("=================");
+
+        let mut all_pass = true;
+
+        let checks: &[(&str, bool)] = &[
+            ("Cargo.toml", std::path::Path::new("Cargo.toml").exists()),
+            ("git initialized", std::path::Path::new(".git").exists()),
+            ("cicd.toml", std::path::Path::new("cicd.toml").exists()),
+        ];
+
+        for (name, ok) in checks {
+            let tag = if *ok {
+                "PASS"
+            } else {
+                all_pass = false;
+                "WARN"
+            };
+            println!("[{}] {}", tag, name);
+        }
+
+        // wpm is optional
+        let wpm_ok = std::process::Command::new("wpm")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        println!(
+            "[{}] wpm oracle{}",
+            if wpm_ok { "PASS" } else { "WARN" },
+            if wpm_ok {
+                ""
+            } else {
+                " (optional — set WPM_PATH to enable)"
+            }
+        );
+
+        println!();
+        if all_pass {
+            println!("all preconditions met — ready to run 'cargo cicd pipeline run'");
+        } else {
+            println!("some preconditions missing — review WARNs above");
+        }
+        Ok(())
     }
 }

@@ -18,6 +18,17 @@ fn init_git_repo(dir: &std::path::Path) {
         .current_dir(dir)
         .output()
         .ok();
+    // Disable commit signing so tests work in environments with GPG/SSH signing enforced.
+    StdCmd::new("git")
+        .args(["config", "commit.gpgsign", "false"])
+        .current_dir(dir)
+        .output()
+        .ok();
+    StdCmd::new("git")
+        .args(["config", "tag.gpgsign", "false"])
+        .current_dir(dir)
+        .output()
+        .ok();
 }
 
 #[test]
@@ -105,5 +116,110 @@ fn test_no_false_close_invariant_dirty_unrelated() {
     assert!(
         output.status.code().is_some(),
         "command should exit gracefully"
+    );
+}
+
+#[test]
+fn git_diff_exits_zero() {
+    let dir = TempDir::new().unwrap();
+    init_git_repo(dir.path());
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("git")
+        .arg("diff")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git diff should exit zero; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn git_stage_exits_zero() {
+    let dir = TempDir::new().unwrap();
+    init_git_repo(dir.path());
+    // Create and commit an initial file so there are tracked files
+    std::fs::write(dir.path().join("init.txt"), "initial").unwrap();
+    StdCmd::new("git")
+        .args(["add", "init.txt"])
+        .current_dir(dir.path())
+        .output()
+        .ok();
+    StdCmd::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(dir.path())
+        .output()
+        .ok();
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("git")
+        .arg("stage")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git stage should exit zero on a clean tracked repo; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn git_fetch_exits_nonzero_without_remote() {
+    let dir = TempDir::new().unwrap();
+    init_git_repo(dir.path());
+    // No remote is configured, so fetch origin must fail
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("git")
+        .arg("fetch")
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "git fetch should exit non-zero when no remote is configured"
+    );
+}
+
+#[test]
+fn git_commit_warns_on_clean_tree() {
+    let dir = TempDir::new().unwrap();
+    init_git_repo(dir.path());
+    // Create and commit an initial file to have a clean tracked tree
+    std::fs::write(dir.path().join("init.txt"), "initial").unwrap();
+    StdCmd::new("git")
+        .args(["add", "init.txt"])
+        .current_dir(dir.path())
+        .output()
+        .ok();
+    StdCmd::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(dir.path())
+        .output()
+        .ok();
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("git")
+        .arg("commit")
+        .output()
+        .unwrap();
+    let combined = String::from_utf8_lossy(&output.stdout).to_string()
+        + &String::from_utf8_lossy(&output.stderr);
+    // On a clean tree it should either succeed (exit 0) with a WARN message,
+    // or exit 0 indicating nothing to commit.
+    assert!(
+        output.status.success(),
+        "git commit on clean tree should exit zero (WARN, not FAIL); output: {}",
+        combined
+    );
+    assert!(
+        combined.contains("clean") || combined.contains("nothing") || combined.contains("WARN"),
+        "expected clean-tree message; output: {}",
+        combined
     );
 }

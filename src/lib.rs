@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_imports)]
 
 pub mod adapters;
+#[cfg(feature = "advanced")]
+pub mod advanced;
 pub mod autonomic;
 pub mod cicd_toml;
 pub mod engine;
@@ -13,3 +15,6 @@ pub mod state;
 
 pub use cicd_toml::CicdToml;
 pub use engine::EngineState;
+
+// Re-export the shared domain types from cargo-cicd-core.
+pub use cargo_cicd_core as core;

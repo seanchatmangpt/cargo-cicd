@@ -21,8 +21,8 @@ impl CicdPolicy for TargetPressurePolicy {
     fn mode(&self) -> PolicyMode {
         PolicyMode::Suggest
     }
-    fn evaluate(&self) -> PolicyResult {
-        let size_gb = TargetScannerAdapter::total_size_gb("target");
+    fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
+        let size_gb = state.target.total_size_bytes as f64 / 1_000_000_000.0;
         let (verdict, rec) = if size_gb >= self.max_gb {
             (
                 "alert",

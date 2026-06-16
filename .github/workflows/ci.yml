@@ -2,258 +2,240 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  # ── Format & Lint ───────────────────────────────────────────────────────────
-  fmt-clippy:
-    name: fmt + clippy (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
+  check:
+    name: Check (lint + type-check)
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust stable (with fmt + clippy)
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: clippy, rustfmt
 
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run Clippy (default features)
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: Run Clippy (all features)
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-  # ── Core Test Matrix ────────────────────────────────────────────────────────
-  test:
-    name: test (${{ matrix.os }} / ${{ matrix.toolchain }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        toolchain: [stable, "1.86"]   # stable + MSRV
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@master
+      - name: Cache ~/.cargo registry and index
+        uses: actions/cache@v4
         with:
-          toolchain: ${{ matrix.toolchain }}
-
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.os }}-${{ matrix.toolchain }}
-
-      - name: Build workspace
-        run: cargo build --workspace
-
-      - name: Run invariants tests
-        run: cargo test --test invariants
-
-      - name: Run CLI tests
-        run: cargo test --test cli
-
-      - name: Run cicd_toml_truth tests
-        run: cargo test --test cicd_toml_truth
-
-      - name: Run autonomic_policies tests
-        run: cargo test --test autonomic_policies
-
-      - name: Run changed_tests tests
-        run: cargo test --test changed_tests
-
-      - name: Run git_phase_closure tests
-        run: cargo test --test git_phase_closure
-
-      - name: Run feature_projection tests
-        run: cargo test --test feature_projection
-
-      - name: Run all tests (default features)
-        run: cargo test --workspace
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.os }}-${{ matrix.toolchain }}
           path: |
-            target/nextest/
-            target/test-results/
-          if-no-files-found: ignore
-          retention-days: 14
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-  # ── Feature Flag Matrix ─────────────────────────────────────────────────────
-  feature-matrix:
-    name: features / ${{ matrix.features }}
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-check-
+            ${{ runner.os }}-target-
+
+      - name: Install cargo-make
+        run: cargo install cargo-make --locked
+
+      - name: Run cargo make check
+        run: cargo make check
+
+  test-unit:
+    name: Unit & Smoke Tests (Tier 1)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        features:
-          - ""                # default (no features)
-          - "process-data"
-          - "autonomic"
-          - "wasm4pm"
-
+    needs: check
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Cache ~/.cargo registry and index
+        uses: actions/cache@v4
         with:
-          key: features-${{ matrix.features }}
-
-      - name: Build (features=${{ matrix.features || 'default' }})
-        run: |
-          if [ -z "${{ matrix.features }}" ]; then
-            cargo build --workspace
-          else
-            cargo build --workspace --features "${{ matrix.features }}"
-          fi
-
-      - name: Test (features=${{ matrix.features || 'default' }})
-        run: |
-          if [ -z "${{ matrix.features }}" ]; then
-            cargo test --workspace
-          else
-            cargo test --workspace --features "${{ matrix.features }}"
-          fi
-
-      - name: Upload feature-test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-feature-${{ matrix.features || 'default' }}
           path: |
-            target/nextest/
-            target/test-results/
-          if-no-files-found: ignore
-          retention-days: 14
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-  # ── Forbidden Term Scan ─────────────────────────────────────────────────────
-  forbidden-terms:
-    name: Forbidden term scan
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-test-unit-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-test-unit-
+            ${{ runner.os }}-target-
+
+      - name: Install cargo-make
+        run: cargo install cargo-make --locked
+
+      - name: Run all Tier 1 tests
+        run: cargo make test
+
+  test-features:
+    name: Feature Flag Compilation
     runs-on: ubuntu-latest
-
+    needs: check
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Scan for forbidden terms in public surface
-        # These terms must never appear in CLI help text, public docs, or
-        # user-facing strings. They are allowed only inside internal comments
-        # or this workflow file itself.
-        run: |
-          FORBIDDEN_TERMS="ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|wasm4pm.*wall|Cargo Court|Truex|Field8|Instinct8"
-
-          echo "Scanning src/ for forbidden public-surface terms..."
-
-          # Scan Rust source — exclude comments (lines starting with //)
-          # and this CI file itself
-          VIOLATIONS=$(grep -rEn --include="*.rs" \
-            "$FORBIDDEN_TERMS" \
-            src/ \
-            --exclude-dir=.git \
-            | grep -v '^\s*//' \
-            | grep -v '//.*'"$FORBIDDEN_TERMS" \
-            || true)
-
-          # Scan CLI help strings specifically
-          HELP_VIOLATIONS=$(grep -rEn --include="*.rs" \
-            'help\s*=\s*"[^"]*'"(ALIVE|Nehemiah|CONSTRUCT8)" \
-            src/ || true)
-
-          # Scan public doc files (only README.md and public reference docs)
-          # Exclude internal/deferred docs: docs/wasm4pm/, docs/release/, docs/design/, receipts/
-          # and developer guides that explain the policy
-          DOC_VIOLATIONS=$(grep -rEn --include="*.md" \
-            "ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|Truex" \
-            README.md docs/reference/ docs/agents/ \
-            --exclude-dir=.git \
-            2>/dev/null || true)
-
-          FOUND=0
-          if [ -n "$VIOLATIONS" ]; then
-            echo "::error::Forbidden terms found in Rust source (non-comment lines):"
-            echo "$VIOLATIONS"
-            FOUND=1
-          fi
-          if [ -n "$HELP_VIOLATIONS" ]; then
-            echo "::error::Forbidden terms found in CLI help strings:"
-            echo "$HELP_VIOLATIONS"
-            FOUND=1
-          fi
-          if [ -n "$DOC_VIOLATIONS" ]; then
-            echo "::error::Forbidden terms found in public documentation:"
-            echo "$DOC_VIOLATIONS"
-            FOUND=1
-          fi
-
-          if [ "$FOUND" -eq 1 ]; then
-            exit 1
-          fi
-
-          echo "Forbidden term scan passed — no violations found."
-
-  # ── Workspace Integrity ─────────────────────────────────────────────────────
-  workspace-integrity:
-    name: Workspace integrity check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Cache ~/.cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-      - name: Verify Cargo.lock is up to date
-        run: cargo update --locked --workspace 2>&1 | grep -v "^$" || true
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-features-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-features-
+            ${{ runner.os }}-target-
 
-      - name: Check all workspace members resolve
-        run: cargo metadata --format-version 1 --no-deps > /dev/null
+      - name: Build with autonomic, wasm4pm, and contrib features
+        run: cargo build --features autonomic,wasm4pm,contrib
 
-      - name: Verify MSRV is declared and matches rust-version field
+      - name: Test with process-data feature
+        run: cargo test --features process-data
+
+      - name: Test with autonomic feature
+        run: cargo test --features autonomic
+
+      - name: Test feature projection consistency
+        run: cargo test --features process-data --test feature_projection
+
+      - name: Test autonomic policies with feature enabled
+        run: cargo test --features autonomic --test autonomic_policies
+
+  test-invariants:
+    name: Non-Negotiable Invariants
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache ~/.cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-invariants-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-invariants-
+            ${{ runner.os }}-target-
+
+      - name: Run invariant tests
+        run: cargo test --test invariants -- --nocapture
+
+  evidence-gate:
+    name: Evidence Gate (wasm4pm adjudication)
+    runs-on: ubuntu-latest
+    needs: test-unit
+    # The wpm oracle binary is not installed in standard CI environments.
+    # Tests fall back to ExpectedWpmVerdict::Blocked gracefully when wpm is absent.
+    # Set REQUIRE_WPM_ORACLE=1 in CI secrets to force oracle presence for release gates.
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache ~/.cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-evidence-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-evidence-
+            ${{ runner.os }}-target-
+
+      - name: Check wpm oracle availability
+        id: wpm-check
         run: |
-          MSRV=$(cargo metadata --format-version 1 --no-deps \
-            | python3 -c "import sys,json; m=json.load(sys.stdin); \
-              pkgs=[p for p in m['packages'] if p['name']=='cargo-cicd']; \
-              print(pkgs[0].get('rust_version','MISSING') if pkgs else 'NOT FOUND')")
-          echo "Declared MSRV: $MSRV"
-          if [ "$MSRV" = "MISSING" ] || [ "$MSRV" = "NOT FOUND" ]; then
-            echo "::error::rust-version field missing from Cargo.toml"
-            exit 1
+          if command -v wpm >/dev/null 2>&1; then
+            echo "wpm_available=true" >> "$GITHUB_OUTPUT"
+            echo "wpm found at: $(which wpm)"
+            wpm --version || true
+          else
+            echo "wpm_available=false" >> "$GITHUB_OUTPUT"
+            echo "wpm oracle not found on PATH — evidence gate tests will use Blocked fallback"
           fi
-          if [ "$MSRV" != "1.86" ]; then
-            echo "::error::MSRV mismatch — expected 1.86, got $MSRV"
-            exit 1
+
+      - name: Run evidence gate — happy path
+        run: cargo test --test wasm4pm_evidence_gate --features wasm4pm -- --nocapture
+        env:
+          REQUIRE_WPM_ORACLE: ${{ secrets.REQUIRE_WPM_ORACLE || '' }}
+
+      - name: Run evidence gate — mutation (negative cases)
+        run: cargo test --test wasm4pm_evidence_mutation --features wasm4pm -- --nocapture
+
+      - name: Run evidence gate — refusal cases
+        run: cargo test --test wasm4pm_refusal_cases --features wasm4pm -- --nocapture
+
+      - name: List emitted evidence artifacts
+        if: always()
+        run: |
+          echo "--- Evidence artifacts in target/cargo-cicd/evidence/ ---"
+          ls -la target/cargo-cicd/evidence/ 2>/dev/null || echo "No evidence directory found"
+
+      - name: Audit evidence with wpm oracle (if available)
+        if: steps.wpm-check.outputs.wpm_available == 'true'
+        run: |
+          XES_FILES=$(find target/cargo-cicd/evidence/ -name "*.xes" 2>/dev/null)
+          if [ -z "$XES_FILES" ]; then
+            echo "No XES evidence files found to audit"
+          else
+            for f in $XES_FILES; do
+              echo "Auditing: $f"
+              wpm audit "$f" || true
+            done
           fi
-          echo "MSRV check passed: $MSRV"

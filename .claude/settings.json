@@ -1,82 +1,149 @@
 {
+  "model": "claude-sonnet-4-6",
+
+  "includeCoAuthoredBy": true,
+
+  "context_files": [
+    "CLAUDE.md",
+    ".claude/ARCHITECTURE.md",
+    ".claude/PATTERNS.md",
+    "Cargo.toml",
+    "cicd.toml"
+  ],
+
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "RUST_LOG": "info",
+    "CARGO_TERM_COLOR": "always"
+  },
+
+  "permissions": {
+    "allow": [
+      "Bash(cargo make*)",
+      "Bash(cargo build*)",
+      "Bash(cargo test*)",
+      "Bash(cargo check*)",
+      "Bash(cargo clippy*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo cicd*)",
+      "Bash(cargo run*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(git stash*)",
+      "Bash(git show*)",
+      "Bash(git tag*)",
+      "Bash(wpm audit*)",
+      "Bash(wpm receipt*)",
+      "Bash(wpm --version*)",
+      "Bash(ls*)",
+      "Bash(find . -name*)",
+      "Bash(cat Cargo.toml)",
+      "Bash(cat cicd.toml)",
+      "Bash(cat Cargo.lock)",
+      "Bash(cat rust-toolchain.toml)",
+      "Bash(rustc --version*)",
+      "Bash(rustup*)",
+      "Bash(which wpm*)",
+      "Read(*)",
+      "Write(src/*)",
+      "Write(tests/*)",
+      "Write(docs/*)",
+      "Write(.claude/*)",
+      "Write(.github/*)",
+      "Write(ontology/*)",
+      "Write(templates/*)",
+      "Write(queries/*)",
+      "Write(cicd.toml)",
+      "Write(CHANGELOG.md)"
+    ],
+    "deny": [
+      "Bash(git reset --hard*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git clean -f*)",
+      "Bash(git checkout -- *)",
+      "Bash(git branch -D*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/session-start.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
           }
         ]
       }
     ],
-    "PreToolUse": [
+    "session_start": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'true'"
-          }
-        ]
+        "command": "bash .claude/hooks/session-start.sh",
+        "description": "Initialize session: verify wpm oracle, show workspace health, confirm forbidden terms gate"
       }
     ],
-    "PostToolUse": [
+    "pre_tool_use": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'true'"
-          }
-        ]
+        "tool": "Bash",
+        "matcher": "git (reset --hard|push --force|push -f|clean -f|checkout -- |branch -D)",
+        "action": "warn",
+        "message": "DESTRUCTIVE GIT OPERATION DETECTED. This command may permanently destroy work. Confirm this is intentional before proceeding. Consider: git stash, git branch backup/<name>, or a dry-run alternative."
+      },
+      {
+        "tool": "Bash",
+        "matcher": "rm -rf",
+        "action": "warn",
+        "message": "Destructive rm -rf detected. Verify path is correct and does not include source files, evidence, or receipts."
+      },
+      {
+        "tool": "Bash",
+        "matcher": "cargo publish",
+        "action": "warn",
+        "message": "cargo publish will upload a crate to crates.io. Ensure the evidence gate has passed (wpm audit) and all invariants are green before proceeding."
       }
     ],
-    "Stop": [
+    "post_tool_use": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'true'"
-          }
-        ]
+        "tool": "Bash",
+        "matcher": "cargo (build|make|test)",
+        "description": "After builds and tests, evidence may be emitted to target/cargo-cicd/evidence/. Check for new .xes/.jsonl files if the evidence gate is relevant."
       }
     ]
   },
-  "permissions": {
-    "allow": [
-      "Bash(cargo build*)",
-      "Bash(cargo build --release*)",
-      "Bash(cargo check*)",
-      "Bash(cargo test*)",
-      "Bash(cargo make*)",
-      "Bash(cargo fmt*)",
-      "Bash(cargo clippy*)",
-      "Bash(cargo clean*)",
-      "Bash(cargo install cargo-make*)",
-      "Bash(cargo metadata*)",
-      "Bash(cargo cicd*)",
-      "Bash(git status*)",
-      "Bash(git log*)",
-      "Bash(git diff*)",
-      "Bash(git add*)",
-      "Bash(git commit*)",
-      "Bash(git branch*)",
-      "Bash(git stash*)",
-      "Bash(wpm*)",
-      "Bash(rustc --version*)",
-      "Bash(rustup*)",
-      "Bash(cargo make --version*)"
+
+  "notes": {
+    "project": "cargo-cicd v26.6.2 — Rust workspace CI/CD helper with noun-verb CLI grammar",
+    "branch": "claude/eloquent-cray-evgdo8",
+    "forbidden_terms": [
+      "ALIVE",
+      "Inspection Gate",
+      "wall",
+      "Nehemiah",
+      "Field8",
+      "Instinct8",
+      "Cargo Court",
+      "AGI",
+      "Truex",
+      "CONSTRUCT8"
     ],
-    "deny": [
-      "Bash(git push --force*)",
-      "Bash(git reset --hard*)",
-      "Bash(rm -rf /*)"
-    ]
-  },
-  "env": {
-    "RUST_LOG": "warn",
-    "WPM_PATH": "/Users/sac/wasm4pm/target/release/wpm",
-    "CARGO_TERM_COLOR": "always"
+    "forbidden_terms_note": "These terms MUST NOT appear in any public output (help text, CLI, docs). The invariant test invariant_public_boundary_no_forbidden_terms_in_all_help() enforces this gate.",
+    "evidence_gate": "All release verdicts are adjudicated by the wasm4pm oracle (wpm binary). Tests assert wpm verdict (Accept/Refuse/Blocked), never internal cargo-cicd state.",
+    "oracle_unavailable": "If wpm is not on PATH, tests must declare ExpectedWpmVerdict::Blocked. Full release gate requires oracle to be available.",
+    "key_test_commands": [
+      "cargo test --test invariants",
+      "cargo test --test cli",
+      "cargo test --test wasm4pm_evidence_gate",
+      "cargo make test"
+    ],
+    "default_verb_injection": "Bare nouns auto-inject default verbs: status→show, publish→run, workspace→doctor, evidence→doctor",
+    "cicd_toml": "cicd.toml is a state carrier, not config. It is overwritten by each major operation. Do not rely on manual edits persisting."
   }
 }

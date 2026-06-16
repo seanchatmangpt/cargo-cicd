@@ -38,7 +38,13 @@ impl NounCommand for EvidenceNoun {
     }
 
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(DoctorVerb), Box::new(AuditVerb)]
+        vec![
+            Box::new(DoctorVerb),
+            Box::new(AuditVerb),
+            Box::new(EvidenceShowVerb),
+            Box::new(EvidenceListVerb),
+            Box::new(EvidenceResetVerb),
+        ]
     }
 }
 
@@ -137,5 +143,139 @@ impl VerbCommand for AuditVerb {
 
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         DoctorVerb.run(args)
+    }
+}
+
+pub struct EvidenceShowVerb;
+
+impl VerbCommand for EvidenceShowVerb {
+    fn name(&self) -> &'static str {
+        "show"
+    }
+
+    fn about(&self) -> &'static str {
+        "Show a summary of the current process evidence"
+    }
+
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        let jsonl_path = evidence_dir.join("events.jsonl");
+
+        if !jsonl_path.exists() {
+            println!("no evidence found — run 'cargo cicd pipeline run' first");
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&jsonl_path)
+            .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
+
+        println!("process evidence");
+        println!("================");
+        let mut count = 0;
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+                let event_type = val.get("command").and_then(|v| v.as_str()).unwrap_or("?");
+                let verdict = val
+                    .get("verdict_claimed")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                let ts = val
+                    .get("timestamp_iso")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                println!("  [{:>3}] {} → {} ({})", count + 1, event_type, verdict, ts);
+                count += 1;
+            }
+        }
+        println!();
+        println!("total events: {}", count);
+
+        let show_event = crate::evidence::ProcessEvent::new("evidence:show", "PASS");
+        let _ = crate::evidence::emit_events_jsonl(&[show_event], &jsonl_path);
+
+        Ok(())
+    }
+}
+
+pub struct EvidenceListVerb;
+
+impl VerbCommand for EvidenceListVerb {
+    fn name(&self) -> &'static str {
+        "list"
+    }
+
+    fn about(&self) -> &'static str {
+        "List evidence files in the evidence directory"
+    }
+
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+        println!("evidence directory: {}", evidence_dir.display());
+        println!();
+        if !evidence_dir.exists() {
+            println!("  (no evidence directory — run 'cargo cicd pipeline run' first)");
+            return Ok(());
+        }
+
+        fn walk_dir(path: &std::path::Path, indent: usize) {
+            if let Ok(entries) = std::fs::read_dir(path) {
+                let mut sorted: Vec<_> = entries.flatten().collect();
+                sorted.sort_by_key(|e| e.file_name());
+                for entry in sorted {
+                    let meta = entry.metadata().ok();
+                    let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let spaces = " ".repeat(indent * 2);
+                    if meta.map(|m| m.is_dir()).unwrap_or(false) {
+                        println!("{}{}/", spaces, entry.file_name().to_string_lossy());
+                        walk_dir(&entry.path(), indent + 1);
+                    } else {
+                        println!(
+                            "{}{}  ({} bytes)",
+                            spaces,
+                            entry.file_name().to_string_lossy(),
+                            size
+                        );
+                    }
+                }
+            }
+        }
+
+        walk_dir(&evidence_dir, 1);
+        Ok(())
+    }
+}
+
+pub struct EvidenceResetVerb;
+
+impl VerbCommand for EvidenceResetVerb {
+    fn name(&self) -> &'static str {
+        "reset"
+    }
+
+    fn about(&self) -> &'static str {
+        "Clear process events for a fresh pipeline run (preserves receipts)"
+    }
+
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let evidence_dir = crate::evidence::evidence_dir();
+
+        // Emit reset event before clearing so it is recorded in the outgoing session.
+        let reset_event = crate::evidence::ProcessEvent::new("evidence:reset", "PASS");
+        let jsonl_path = evidence_dir.join("events.jsonl");
+        let _ = crate::evidence::emit_events_jsonl(&[reset_event], &jsonl_path);
+
+        // Remove the mutable evidence files; leave receipts/ intact (permanent records).
+        let _ = std::fs::remove_file(evidence_dir.join("events.jsonl"));
+        let _ = std::fs::remove_file(evidence_dir.join("events.xes"));
+        let session_file = evidence_dir.join(".session");
+        let _ = std::fs::remove_file(&session_file);
+
+        let new_id = crate::session::read_or_create_session_id(&evidence_dir);
+        println!("evidence cleared");
+        println!("new session: {}", new_id);
+        Ok(())
     }
 }

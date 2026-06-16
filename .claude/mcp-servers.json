@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "builtin",
+      "description": "GitHub integration for repository management, PRs, issues, code search"
+    },
+    "cargo-cicd-evidence": {
+      "type": "filesystem",
+      "description": "Read and parse XES evidence files and JSONL process events from cargo-cicd runs",
+      "roots": [
+        "${workspaceRoot}/target/cargo-cicd/evidence",
+        "${workspaceRoot}/receipts"
+      ],
+      "capabilities": {
+        "read": true,
+        "write": false,
+        "search": true
+      }
+    },
+    "cargo-cicd-workspace": {
+      "type": "filesystem",
+      "description": "Access Cargo.toml manifests and workspace members for inspection and validation",
+      "roots": [
+        "${workspaceRoot}",
+        "${workspaceRoot}/crates"
+      ],
+      "include": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "cicd.toml"],
+      "capabilities": {
+        "read": true,
+        "write": false,
+        "search": true
+      }
+    }
+  },
+  "notes": {
+    "wasm4pm": "wasm4pm oracle (wpm) is invoked via Bash tool: wpm audit <file.xes> or wpm receipt doctor --format json --strict <receipt.json>. Not an MCP server — it's a local binary.",
+    "evidence-dir": "Evidence files are at target/cargo-cicd/evidence/. XES format for oracle, JSONL for machine parsing.",
+    "scope": "GitHub MCP is scoped to seanchatmangpt/cargo-cicd repository only."
+  }
+}

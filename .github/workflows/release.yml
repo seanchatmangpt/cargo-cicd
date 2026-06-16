@@ -3,326 +3,177 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*.*.*'
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-  BINARY_NAME: cargo-cicd
+permissions:
+  contents: read
 
 jobs:
-  # ── Pre-release Tests ───────────────────────────────────────────────────────
-  test:
-    name: Pre-release test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Format check
-        run: cargo fmt --all -- --check
-
-      - name: Clippy (all features)
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Test (default features)
-        run: cargo test --workspace
-
-      - name: Test (process-data)
-        run: cargo test --workspace --features process-data
-
-      - name: Test (autonomic)
-        run: cargo test --workspace --features autonomic
-
-      - name: Test (wasm4pm)
-        run: cargo test --workspace --features wasm4pm
-
-  # ── Evidence Gate ───────────────────────────────────────────────────────────
-  evidence-gate:
-    name: wasm4pm evidence gate
+  validate-tag:
+    name: Validate Tag Format
     runs-on: ubuntu-latest
-    needs: test
-    continue-on-error: true   # wpm binary may not be present in CI — gate is advisory here
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build with wasm4pm feature
-        run: cargo build --features wasm4pm
-
-      - name: Run wasm4pm evidence-gate tests
-        run: cargo test --test wasm4pm_evidence_gate --features wasm4pm 2>&1 | tee evidence-gate.log || true
-
-      - name: Run wasm4pm evidence-mutation tests
-        run: cargo test --test wasm4pm_evidence_mutation --features wasm4pm 2>&1 | tee -a evidence-gate.log || true
-
-      - name: Run wasm4pm refusal-case tests
-        run: cargo test --test wasm4pm_refusal_cases --features wasm4pm 2>&1 | tee -a evidence-gate.log || true
-
-      - name: Upload evidence gate log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: evidence-gate-log
-          path: |
-            evidence-gate.log
-            target/cargo-cicd/evidence/
-          if-no-files-found: ignore
-          retention-days: 30
-
-  # ── Release Binary Build ────────────────────────────────────────────────────
-  build-release:
-    name: Build release binary (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    needs: test
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: cargo-cicd-linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact_name: cargo-cicd-linux-aarch64
-            cross: true
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: cargo-cicd-macos-x86_64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_name: cargo-cicd-macos-aarch64
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: release-${{ matrix.target }}
-
-      - name: Install cross (for cross-compilation)
-        if: matrix.cross == true
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Build release binary (native)
-        if: matrix.cross != true
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Build release binary (cross)
-        if: matrix.cross == true
-        run: cross build --release --target ${{ matrix.target }}
-
-      - name: Stage binary artifact (Linux/macOS)
-        run: |
-          BINARY_PATH="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
-          mkdir -p staging
-          cp "$BINARY_PATH" "staging/${{ matrix.artifact_name }}"
-          chmod +x "staging/${{ matrix.artifact_name }}"
-
-      - name: Generate SHA-256 checksum
-        run: |
-          cd staging
-          sha256sum "${{ matrix.artifact_name }}" > "${{ matrix.artifact_name }}.sha256" 2>/dev/null \
-            || shasum -a 256 "${{ matrix.artifact_name }}" > "${{ matrix.artifact_name }}.sha256"
-
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: staging/
-          retention-days: 7
-
-  # ── Changelog Generation ────────────────────────────────────────────────────
-  changelog:
-    name: Generate changelog
-    runs-on: ubuntu-latest
-    needs: test
     outputs:
-      changelog: ${{ steps.changelog.outputs.changelog }}
-
+      version: ${{ steps.parse.outputs.version }}
+      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
     steps:
-      - name: Checkout (full history for changelog)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Generate changelog from commit log
-        id: changelog
+      - name: Parse and validate tag
+        id: parse
         run: |
-          # Determine previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          CURR_TAG="${{ github.ref_name }}"
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Tag: $TAG"
 
-          echo "Generating changelog from ${PREV_TAG:-beginning} to ${CURR_TAG}"
-
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="${PREV_TAG}..HEAD"
-          else
-            RANGE="HEAD"
-          fi
-
-          # Build changelog grouped by conventional commit type
-          {
-            echo "## What's Changed in ${CURR_TAG}"
-            echo ""
-
-            FEAT=$(git log $RANGE --pretty=format:"%s" | grep '^feat' || true)
-            FIX=$(git log $RANGE --pretty=format:"%s" | grep '^fix' || true)
-            DOCS=$(git log $RANGE --pretty=format:"%s" | grep '^docs' || true)
-            REFACTOR=$(git log $RANGE --pretty=format:"%s" | grep '^refactor' || true)
-            TEST=$(git log $RANGE --pretty=format:"%s" | grep '^test' || true)
-            OTHER=$(git log $RANGE --pretty=format:"%s" | grep -Ev '^(feat|fix|docs|refactor|test|chore)' || true)
-
-            if [ -n "$FEAT" ]; then
-              echo "### Features"
-              echo "$FEAT" | sed 's/^/- /'
-              echo ""
-            fi
-            if [ -n "$FIX" ]; then
-              echo "### Bug Fixes"
-              echo "$FIX" | sed 's/^/- /'
-              echo ""
-            fi
-            if [ -n "$DOCS" ]; then
-              echo "### Documentation"
-              echo "$DOCS" | sed 's/^/- /'
-              echo ""
-            fi
-            if [ -n "$REFACTOR" ]; then
-              echo "### Refactoring"
-              echo "$REFACTOR" | sed 's/^/- /'
-              echo ""
-            fi
-            if [ -n "$TEST" ]; then
-              echo "### Tests"
-              echo "$TEST" | sed 's/^/- /'
-              echo ""
-            fi
-            if [ -n "$OTHER" ]; then
-              echo "### Other Changes"
-              echo "$OTHER" | sed 's/^/- /'
-              echo ""
-            fi
-
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURR_TAG}"
-          } > CHANGELOG_BODY.md
-
-          # Export for use in release step (multiline safe)
-          CHANGELOG=$(cat CHANGELOG_BODY.md)
-          {
-            echo "changelog<<EOF"
-            echo "$CHANGELOG"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Upload changelog artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: changelog
-          path: CHANGELOG_BODY.md
-          retention-days: 7
-
-  # ── GitHub Release ──────────────────────────────────────────────────────────
-  create-release:
-    name: Create GitHub release
-    runs-on: ubuntu-latest
-    needs: [build-release, changelog]
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download all binary artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-          pattern: cargo-cicd-*
-          merge-multiple: false
-
-      - name: Flatten artifacts into release directory
-        run: |
-          mkdir -p release-assets
-          find artifacts/ -type f \( -name "cargo-cicd-*" -o -name "*.sha256" \) \
-            -exec cp {} release-assets/ \;
-          ls -la release-assets/
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: cargo-cicd ${{ github.ref_name }}
-          body: ${{ needs.changelog.outputs.changelog }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}   # v1.0.0-beta → prerelease
-          files: release-assets/*
-          fail_on_unmatched_files: false
-
-  # ── Publish to crates.io ────────────────────────────────────────────────────
-  publish:
-    name: Publish to crates.io
-    runs-on: ubuntu-latest
-    needs: [create-release]
-    environment: crates-io
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo registry and build artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Verify version tag matches Cargo.toml
-        run: |
-          CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps \
-            | python3 -c "import sys,json; m=json.load(sys.stdin); \
-              pkgs=[p for p in m['packages'] if p['name']=='cargo-cicd']; \
-              print(pkgs[0]['version'] if pkgs else 'NOT FOUND')")
-          TAG_VERSION="${{ github.ref_name }}"
-          TAG_VERSION="${TAG_VERSION#v}"   # strip leading 'v'
-          echo "Cargo.toml version: $CARGO_VERSION"
-          echo "Tag version:        $TAG_VERSION"
-          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Version mismatch — Cargo.toml ($CARGO_VERSION) ≠ tag ($TAG_VERSION)"
+          # Validate semver format: vMAJOR.MINOR.PATCH[-suffix]
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
+            echo "ERROR: Tag '$TAG' does not match semver format vMAJOR.MINOR.PATCH[-suffix]"
             exit 1
           fi
 
-      - name: Publish cargo-cicd-core (if changed)
-        working-directory: crates/cargo-cicd-core
-        run: |
-          cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}" --no-verify \
-            2>&1 | tee publish-core.log || true
-          # 'already uploaded' is not a failure
-          grep -q "already uploaded\|Uploading\|success" publish-core.log
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish cargo-cicd
+          # Mark as pre-release if suffix contains -rc or -beta
+          if echo "$TAG" | grep -qE '\-(rc|beta)'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Pre-release detected: $TAG"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "Stable release: $TAG"
+          fi
+
+  run-gates:
+    name: Release Gates
+    runs-on: ubuntu-latest
+    needs: validate-tag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-gates-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-gates-
+            ${{ runner.os }}-cargo-
+
+      - name: Install cargo-make
+        run: cargo install cargo-make --locked
+
+      - name: Run full test suite
+        run: cargo make test
+
+      - name: Run invariants gate
+        run: cargo test --test invariants
+
+      - name: Build with all release features
+        run: cargo build --features autonomic,wasm4pm,contrib
+
+      - name: Run evidence gate (continue on oracle unavailability)
+        run: cargo test --test wasm4pm_evidence_gate --features wasm4pm
+        continue-on-error: true
+
+  build-release:
+    name: Build Release Binary
+    runs-on: ubuntu-latest
+    needs: run-gates
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Rename artifact
+        run: cp target/release/cargo-cicd cargo-cicd-linux-amd64
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-cicd-linux-amd64
+          path: cargo-cicd-linux-amd64
+          retention-days: 7
+          if-no-files-found: error
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - validate-tag
+      - build-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-cicd-linux-amd64
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
         run: |
-          cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          TAG="v${VERSION}"
+
+          # Extract the section for this version from CHANGELOG.md
+          # Looks for a heading matching the tag, captures until the next heading
+          if [ -f CHANGELOG.md ]; then
+            NOTES=$(awk "/^## \[?${TAG}\]?|^## \[?${VERSION}\]?/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
+            if [ -z "$NOTES" ]; then
+              NOTES="Release ${TAG}. See CHANGELOG.md for details."
+            fi
+          else
+            NOTES="Release ${TAG}."
+          fi
+
+          # Write notes to a file to handle multi-line content safely
+          echo "$NOTES" > release_notes.md
+          echo "Release notes extracted for $TAG"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          TAG="v${VERSION}"
+          IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
+
+          PRERELEASE_FLAG=""
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+            echo "Creating pre-release for $TAG"
+          else
+            echo "Creating stable release for $TAG"
+          fi
+
+          gh release create "$TAG" \
+            cargo-cicd-linux-amd64 \
+            --title "cargo-cicd $TAG" \
+            --notes-file release_notes.md \
+            $PRERELEASE_FLAG

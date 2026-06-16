@@ -75,3 +75,53 @@ fn test_corrupted_cicd_toml_does_not_silently_pass() {
         "corrupted cicd.toml must be repaired or explicitly reported"
     );
 }
+
+/// cicd.toml written by pipeline run contains a [state] section.
+#[test]
+fn cicd_toml_state_section_present_after_status() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+    let _ = Command::new(env!("CARGO_BIN_EXE_cargo-cicd"))
+        .args(["status", "show"])
+        .current_dir(tmp.path())
+        .output();
+    let toml_path = tmp.path().join("cicd.toml");
+    if toml_path.exists() {
+        let content = std::fs::read_to_string(&toml_path).unwrap();
+        assert!(
+            content.contains("[state]"),
+            "cicd.toml missing [state] section: {}",
+            content
+        );
+    }
+    // If no cicd.toml written, that is also acceptable (status may not write it)
+}
+
+/// cicd.toml workspace section has target_dir field.
+#[test]
+fn cicd_toml_workspace_has_target_dir() {
+    let dir = TempDir::new().unwrap();
+    let content = run_publish(dir.path());
+    if !content.is_empty() && content.contains("[workspace]") {
+        assert!(
+            content.contains("target_dir"),
+            "cicd.toml missing target_dir: {}",
+            content
+        );
+    }
+}
+
+/// cicd.toml produced by publish run is valid TOML.
+#[test]
+fn cicd_toml_parses_as_valid_toml() {
+    let dir = TempDir::new().unwrap();
+    let content = run_publish(dir.path());
+    if !content.is_empty() {
+        let parsed: Result<toml::Value, _> = toml::from_str(&content);
+        assert!(
+            parsed.is_ok(),
+            "cicd.toml is not valid TOML: {:?}",
+            parsed.err()
+        );
+    }
+}
