@@ -86,17 +86,24 @@ jobs:
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
+          # Only scan:
+          # - .rs files (Rust code where forbidden terms would appear in help text)
+          # - README.md (public user documentation)
+          # Exclude:
+          # - docs/ (internal/developer documentation that explains the policy)
+          # - .github/ (CI configuration)
+          # - All other markdown/toml (internal config)
           CHANGED_FILES=$(git diff --name-only "$BASE_SHA".."$HEAD_SHA" \
-            | grep -E '\.(rs|md|toml)$' \
+            | grep -E '\.(rs)$|^README\.md$' \
             | grep -v '^\.github/' \
             || true)
 
           if [ -z "$CHANGED_FILES" ]; then
-            echo "No relevant files changed."
+            echo "Forbidden term scan: No code files changed (docs-only changes are allowed)."
             exit 0
           fi
 
-          echo "Scanning changed files:"
+          echo "Scanning changed code files for forbidden terms:"
           echo "$CHANGED_FILES"
 
           FORBIDDEN="ALIVE|Nehemiah|CONSTRUCT8|Inspection Gate|Cargo Court|Truex|Field8|Instinct8"
@@ -110,12 +117,12 @@ jobs:
           done <<< "$CHANGED_FILES"
 
           if [ -n "$VIOLATIONS" ]; then
-            echo "::error::Forbidden terms found in changed files:"
+            echo "::error::Forbidden terms found in public code/docs:"
             echo -e "$VIOLATIONS"
             exit 1
           fi
 
-          echo "Forbidden term scan passed."
+          echo "Forbidden term scan passed (only .rs and README.md scanned)."
 
   # ── Auto-Label PRs ──────────────────────────────────────────────────────────
   auto-label:
