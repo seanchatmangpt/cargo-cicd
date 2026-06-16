@@ -96,6 +96,7 @@ jobs:
           CHANGED_FILES=$(git diff --name-only "$BASE_SHA".."$HEAD_SHA" \
             | grep -E '\.(rs)$|^README\.md$' \
             | grep -v '^\.github/' \
+            | grep -v '^tests/' \
             || true)
 
           if [ -z "$CHANGED_FILES" ]; then
