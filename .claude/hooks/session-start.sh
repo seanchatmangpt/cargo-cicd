@@ -1,47 +1,60 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Session start hook for Claude Code (web + CLI). Always exits 0.
+set -uo pipefail
 
-# SessionStart hook for cargo-cicd
-# Prints a concise project-readiness summary — no builds, always exits 0.
+WD="$(cd "$(dirname "$0")/../../.." && pwd)"
+cd "$WD" 2>/dev/null || true
 
-cat <<'BANNER'
-┌─────────────────────────────────────────────────────┐
-│           cargo-cicd — project ready                │
-└─────────────────────────────────────────────────────┘
-BANNER
-
-echo "Project : cargo-cicd (Rust CI/CD workspace helper)"
+echo "cargo-cicd v26.6.2 — Claude Code Session Started"
+echo "Workspace: $WD"
 echo ""
 
-# Toolchain detection — best-effort, never fatal
-if rustc_ver=$(rustc --version 2>/dev/null); then
-    echo "Toolchain: ${rustc_ver}"
+check_tool() {
+  local cmd="$1" hint="$2" req="$3"
+  if command -v "$cmd" &>/dev/null; then
+    echo "  [ok] $cmd $($cmd --version 2>/dev/null | head -1 | cut -d' ' -f2-)"
+  elif [[ "$req" == "required" ]]; then
+    echo "  [MISSING] $cmd — $hint"
+  else
+    echo "  [optional] $cmd not found — $hint"
+  fi
+}
+
+echo "Tools:"
+check_tool cargo  "install rustup from https://rustup.rs" required
+check_tool git    "install git" required
+check_tool makers "cargo install cargo-make" optional
+check_tool wpm    "build wasm4pm, add to PATH (evidence gate only)" optional
+echo ""
+
+[[ -f "$WD/Cargo.toml" ]] && echo "  [ok] Cargo.toml found" || echo "  [warn] Cargo.toml not found"
+[[ -f "$WD/cicd.toml" ]] || echo "  [info] cicd.toml absent — run: cargo cicd workspace doctor"
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+echo "  [git] branch=$BRANCH  dirty=$DIRTY"
+echo ""
+
+if [[ -d "$WD/target" ]]; then
+  echo "  [target] $(du -sh "$WD/target" 2>/dev/null | cut -f1) used"
 else
-    echo "Toolchain: rustc not found on PATH (install via rustup)"
+  echo "  [target] not yet built"
 fi
+echo ""
 
+echo "Feature flags:  default | process-data | autonomic | wasm4pm | contrib"
 echo ""
-echo "Key commands:"
-echo "  cargo make build       — build the workspace"
-echo "  cargo make check       — lint + type-check (no build artefacts)"
-echo "  cargo test             — run all integration tests"
-echo "  cargo cicd status      — show workspace status"
-echo "  cargo cicd ui demo     — launch the terminal UI demo"
+echo "Quick commands:"
+echo "  cargo make build           build the binary"
+echo "  cargo make test            run all tests"
+echo "  cargo make check           lint + type-check"
+echo "  cargo cicd status          workspace snapshot"
+echo "  cargo cicd workspace doctor  full diagnostics"
+echo "  cargo cicd evidence doctor   evidence gate"
 echo ""
-echo "Nouns (cargo cicd <noun> <verb>):"
-echo "  status      show | audit"
-echo "  target      show | prune"
-echo "  test        changed"
-echo "  trybuild    changed"
-echo "  git         status | close"
-echo "  publish     run"
-echo "  workspace   doctor"
-echo "  evidence    doctor | audit"
-echo "  ui          demo | dashboard"
-echo "  lsp"
-echo "  pipeline"
-echo ""
-echo "Commit format: feat(core|cli|target|test|git|autonomic|docs|receipts): <description>"
-echo ""
+
+export RUST_BACKTRACE=1
+export RUST_LOG=info
+export CARGO_TERM_COLOR=always
 
 exit 0

@@ -13,16 +13,12 @@ impl CicdPolicy for TrybuildChangedPolicy {
     fn mode(&self) -> PolicyMode {
         PolicyMode::Suggest
     }
-    fn evaluate(&self) -> PolicyResult {
-        let changed = ChangedFileDetector::changed_rs_files("origin/main");
-        let fixtures: Vec<_> = changed
-            .iter()
-            .filter(|f| ChangedFileDetector::is_trybuild_fixture(f))
-            .collect();
-        let (verdict, rec) = if fixtures.is_empty() {
+    fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
+        let fixture_count = state.trybuild.changed_fixtures.len();
+        let (verdict, rec) = if fixture_count == 0 {
             ("pass", None)
         } else {
-            ("warn", Some(format!("{} trybuild fixture(s) changed — run 'cargo cicd trybuild changed' to test selectively", fixtures.len())))
+            ("warn", Some(format!("{} trybuild fixture(s) changed — run 'cargo cicd trybuild changed' to test selectively", fixture_count)))
         };
         PolicyResult {
             name: self.name().into(),

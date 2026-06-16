@@ -102,6 +102,22 @@ impl VerbCommand for TargetPruneVerb {
     fn about(&self) -> &'static str {
         "Plan target directory cleanup (safe by default; use --apply to execute)"
     }
+    fn build_command(&self) -> clap::Command {
+        clap::Command::new(self.name())
+            .about(self.about())
+            .arg(
+                clap::Arg::new("apply")
+                    .long("apply")
+                    .action(clap::ArgAction::SetTrue)
+                    .help("Execute the prune (delete incremental artifacts)")
+            )
+            .arg(
+                clap::Arg::new("dry-run")
+                    .long("dry-run")
+                    .action(clap::ArgAction::SetTrue)
+                    .help("Show what would be deleted without deleting (default behavior)")
+            )
+    }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();
         let case_id = crate::session::read_or_create_session_id(&evidence_dir);

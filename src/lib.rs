@@ -14,3 +14,6 @@ pub mod ui;
 
 pub use cicd_toml::CicdToml;
 pub use engine::EngineState;
+
+// Re-export the shared domain types from cargo-cicd-core.
+pub use cargo_cicd_core as core;

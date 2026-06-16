@@ -19,14 +19,14 @@ default = []
 editor-tests = []
 
 [dependencies]
-cargo-cicd-core = { path = "../cargo-cicd-core" }
+cargo-cicd-core = { workspace = true }
 tower-lsp = "0.20"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tracing = "0.1"
-tracing-subscriber = "0.3"
-thiserror = "1"
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

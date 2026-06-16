@@ -72,7 +72,11 @@ impl std::fmt::Display for WpmResult {
     }
 }
 
-/// Standardized verdict from a wpm invocation.
+/// Shell-operation verdict from a wpm invocation.
+///
+/// Represents the outcome of a shell command (pass/warn/fail), distinct from
+/// [`CoreWpmVerdict`](super::CoreWpmVerdict) which carries the structured
+/// JSON court assessment with fitness scores.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WpmVerdict {
     Pass,

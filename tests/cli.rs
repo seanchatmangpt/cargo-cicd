@@ -7,4 +7,5 @@ mod cli {
     mod test_status;
     mod test_target;
     mod test_workspace;
+    mod verb_registry;
 }

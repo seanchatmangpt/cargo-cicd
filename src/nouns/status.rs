@@ -1,4 +1,6 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
+use crate::autonomic::policy_engine;
+use crate::engine::EngineState;
 use crate::evidence::ProcessEvent;
 use crate::ui::badge::{self, Verdict};
 use crate::ui::theme::{self, Role};
@@ -89,6 +91,53 @@ impl StatusShowVerb {
         if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
             eprintln!("warning: evidence emission failed: {}", e);
         }
+
+        // Build real engine state from adapters.
+        let engine = EngineState::from_workspace();
+
+        // Show key engine state dimensions.
+        println!();
+        println!("engine state:");
+        if !engine.workspace.root_path.is_empty() {
+            println!("  workspace root: {}", engine.workspace.root_path);
+        }
+        if !engine.workspace.name.is_empty() {
+            println!("  workspace name: {}", engine.workspace.name);
+        }
+        println!("  branch:         {}", engine.git_phase.branch);
+        println!("  dirty files:    {}", engine.git_phase.dirty_files.len());
+        println!(
+            "  target size:    {:.2} GB",
+            engine.target.total_size_bytes as f64 / 1_073_741_824.0
+        );
+        println!("  toolchain:      {}", engine.toolchain.active);
+
+        // Run autonomic policies and display suggestions.
+        let suggestions = policy_engine::run_suggestions(&engine);
+        if !suggestions.is_empty() {
+            println!();
+            println!("policy suggestions:");
+            for s in &suggestions {
+                println!("  → {}", s);
+            }
+        }
+
+        // Run LSP analyzers and display findings.
+        let snapshot = cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(std::path::Path::new("."));
+        let findings = cargo_cicd_lsp::analyzers::run_all(&snapshot);
+
+        if !findings.is_empty() {
+            println!();
+            println!("diagnostic findings (from LSP analyzers)");
+            println!("=======================================");
+            for finding in findings {
+                println!("[{}] {}: {}", finding.severity, finding.code.as_str(), finding.message);
+                for repair in &finding.repairs {
+                    println!("  → {}", repair);
+                }
+            }
+        }
+
         Ok(())
     }
 }

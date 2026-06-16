@@ -412,7 +412,9 @@ fn collect_policies(
     target_cap_gb: f64,
     dirty: usize,
 ) -> Vec<(String, String)> {
-    use crate::autonomic::policies::{run_all_policies, GitState, PolicyVerdict, WorkspaceInfo};
+    use crate::autonomic::policies::{
+        run_all_policies, EvidenceState, GitState, PolicyVerdict, WorkspaceInfo,
+    };
 
     let pinned_toolchain = read_pinned_toolchain();
     let workspace_info = WorkspaceInfo {
@@ -422,9 +424,18 @@ fn collect_policies(
         pinned_toolchain,
         changed_trybuild_fixtures: 0,
     };
-    let git_state = GitState { dirty_count: dirty };
+    let git_state = GitState {
+        dirty_count: dirty,
+        commits_behind: None,
+    };
+    let evidence_state = EvidenceState {
+        changed_file_count: 0,
+        evidence_fresh: true,
+        receipt_exists: false,
+        receipt_stale: false,
+    };
 
-    run_all_policies(&workspace_info, &git_state)
+    run_all_policies(&workspace_info, &git_state, &evidence_state)
         .into_iter()
         .map(|r| {
             let verdict = match r.verdict {
@@ -531,11 +542,20 @@ mod tests {
 
     #[test]
     fn policy_projection_maps_verdicts_to_labels() {
-        // A clean, in-budget workspace with a matching toolchain should yield all
-        // PASS verdicts from the suggest-mode policies.
+        // The dashboard projects every suggest-mode policy. A clean, in-budget
+        // workspace with a matching toolchain is green on all dimensions except
+        // that a fresh workspace has no adjudicated publish receipt yet, which
+        // the publish-not-adjudicated policy surfaces as a SUGGEST.
         let policies = collect_policies("nightly", 1.0, 20.0, 0);
-        assert_eq!(policies.len(), 4);
-        assert!(policies.iter().all(|(v, _)| v == "PASS"));
+        assert_eq!(policies.len(), 7);
+        for (v, n) in &policies {
+            match n.as_str() {
+                "publish_not_adjudicated" => {
+                    assert_eq!(v, "SUGGEST", "fresh workspace should suggest adjudication")
+                }
+                _ => assert_eq!(v, "PASS", "policy {n} unexpectedly {v}"),
+            }
+        }
 
         // A dirty tree surfaces a SUGGEST verdict for the git-phase policy.
         let dirty = collect_policies("nightly", 1.0, 20.0, 3);

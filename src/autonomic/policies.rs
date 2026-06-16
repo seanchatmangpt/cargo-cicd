@@ -47,6 +47,21 @@ pub struct WorkspaceInfo {
 pub struct GitState {
     /// Number of files with uncommitted modifications (dirty working tree).
     pub dirty_count: usize,
+    /// Number of commits the local branch is behind the remote tracking branch.
+    /// `None` means no upstream is configured or git is unavailable.
+    pub commits_behind: Option<usize>,
+}
+
+/// Evidence snapshot passed to `run_all_policies`.
+pub struct EvidenceState {
+    /// Number of changed source files detected since last commit.
+    pub changed_file_count: usize,
+    /// Whether the events.xes evidence file is present.
+    pub evidence_fresh: bool,
+    /// Whether target/cargo-cicd/evidence/receipts/latest.json exists.
+    pub receipt_exists: bool,
+    /// Whether the receipt is older than other evidence files.
+    pub receipt_stale: bool,
 }
 
 // ── individual policy checks ─────────────────────────────────────────────────
@@ -158,12 +173,105 @@ pub fn check_git_phase_dirty(dirty_count: usize) -> PolicyResult {
     }
 }
 
+/// Evaluate whether evidence is stale relative to recent source changes.
+///
+/// - `changed_file_count > 0` and evidence not fresh → Alert
+/// - `changed_file_count > 0` and evidence present   → Warn (may be outdated)
+/// - otherwise                                        → Pass
+pub fn check_evidence_stale(changed_file_count: usize, evidence_fresh: bool) -> PolicyResult {
+    let (verdict, recommendation) = if changed_file_count > 0 && !evidence_fresh {
+        (
+            PolicyVerdict::Suggest,
+            "evidence stale: run 'cargo cicd test changed' and 'cargo cicd workspace doctor'"
+                .to_string(),
+        )
+    } else if changed_file_count > 0 && evidence_fresh {
+        (
+            PolicyVerdict::Warn,
+            "source changes detected — verify evidence is current before closing".to_string(),
+        )
+    } else {
+        (PolicyVerdict::Pass, String::new())
+    };
+
+    PolicyResult {
+        name: "evidence_stale".to_string(),
+        enabled: true,
+        mode: PolicyMode::Suggest,
+        verdict,
+        recommendation,
+        event: "evidence_stale_check".to_string(),
+    }
+}
+
+/// Evaluate whether the local branch is behind the remote tracking branch.
+///
+/// `commits_behind > 0` → Suggest git pull --rebase (never auto-applied).
+/// `None` (no upstream / git unavailable) → Pass (graceful).
+pub fn check_branch_behind(commits_behind: Option<usize>) -> PolicyResult {
+    let (verdict, recommendation) = match commits_behind {
+        Some(n) if n > 0 => (
+            PolicyVerdict::Suggest,
+            format!(
+                "branch is {} commit(s) behind remote — run 'git pull --rebase' to sync",
+                n
+            ),
+        ),
+        _ => (PolicyVerdict::Pass, String::new()),
+    };
+
+    PolicyResult {
+        name: "branch_behind".to_string(),
+        enabled: true,
+        mode: PolicyMode::Suggest,
+        verdict,
+        recommendation,
+        event: "branch_behind_check".to_string(),
+    }
+}
+
+/// Evaluate whether an adjudicated receipt exists and is current.
+///
+/// - No receipt → Alert: must run evidence doctor before publish.
+/// - Receipt stale → Warn: re-run evidence doctor.
+/// - Receipt fresh → Pass.
+pub fn check_publish_not_adjudicated(receipt_exists: bool, receipt_stale: bool) -> PolicyResult {
+    let (verdict, recommendation) = if !receipt_exists {
+        (
+            PolicyVerdict::Suggest,
+            "no adjudicated receipt found — run 'cargo cicd evidence doctor' before publish"
+                .to_string(),
+        )
+    } else if receipt_stale {
+        (
+            PolicyVerdict::Warn,
+            "receipt exists but may be stale — re-run 'cargo cicd evidence doctor' to refresh"
+                .to_string(),
+        )
+    } else {
+        (PolicyVerdict::Pass, String::new())
+    };
+
+    PolicyResult {
+        name: "publish_not_adjudicated".to_string(),
+        enabled: true,
+        mode: PolicyMode::Suggest,
+        verdict,
+        recommendation,
+        event: "publish_not_adjudicated_check".to_string(),
+    }
+}
+
 // ── aggregate runner ─────────────────────────────────────────────────────────
 
-/// Run all four suggest-mode policies and return results.
+/// Run all suggest-mode policies and return results.
 ///
 /// All policies run in `Suggest` mode. No apply-mode mutations occur here.
-pub fn run_all_policies(workspace: &WorkspaceInfo, git: &GitState) -> Vec<PolicyResult> {
+pub fn run_all_policies(
+    workspace: &WorkspaceInfo,
+    git: &GitState,
+    evidence: &EvidenceState,
+) -> Vec<PolicyResult> {
     vec![
         check_target_pressure(workspace.target_gb, workspace.max_gb),
         check_toolchain_mismatch(
@@ -172,5 +280,8 @@ pub fn run_all_policies(workspace: &WorkspaceInfo, git: &GitState) -> Vec<Policy
         ),
         check_trybuild_changed(workspace.changed_trybuild_fixtures),
         check_git_phase_dirty(git.dirty_count),
+        check_branch_behind(git.commits_behind),
+        check_evidence_stale(evidence.changed_file_count, evidence.evidence_fresh),
+        check_publish_not_adjudicated(evidence.receipt_exists, evidence.receipt_stale),
     ]
 }
