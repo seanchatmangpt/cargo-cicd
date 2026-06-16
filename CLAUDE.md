@@ -781,6 +781,6 @@ Reserved for contributor-only utilities and debugging aids. Not part of the publ
 ### Other Limitations
 
 - **Git requirement:** All state-tracking features require git. Non-git workspaces are unsupported (tests will skip).
-- **No MSRV guarantee below 1.85:** Some dependencies require Rust 1.85 or later. Older toolchains will fail to compile.
+- **No MSRV guarantee below 1.86:** Some dependencies require Rust 1.86 or later. Older toolchains will fail to compile.
 - **No Windows cross-compile support:** Tested on Linux/macOS only. Windows users may encounter path issues.
 - **No Bazel/Buck/other build systems:** Cargo is the only supported build system. Other systems must use cargo-install shim.

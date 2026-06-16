@@ -49,7 +49,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        toolchain: [stable, "1.85"]   # stable + MSRV
+        toolchain: [stable, "1.86"]   # stable + MSRV
 
     steps:
       - name: Checkout
@@ -252,8 +252,8 @@ jobs:
             echo "::error::rust-version field missing from Cargo.toml"
             exit 1
           fi
-          if [ "$MSRV" != "1.85" ]; then
-            echo "::error::MSRV mismatch — expected 1.85, got $MSRV"
+          if [ "$MSRV" != "1.86" ]; then
+            echo "::error::MSRV mismatch — expected 1.86, got $MSRV"
             exit 1
           fi
           echo "MSRV check passed: $MSRV"
