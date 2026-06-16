@@ -190,8 +190,8 @@ fn docs_no_forbidden_terms() {
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
     {
         let path = entry.path();
-        // Skip internal docs dirs (wasm4pm, release, testing, contributing, deferred).
-        let internal = ["wasm4pm", "release", "testing", "contributing", "deferred"];
+        // Skip internal docs dirs (wasm4pm, release, testing, contributing, dod, deferred).
+        let internal = ["wasm4pm", "release", "testing", "contributing", "dod", "deferred"];
         if path
             .components()
             .any(|c| internal.contains(&c.as_os_str().to_str().unwrap_or("")))
