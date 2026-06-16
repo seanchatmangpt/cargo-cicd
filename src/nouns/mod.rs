@@ -7,6 +7,7 @@ pub mod status;
 pub mod target;
 pub mod test;
 pub mod trybuild;
+pub mod ui;
 pub mod workspace;
 
 // Advanced nouns (feature-gated)

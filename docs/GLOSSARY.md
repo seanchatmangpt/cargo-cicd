@@ -351,7 +351,7 @@ Feature flag for community maintainer tooling. Implies `process-data`. Enables v
 
 ---
 
-## Forbidden Terms (Internal Only)
+## Reserved Terms (Internal Only)
 
 A small set of terms is reserved for internal use and **must never appear** in any public-facing output: help text, CLI stdout/stderr, documentation, or user-visible error messages. They cover internal subsystem code names, manufacturing-pipeline jargon, capacity measurements, and adjudication metaphors that have no meaning for end users.
 
