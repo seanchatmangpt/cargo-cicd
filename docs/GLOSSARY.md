@@ -353,17 +353,11 @@ Feature flag for community maintainer tooling. Implies `process-data`. Enables v
 
 ## Forbidden Terms (Internal Only)
 
-The following terms are reserved for internal use and **must never appear** in any public-facing output: help text, CLI stdout/stderr, documentation, or user-visible error messages. The invariant test `invariant_public_boundary_no_forbidden_terms_in_all_help()` scans all `--help` output and will fail the release gate if any of these terms are found.
+A small set of terms is reserved for internal use and **must never appear** in any public-facing output: help text, CLI stdout/stderr, documentation, or user-visible error messages. They cover internal subsystem code names, manufacturing-pipeline jargon, capacity measurements, and adjudication metaphors that have no meaning for end users.
 
-| Term | Internal meaning |
-|------|-----------------|
-| `ALIVE` | Level 5 engine status marker |
-| `Inspection Gate` | Manufacturing subsystem identity |
-| `wall` | Jargon from manufacturing pipeline |
-| `Nehemiah` | Code name for manufacturing layer (exposed only as `ggen`) |
-| `Field8` | Internal capacity measurement |
-| `Instinct8` | Autonomic reasoning subsystem |
-| `Cargo Court` | Internal adjudication metaphor |
-| `AGI` | AI system classification |
-| `Truex` | Internal truth engine |
-| `CONSTRUCT8` | Manufacturing directive system |
+This public glossary deliberately does **not** enumerate the reserved terms — listing them here would itself be a leak into a user-facing document. The canonical list lives in `CLAUDE.md` (excluded from the published package) and is encoded in two enforcement gates:
+
+- `invariant_public_boundary_no_forbidden_terms_in_all_help()` in `tests/invariants.rs` scans all `--help` output.
+- `docs_no_forbidden_terms()` in `tests/ggen_customization_guard.rs` scans every public `docs/` page.
+
+Either gate failing blocks the release.

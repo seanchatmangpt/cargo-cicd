@@ -259,16 +259,20 @@ wpm audit target/cargo-cicd/evidence/evt-*.xes
 If `invariant_public_boundary_no_forbidden_terms_in_all_help` fails:
 
 ```sh
-# Find which noun/verb leaks the term
+# Build the reserved-term alternation from the canonical table in CLAUDE.md
+# (kept out of the published package), so this guide never enumerates them.
+PATTERN=$(rg -oP '^\| `\K[^`]+' CLAUDE.md | paste -sd '|' -)
+
+# Find which noun/verb leaks a term
 for noun in status target test trybuild git publish workspace evidence pipeline lsp; do
-  cargo run -- $noun --help 2>&1 | grep -i "ALIVE\|Inspection Gate\|wall\|Nehemiah\|Field8\|Instinct8\|Cargo Court\|AGI\|Truex\|CONSTRUCT8" && echo "  ^^^ found in: $noun --help"
+  cargo run -- $noun --help 2>&1 | grep -iE "$PATTERN" && echo "  ^^^ found in: $noun --help"
 done
 ```
 
-Then search source:
+Then search source for the same pattern:
 
 ```sh
-rg "ALIVE|Instinct8|Cargo Court" src/
+rg -iE "$PATTERN" src/
 ```
 
 ### Feature flag not compiling
