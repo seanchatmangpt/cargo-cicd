@@ -23,10 +23,11 @@ impl CicdPolicy for EvidenceStalePoliciy {
         // Check whether evidence directory has recent output.
         let evidence_dir = std::path::Path::new("target/cargo-cicd/evidence");
         let evidence_fresh = if evidence_dir.exists() {
-            // Evidence is considered fresh when the events.xes file exists and
-            // the directory has been written more recently than any changed source file.
+            // Evidence is considered fresh when either the OCEL 2.0 log or the legacy
+            // XES file exists. OCEL is the primary format; XES is backward-compat.
+            let ocel = evidence_dir.join("events.ocel.json");
             let xes = evidence_dir.join("events.xes");
-            xes.exists()
+            ocel.exists() || xes.exists()
         } else {
             false
         };

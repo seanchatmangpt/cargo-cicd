@@ -120,7 +120,7 @@ static CICD_CATALOG: &[CicdCodeEntry] = &[
         code: "CICD-EVIDENCE-002",
         title: "stale_evidence",
         severity: "Warning",
-        observed: "target/cargo-cicd/evidence/events.xes",
+        observed: "target/cargo-cicd/evidence/events.ocel.json",
         repair: "run cargo cicd test changed; cargo cicd workspace doctor",
         clears_when: "evidence is fresher than last source change",
     },

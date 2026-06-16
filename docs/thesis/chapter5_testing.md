@@ -70,7 +70,7 @@ The most fundamental tests in the cargo-cicd test suite are the invariants defin
 
 The most important invariant in the suite. cargo-cicd is a Level 5 process-data engine; internally it uses a vocabulary of private terms that describe its manufacturing pipeline, autonomic reasoning subsystem, and internal adjudication metaphors. None of these terms may appear in any user-visible output.
 
-Formally, let $H$ be the set of all strings reachable via `cargo cicd [noun] [--help]` for all nouns in the grammar. Let $F = \{\texttt{ALIVE}, \texttt{Nehemiah}, \texttt{CONSTRUCT8}, \texttt{Instinct8}, \texttt{Inspection Gate}, \texttt{Cargo Court}, \texttt{AGI}, \texttt{Truex}, \texttt{Field8}, \texttt{wall}\}$ be the forbidden vocabulary. The invariant states:
+Formally, let $H$ be the set of all strings reachable via `cargo cicd [noun] [--help]` for all nouns in the grammar. Let $F$ be the ten-element set of forbidden internal vocabulary terms documented in `CLAUDE.md`. The invariant states:
 
 $$\forall h \in H, \forall f \in F: f \not\subseteq h$$
 
@@ -79,8 +79,7 @@ The test implementation exhaustively enumerates all noun help surfaces — top-l
 ```rust
 fn invariant_public_boundary_no_forbidden_terms_in_all_help() {
     let forbidden = [
-        "ALIVE", "Nehemiah", "CONSTRUCT8", "Instinct8",
-        "Inspection Gate", "Cargo Court", "AGI", "Truex", "Field8", "wall",
+        "ALIVE", /* internal-only terms — see CLAUDE.md for full list */
     ];
     let noun_verbs = [
         vec!["--help"],

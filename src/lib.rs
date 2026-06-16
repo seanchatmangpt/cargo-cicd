@@ -9,6 +9,7 @@ pub mod engine;
 pub mod evidence;
 pub mod integrations;
 pub mod nouns;
+pub mod ocel;
 pub mod policies;
 pub mod session;
 pub mod state;

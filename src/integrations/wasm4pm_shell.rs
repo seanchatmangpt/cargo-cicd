@@ -165,6 +165,51 @@ impl Wasm4pmShell {
         self.invoke(&["doctor"], "doctor")
     }
 
+    /// Run `wpm receipt verify-ocel2 <receipt_path>` — OCEL 2.0 receipt verification.
+    pub fn receipt_verify_ocel2(&self, receipt_path: &str) -> Result<WpmResult> {
+        self.invoke(
+            &["receipt", "verify-ocel2", receipt_path],
+            "receipt verify-ocel2",
+        )
+    }
+
+    /// Run `wpm receipt canonicalize-ocel2 <receipt_path>` — OCEL 2.0 canonicalization.
+    pub fn receipt_canonicalize_ocel2(&self, receipt_path: &str) -> Result<WpmResult> {
+        self.invoke(
+            &["receipt", "canonicalize-ocel2", receipt_path],
+            "receipt canonicalize-ocel2",
+        )
+    }
+
+    /// Run `wpm receipt detect-fixture-mutation <receipt_path>` — mutation detection.
+    pub fn receipt_detect_fixture_mutation(&self, receipt_path: &str) -> Result<WpmResult> {
+        self.invoke(
+            &["receipt", "detect-fixture-mutation", receipt_path],
+            "receipt detect-fixture-mutation",
+        )
+    }
+
+    /// Run `wpm receipt verify-boundary-evidence <receipt_path>` — boundary evidence check.
+    pub fn receipt_verify_boundary_evidence(&self, receipt_path: &str) -> Result<WpmResult> {
+        self.invoke(
+            &["receipt", "verify-boundary-evidence", receipt_path],
+            "receipt verify-boundary-evidence",
+        )
+    }
+
+    /// Run `wpm receipt verify-proof-class <receipt_path>` — proof-class verification.
+    pub fn receipt_verify_proof_class(&self, receipt_path: &str) -> Result<WpmResult> {
+        self.invoke(
+            &["receipt", "verify-proof-class", receipt_path],
+            "receipt verify-proof-class",
+        )
+    }
+
+    /// Run `wpm autoprocess --format json` — AutoProcess pipeline with JSON output.
+    pub fn autoprocess(&self) -> Result<WpmResult> {
+        self.invoke(&["autoprocess", "--format", "json"], "autoprocess")
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     fn invoke(&self, args: &[&str], label: &str) -> Result<WpmResult> {

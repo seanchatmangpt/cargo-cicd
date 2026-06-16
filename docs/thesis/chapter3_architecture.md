@@ -569,14 +569,14 @@ The principle is enforced at test time by `invariant_status_exits_zero` in `test
 
 cargo-cicd maintains a strict separation between its internal vocabulary — terms used in the manufacturing pipeline, internal subsystem identities, and engineering classifications — and its public vocabulary, which is everything that appears in `--help` text, stdout, or stderr.
 
-The list of forbidden public terms is codified in `tests/invariants.rs` and mirrors the table in `CLAUDE.md`. As of v26.6.2, ten terms are forbidden: `ALIVE`, `Nehemiah`, `CONSTRUCT8`, `Instinct8`, `Inspection Gate`, `Cargo Court`, `AGI`, `Truex`, `Field8`, and `wall`. Each term refers to an internal concept that has a public-safe alternative: for example, `ALIVE` is an internal engine status marker whose public analogue is a simple process state report.
+The list of forbidden public terms is codified in `tests/invariants.rs` and mirrors the table in `CLAUDE.md`. As of v26.6.2, ten terms are forbidden — internal identifiers covering the manufacturing pipeline, autonomic reasoning subsystem, internal adjudication metaphor, AI classification, truth engine, capacity measurement, grammar generation code name, directive system, and jargon from the manufacturing pipeline. Each term refers to an internal concept that has a public-safe alternative: for example, the internal engine status marker's public analogue is a simple process state report.
 
 The boundary is enforced by the `invariant_public_boundary_no_forbidden_terms_in_all_help` test, which exercises every noun's `--help` output and asserts the absence of all forbidden terms:
 
 ```rust
 #[test]
 fn invariant_public_boundary_no_forbidden_terms_in_all_help() {
-    let forbidden = ["ALIVE", "Nehemiah", "CONSTRUCT8", /* ... */];
+    let forbidden = ["ALIVE", /* internal-only terms redacted */, /* ... */];
     let noun_verbs = [
         vec!["--help"], vec!["status", "--help"],
         vec!["target", "--help"], /* ... */
