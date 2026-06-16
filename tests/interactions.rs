@@ -232,7 +232,11 @@ fn workspace_list_produces_output() {
         .args(["workspace", "list"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "workspace list failed: {:?}", output);
+    assert!(
+        output.status.success(),
+        "workspace list failed: {:?}",
+        output
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.is_empty(), "workspace list produced no output");
 }

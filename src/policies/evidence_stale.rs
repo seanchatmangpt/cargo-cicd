@@ -43,10 +43,7 @@ impl CicdPolicy for EvidenceStalePoliciy {
             // Changes exist but evidence is present — warn to re-run in case it is outdated.
             (
                 "warn",
-                Some(
-                    "source changes detected — verify evidence is current before closing"
-                        .into(),
-                ),
+                Some("source changes detected — verify evidence is current before closing".into()),
             )
         } else {
             ("pass", None)

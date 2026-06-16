@@ -14,8 +14,8 @@ pub async fn handle_explain(client: &tower_lsp::Client, params: ExecuteCommandPa
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    let message = explain_code(code)
-        .unwrap_or_else(|| format!("Unknown diagnostic code: {}", code));
+    let message =
+        explain_code(code).unwrap_or_else(|| format!("Unknown diagnostic code: {}", code));
 
     client.show_message(MessageType::INFO, message).await;
 }

@@ -14,7 +14,8 @@ impl CicdPolicy for GitPhaseDirtyPolicy {
         PolicyMode::Suggest
     }
     fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
-        let is_dirty = !state.git_phase.dirty_files.is_empty() || !state.git_phase.untracked_files.is_empty();
+        let is_dirty =
+            !state.git_phase.dirty_files.is_empty() || !state.git_phase.untracked_files.is_empty();
         let (verdict, rec) = if is_dirty {
             (
                 "alert",

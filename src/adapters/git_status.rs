@@ -1,6 +1,9 @@
 use anyhow::Result;
 use std::process::Command;
 
+#[cfg(feature = "advanced")]
+use super::super::advanced::observability::{init_tracing, PipelineStage};
+
 pub struct GitStatusAdapter;
 
 impl GitStatusAdapter {
@@ -9,6 +12,12 @@ impl GitStatusAdapter {
     }
 
     pub fn query() -> Result<GitStatusResult> {
+        #[cfg(feature = "advanced")]
+        init_tracing();
+
+        #[cfg(feature = "advanced")]
+        let _stage = PipelineStage::enter("git_status");
+
         let mut result = GitStatusResult::default();
 
         let branch_out = Command::new("git")
@@ -68,4 +77,31 @@ pub struct GitStatusResult {
     pub untracked_files: Vec<String>,
     pub ahead: u32,
     pub behind: u32,
+}
+
+#[cfg(all(test, feature = "advanced"))]
+mod tests {
+    use super::*;
+    use tracing::subscriber::with_default;
+    use tracing_subscriber::fmt;
+    use tracing_subscriber::EnvFilter;
+
+    #[test]
+    fn git_status_adapter_query_with_observability() {
+        let subscriber = fmt()
+            .json()
+            .with_test_writer()
+            .with_env_filter(EnvFilter::new("info"))
+            .finish();
+
+        with_default(subscriber, || {
+            // This test verifies that calling query() with the advanced feature
+            // and observability instrumentation does not panic and properly enters
+            // and exits the pipeline stage.
+            let result = GitStatusAdapter::query();
+            // We don't assert on the result itself (it depends on the git repo state),
+            // just that the instrumented method runs without panicking.
+            let _ = result;
+        });
+    }
 }

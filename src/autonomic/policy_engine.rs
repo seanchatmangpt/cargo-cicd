@@ -130,13 +130,17 @@ fn apply_safe_remediation(policy_name: &str, recommendation: &Option<String>) {
         "branch_behind" => {
             eprintln!(
                 "autonomic apply: branch_behind — auto-pull disabled; {}",
-                recommendation.as_deref().unwrap_or("run git pull --rebase manually")
+                recommendation
+                    .as_deref()
+                    .unwrap_or("run git pull --rebase manually")
             );
         }
         "publish_not_adjudicated" => {
             eprintln!(
                 "autonomic apply: publish_not_adjudicated — {}",
-                recommendation.as_deref().unwrap_or("run cargo cicd evidence doctor manually")
+                recommendation
+                    .as_deref()
+                    .unwrap_or("run cargo cicd evidence doctor manually")
             );
         }
         _ => {

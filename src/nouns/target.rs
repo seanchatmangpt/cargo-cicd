@@ -87,13 +87,13 @@ impl VerbCommand for TargetPruneVerb {
                 clap::Arg::new("apply")
                     .long("apply")
                     .action(clap::ArgAction::SetTrue)
-                    .help("Execute the prune (delete incremental artifacts)")
+                    .help("Execute the prune (delete incremental artifacts)"),
             )
             .arg(
                 clap::Arg::new("dry-run")
                     .long("dry-run")
                     .action(clap::ArgAction::SetTrue)
-                    .help("Show what would be deleted without deleting (default behavior)")
+                    .help("Show what would be deleted without deleting (default behavior)"),
             )
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {

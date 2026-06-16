@@ -456,7 +456,12 @@ fn run_all_policies_returns_seven_results() {
         receipt_stale: false,
     };
     let results = run_all_policies(&workspace, &git, &evidence);
-    assert_eq!(results.len(), 7, "expected 7 policy results, got {}", results.len());
+    assert_eq!(
+        results.len(),
+        7,
+        "expected 7 policy results, got {}",
+        results.len()
+    );
 }
 
 #[test]

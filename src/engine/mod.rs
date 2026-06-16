@@ -13,8 +13,8 @@ pub mod workspace_state;
 pub use artifact_state::ArtifactState;
 pub use changed_file_state::ChangedFileState;
 pub use git_phase_state::GitPhaseState;
-pub use policy_state::{PolicyState, PolicyEntry};
-pub use process_event_state::{ProcessEventState, ProcessEvent};
+pub use policy_state::{PolicyEntry, PolicyState};
+pub use process_event_state::{ProcessEvent, ProcessEventState};
 pub use projection_profile::ProjectionProfile;
 pub use target_state::TargetState;
 pub use test_plan_state::TestPlanState;
@@ -109,9 +109,9 @@ impl EngineState {
         state.trybuild.run_all_by_default = false;
 
         // Populate process_events state from cicd.toml events if it exists
-        if let Ok(cicd_toml) = crate::cicd_toml::CicdToml::from_file(
-            std::path::Path::new(&format!("{}/cicd.toml", state.workspace.root_path)),
-        ) {
+        if let Ok(cicd_toml) = crate::cicd_toml::CicdToml::from_file(std::path::Path::new(
+            &format!("{}/cicd.toml", state.workspace.root_path),
+        )) {
             state.process_events.events = cicd_toml
                 .events
                 .iter()

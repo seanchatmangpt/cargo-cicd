@@ -118,7 +118,10 @@ impl VerbCommand for PublishRunVerb {
                         eprint!("{}", stdout);
                         let mut complete_evt = ProcessEvent::completed("publish:run", t0, "FAIL");
                         complete_evt.case_id = Some(case_id);
-                        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+                        if let Err(e) = crate::evidence::append_events(
+                            &[start_evt, complete_evt],
+                            &evidence_dir,
+                        ) {
                             eprintln!("warning: evidence emission failed: {}", e);
                         }
                         return Err(clap_noun_verb::error::NounVerbError::execution_error(
@@ -155,7 +158,9 @@ impl VerbCommand for PublishRunVerb {
                 eprintln!("AndonPull: cargo publish --dry-run failed — publish blocked");
                 let mut complete_evt = ProcessEvent::completed("publish:run", t0, "FAIL");
                 complete_evt.case_id = Some(case_id);
-                if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+                if let Err(e) =
+                    crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir)
+                {
                     eprintln!("warning: evidence emission failed: {}", e);
                 }
                 return Err(clap_noun_verb::error::NounVerbError::execution_error(
@@ -257,10 +262,18 @@ impl VerbCommand for PublishValidateVerb {
 
         // Cargo.toml has required metadata?
         let cargo_content = std::fs::read_to_string("Cargo.toml").unwrap_or_default();
-        let has_name = cargo_content.lines().any(|l| l.trim().starts_with("name ="));
-        let has_version = cargo_content.lines().any(|l| l.trim().starts_with("version ="));
-        let has_description = cargo_content.lines().any(|l| l.trim().starts_with("description ="));
-        let has_license = cargo_content.lines().any(|l| l.trim().starts_with("license ="));
+        let has_name = cargo_content
+            .lines()
+            .any(|l| l.trim().starts_with("name ="));
+        let has_version = cargo_content
+            .lines()
+            .any(|l| l.trim().starts_with("version ="));
+        let has_description = cargo_content
+            .lines()
+            .any(|l| l.trim().starts_with("description ="));
+        let has_license = cargo_content
+            .lines()
+            .any(|l| l.trim().starts_with("license ="));
 
         println!(
             "[{}] Cargo.toml: name",

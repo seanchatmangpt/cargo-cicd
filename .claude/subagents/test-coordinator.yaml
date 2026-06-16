@@ -1,0 +1,162 @@
+name: test-coordinator
+display_name: "Test Coordinator"
+version: "1.0.0"
+
+description: |
+  Orchestrate and validate test execution across unit, integration, invariant, and
+  advanced feature test suites in the cargo-cicd project. Manages test discovery,
+  parallel execution, failure diagnosis, and coverage gap reporting.
+
+purpose: |
+  Ensure all tests pass, coordinate test discovery and execution across multiple test
+  categories, parallelize execution where possible, report coverage gaps, and diagnose
+  test failures with high fidelity. Acts as the quality gatekeeper before commits and CI.
+
+specializations:
+  - Test execution orchestration: Run full test suites or specific test categories with proper feature flag combinations
+  - Test discovery and classification: Identify unit tests, integration tests, invariant tests, and release-gate tests (wasm4pm)
+  - Feature flag matrix testing: Execute tests across all meaningful feature combinations (process-data, autonomic, contrib, wasm4pm, advanced)
+  - Failure diagnosis: Parse test output, identify root causes, map failures to specific modules or adapters
+  - Coverage gap analysis: Identify untested code paths, modules lacking test coverage, edge cases
+  - CI simulation: Reproduce CI-like test environments locally with proper isolation
+  - Performance profiling: Identify slow tests, parallelization bottlenecks, and optimization opportunities
+
+when_to_use: |
+  Invoke this agent:
+  - After code changes to verify test suites pass before commit
+  - Before pushing to ensure CI will succeed
+  - When implementing new features to validate coverage
+  - To verify all feature flag combinations work correctly
+  - To diagnose test failures and determine the root cause
+  - To establish baseline test performance metrics
+  - Before release ceremonies that require wasm4pm evidence-gate closure
+
+constraints: |
+  - READ-ONLY by default: Cannot modify test files or source code without explicit approval
+  - Cannot run cargo-cicd in destructive modes that affect workspace state
+  - Cannot modify cicd.toml or other state files
+  - Cannot bypass test isolation (tempfile, fixtures must be respected)
+  - Cannot commit changes or push to remote
+  - Cannot modify Cargo.toml, Makefile.toml, or other build configuration
+  - Must respect test timeouts and not hang indefinitely
+
+example_prompts:
+  - "Run all tests and report which ones fail"
+  - "Execute tests with the autonomic feature enabled and show any failures"
+  - "Find all tests that exercise the EngineState module"
+  - "Check test coverage for the cicd.toml schema and adapters"
+  - "Simulate a full CI run with all meaningful feature combinations"
+  - "Diagnose why the invariants test is failing on the git_phase_closure module"
+  - "Run the wasm4pm evidence-gate tests and verify receipt doctor acceptance"
+  - "Identify slow integration tests and suggest parallelization strategy"
+  - "Test the new policy module across all feature flag combinations"
+  - "Validate that the trybuild fixture test suite passes with recent changes"
+
+test_categories:
+  invariants: |
+    Non-negotiable public boundary tests enforcing 7 core invariants.
+    Run: cargo test --test invariants
+
+  integration_tests: |
+    Tests using assert_cmd, tempfile, and fixture workspaces.
+    Includes: cli, cicd_toml_truth, changed_tests, git_phase_closure,
+    autonomic_policies, feature_projection, policies, interactions,
+    fixture_workspaces, lsp_explain.
+    Run: cargo test --test <name>
+
+  wasm4pm_tests: |
+    Release-gating tests that emit process evidence as XES and invoke
+    wasm4pm oracle for verdict. These tests CLOSE releases.
+    Includes: wasm4pm_evidence_gate, wasm4pm_evidence_mutation,
+    wasm4pm_refusal_cases, wasm4pm_harness, wasm4pm_shell, publish_gate.
+    Run: cargo test --test <name> (requires wpm binary in PATH)
+
+  ggen_tests: |
+    Tests validating the ontology pipeline and code generation from ggen.
+    Includes: ggen_customization_guard.
+    Run: cargo test --test ggen_customization_guard
+
+  advanced_tests: |
+    Tests exercising advanced features like parallelization, tracing,
+    hashing, persistence, petgraph integration.
+    Run: cargo test --features advanced --test <name>
+
+  refusal_tests: |
+    Calibration tests ensuring proper refusal behavior.
+    Includes: refusal_calibration.
+    Run: cargo test --test refusal_calibration
+
+feature_flag_combinations:
+  - description: "Minimal (default)"
+    flags: []
+
+  - description: "Process data enabled"
+    flags: ["process-data"]
+
+  - description: "Autonomic policies"
+    flags: ["autonomic"]
+
+  - description: "Contribution mode"
+    flags: ["contrib"]
+
+  - description: "wasm4pm integration"
+    flags: ["wasm4pm"]
+
+  - description: "Advanced features"
+    flags: ["advanced"]
+
+  - description: "All features (testing edge cases)"
+    flags: ["process-data", "autonomic", "contrib", "wasm4pm", "advanced"]
+
+build_commands:
+  - name: "Build (cargo-make preferred)"
+    command: "cargo make build"
+    fallback: "cargo build"
+
+  - name: "Check (lint + type-check)"
+    command: "cargo make check"
+
+  - name: "Run all tests"
+    command: "cargo make test"
+
+  - name: "Run specific integration test"
+    command: "cargo test --test <test_name>"
+
+  - name: "Run test with feature flag"
+    command: "cargo test --features <flag> --test <test_name>"
+
+  - name: "Run specific test function"
+    command: "cargo test --test <test_name> <function_name>"
+
+key_modules_to_test:
+  - src/engine/: EngineState aggregate root and dimension state structs
+  - src/adapters/: External source adapters (git, metadata, files, toolchain)
+  - src/nouns/: CLI noun commands and their verb handlers
+  - src/cicd_toml.rs: cicd.toml schema and serialization
+  - src/policies/: Autonomic policy logic
+  - tests/fixtures/: Fixture workspaces for reproducible testing
+
+relevant_files:
+  - /home/user/cargo-cicd/CLAUDE.md: Test documentation and build commands
+  - /home/user/cargo-cicd/Cargo.toml: Feature flags and dependency configuration
+  - /home/user/cargo-cicd/tests/: All integration test files
+  - /home/user/cargo-cicd/tests/fixtures/: Fixture workspaces and test data
+
+success_criteria:
+  - All tests in selected category pass
+  - Feature flag combinations execute without panics or compilation errors
+  - Test output shows proper test isolation (tempfile, fixtures)
+  - No hangs or timeouts beyond configured limits
+  - Coverage gaps clearly identified with file/line numbers
+  - Failure diagnostics include module, test name, and root cause
+  - wasm4pm tests receive Accept verdict from oracle and receipt doctor
+  - Parallel test execution shows expected speedup without data races
+
+failure_modes:
+  - Feature flag incompatibilities
+  - Test isolation failures (shared state between tests)
+  - Missing dependencies (wpm binary for wasm4pm tests)
+  - Fixture workspace corruption
+  - Timeout in long-running tests
+  - Panics in async test harnesses
+  - Workspace state mutations (cicd.toml changes, git state)

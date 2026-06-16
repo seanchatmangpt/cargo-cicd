@@ -1,5 +1,7 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
-use crate::autonomic::policies::{run_all_policies, EvidenceState, GitState, PolicyVerdict, WorkspaceInfo};
+use crate::autonomic::policies::{
+    run_all_policies, EvidenceState, GitState, PolicyVerdict, WorkspaceInfo,
+};
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
@@ -187,7 +189,11 @@ impl VerbCommand for WorkspaceValidateVerb {
             let has_workspace_section = content.contains("[workspace]");
             println!(
                 "[{}] [workspace] section present",
-                if has_workspace_section { "PASS" } else { "FAIL" }
+                if has_workspace_section {
+                    "PASS"
+                } else {
+                    "FAIL"
+                }
             );
             if !has_workspace_section {
                 overall = "FAIL";

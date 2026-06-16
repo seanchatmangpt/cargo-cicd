@@ -289,7 +289,11 @@ impl VerbCommand for PipelineStatusVerb {
         let xes_path = evidence_dir.join("events.xes");
         println!(
             "events.xes:     {}",
-            if xes_path.exists() { "present" } else { "missing" }
+            if xes_path.exists() {
+                "present"
+            } else {
+                "missing"
+            }
         );
 
         // Count receipts

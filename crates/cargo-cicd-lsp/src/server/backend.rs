@@ -208,10 +208,7 @@ impl LanguageServer for Backend {
         }))
     }
 
-    async fn completion(
-        &self,
-        _params: CompletionParams,
-    ) -> Result<Option<CompletionResponse>> {
+    async fn completion(&self, _params: CompletionParams) -> Result<Option<CompletionResponse>> {
         use cargo_cicd_core::diagnostics::CicdCode;
 
         let codes = [

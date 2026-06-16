@@ -130,37 +130,61 @@ impl CicdCode {
     /// Returns a short human-readable description of this diagnostic code.
     pub fn description(self) -> &'static str {
         match self {
-            Self::BoundaryPublicApiLeak => "a private/forbidden term was found in a public-facing document",
+            Self::BoundaryPublicApiLeak => {
+                "a private/forbidden term was found in a public-facing document"
+            }
             Self::BranchBehindRemote => "local branch is behind its remote tracking branch",
-            Self::EvidenceHardcodedTimestamp => "evidence contains a hardcoded timestamp instead of a real UTC time",
+            Self::EvidenceHardcodedTimestamp => {
+                "evidence contains a hardcoded timestamp instead of a real UTC time"
+            }
             Self::EvidenceMissing => "no process evidence directory found",
             Self::EvidenceMissingCaseId => "evidence events lack a session/case identifier",
             Self::EvidenceStale => "evidence is older than the last source change",
-            Self::FalseCloseRisk => "one or more serious diagnostics are active; phase closure would be premature",
-            Self::GgenCustomRegionMissing => "a ggen-managed file is missing its custom region markers",
+            Self::FalseCloseRisk => {
+                "one or more serious diagnostics are active; phase closure would be premature"
+            }
+            Self::GgenCustomRegionMissing => {
+                "a ggen-managed file is missing its custom region markers"
+            }
             Self::GgenDriftDetected => "a ggen-rendered block differs from its source law",
             Self::GgenRenderedSurfaceDrift => "rendered surface is out of date with its source law",
             Self::GitDirtyTreeBlocksClose => "the working tree has uncommitted changes",
-            Self::GitUntrackedArtifacts => "untracked files exist that may represent unintended output",
+            Self::GitUntrackedArtifacts => {
+                "untracked files exist that may represent unintended output"
+            }
             Self::NoCicdTomlFound => "cicd.toml not found at workspace root",
             Self::PipelineStageFailed => "a pipeline stage reported failure",
-            Self::PublicPrivateTermLeak => "a private/forbidden term was found in a public-facing document",
-            Self::PublishDryRunWithoutReceipt => "publish dry-run completed but no adjudicated receipt exists",
+            Self::PublicPrivateTermLeak => {
+                "a private/forbidden term was found in a public-facing document"
+            }
+            Self::PublishDryRunWithoutReceipt => {
+                "publish dry-run completed but no adjudicated receipt exists"
+            }
             Self::PublishNoCicdToml => "cargo publish was attempted without a cicd.toml",
             Self::PublishNoReceipt => "no publish receipt exists for this version",
             Self::ReceiptBeforeCourt => "a receipt was written before wpm adjudicated the evidence",
             Self::SpecMissingForChange => "changed files have no corresponding spec entry",
             Self::TargetDirOversize => "target directory is large and may need pruning",
-            Self::TargetPruneRequiresDryRun => "target prune should be reviewed with --dry-run before --apply",
-            Self::TaskDoneWithoutEvidence => "a task is marked complete but no fresh evidence exists",
+            Self::TargetPruneRequiresDryRun => {
+                "target prune should be reviewed with --dry-run before --apply"
+            }
+            Self::TaskDoneWithoutEvidence => {
+                "a task is marked complete but no fresh evidence exists"
+            }
             Self::TestFailuresBlockClose => "test failures must be resolved before phase closure",
             Self::TestsImpactUnknown => "changed test files have not been run",
             Self::TestsStaleMapping => "test-to-source mapping is stale; re-run test changed",
             Self::TrybuildFixtureChanged => "trybuild fixtures were modified; re-run to confirm",
-            Self::WorkspaceStructureInvalid => "workspace Cargo.toml structure has validation errors",
+            Self::WorkspaceStructureInvalid => {
+                "workspace Cargo.toml structure has validation errors"
+            }
             Self::WpmCommandUnavailable => "wpm binary not found or command failed",
-            Self::WpmRuntimeCourtNotInvoked => "wpm receipt doctor has not been called for current evidence",
-            Self::WpmUnconfirmedReceiptCourt => "wpm binary not found or receipt doctor not confirmed",
+            Self::WpmRuntimeCourtNotInvoked => {
+                "wpm receipt doctor has not been called for current evidence"
+            }
+            Self::WpmUnconfirmedReceiptCourt => {
+                "wpm binary not found or receipt doctor not confirmed"
+            }
             Self::WpmVerdictKeyMismatch => "court verdict key mismatch: audit reads wrong key",
         }
     }
@@ -206,32 +230,62 @@ impl CicdCode {
     /// Returns a short repair hint for this diagnostic code.
     pub fn repair_hint(self) -> &'static str {
         match self {
-            Self::BoundaryPublicApiLeak | Self::PublicPrivateTermLeak => "remove or replace the forbidden term in the public-facing file",
+            Self::BoundaryPublicApiLeak | Self::PublicPrivateTermLeak => {
+                "remove or replace the forbidden term in the public-facing file"
+            }
             Self::BranchBehindRemote => "run git pull --rebase to sync with remote",
             Self::EvidenceHardcodedTimestamp => "use SystemTime::now() in evidence emission code",
             Self::EvidenceMissing => "run any cargo cicd command to emit process evidence",
             Self::EvidenceMissingCaseId => "ensure case_id is set on all emitted ProcessEvents",
             Self::EvidenceStale => "run cargo cicd test changed; cargo cicd workspace doctor",
-            Self::FalseCloseRisk => "resolve all Error-severity diagnostics before claiming phase closure",
-            Self::GgenCustomRegionMissing => "add the expected custom block markers to the ggen-managed file",
-            Self::GgenDriftDetected | Self::GgenRenderedSurfaceDrift => "run ggen sync to regenerate rendered surfaces",
-            Self::GitDirtyTreeBlocksClose => "run cargo cicd git status then commit or stash changes",
+            Self::FalseCloseRisk => {
+                "resolve all Error-severity diagnostics before claiming phase closure"
+            }
+            Self::GgenCustomRegionMissing => {
+                "add the expected custom block markers to the ggen-managed file"
+            }
+            Self::GgenDriftDetected | Self::GgenRenderedSurfaceDrift => {
+                "run ggen sync to regenerate rendered surfaces"
+            }
+            Self::GitDirtyTreeBlocksClose => {
+                "run cargo cicd git status then commit or stash changes"
+            }
             Self::GitUntrackedArtifacts => "stage or .gitignore untracked files",
             Self::NoCicdTomlFound => "run cargo cicd publish run to generate cicd.toml",
-            Self::PipelineStageFailed => "run cargo cicd pipeline run and address reported failures",
-            Self::PublishDryRunWithoutReceipt => "run cargo cicd evidence doctor then cargo cicd publish",
-            Self::PublishNoCicdToml | Self::PublishNoReceipt => "run cargo cicd publish run to generate the required artifacts",
-            Self::ReceiptBeforeCourt => "run cargo cicd evidence doctor to adjudicate before writing receipt",
-            Self::SpecMissingForChange => "add a spec entry for changed files or run /speckit.specify",
+            Self::PipelineStageFailed => {
+                "run cargo cicd pipeline run and address reported failures"
+            }
+            Self::PublishDryRunWithoutReceipt => {
+                "run cargo cicd evidence doctor then cargo cicd publish"
+            }
+            Self::PublishNoCicdToml | Self::PublishNoReceipt => {
+                "run cargo cicd publish run to generate the required artifacts"
+            }
+            Self::ReceiptBeforeCourt => {
+                "run cargo cicd evidence doctor to adjudicate before writing receipt"
+            }
+            Self::SpecMissingForChange => {
+                "add a spec entry for changed files or run /speckit.specify"
+            }
             Self::TargetDirOversize => "run cargo cicd target show then cargo cicd target prune",
-            Self::TargetPruneRequiresDryRun => "run cargo cicd target prune then add --apply to execute",
-            Self::TaskDoneWithoutEvidence => "run the manufacturing pipeline to produce fresh evidence",
+            Self::TargetPruneRequiresDryRun => {
+                "run cargo cicd target prune then add --apply to execute"
+            }
+            Self::TaskDoneWithoutEvidence => {
+                "run the manufacturing pipeline to produce fresh evidence"
+            }
             Self::TestFailuresBlockClose => "run cargo cicd test run and fix failing tests",
             Self::TestsImpactUnknown => "run cargo cicd test changed",
             Self::TestsStaleMapping => "run cargo cicd test changed to refresh the test mapping",
-            Self::TrybuildFixtureChanged => "re-run trybuild to confirm fixtures still compile as expected",
-            Self::WorkspaceStructureInvalid => "run cargo cicd workspace validate to diagnose structural issues",
-            Self::WpmCommandUnavailable | Self::WpmUnconfirmedReceiptCourt => "install wasm4pm or set WPM_BIN env var",
+            Self::TrybuildFixtureChanged => {
+                "re-run trybuild to confirm fixtures still compile as expected"
+            }
+            Self::WorkspaceStructureInvalid => {
+                "run cargo cicd workspace validate to diagnose structural issues"
+            }
+            Self::WpmCommandUnavailable | Self::WpmUnconfirmedReceiptCourt => {
+                "install wasm4pm or set WPM_BIN env var"
+            }
             Self::WpmRuntimeCourtNotInvoked => "run cargo cicd evidence doctor",
             Self::WpmVerdictKeyMismatch => "align court output schema with audit reader",
         }
@@ -242,18 +296,31 @@ impl CicdCode {
     pub fn category(&self) -> &'static str {
         match self {
             Self::BoundaryPublicApiLeak => "PUBLIC",
-            Self::BranchBehindRemote | Self::GitDirtyTreeBlocksClose | Self::GitUntrackedArtifacts => "GIT",
-            Self::EvidenceHardcodedTimestamp | Self::EvidenceMissing | Self::EvidenceMissingCaseId | Self::EvidenceStale | Self::ReceiptBeforeCourt => "EVIDENCE",
+            Self::BranchBehindRemote
+            | Self::GitDirtyTreeBlocksClose
+            | Self::GitUntrackedArtifacts => "GIT",
+            Self::EvidenceHardcodedTimestamp
+            | Self::EvidenceMissing
+            | Self::EvidenceMissingCaseId
+            | Self::EvidenceStale
+            | Self::ReceiptBeforeCourt => "EVIDENCE",
             Self::FalseCloseRisk => "CLOSE",
-            Self::GgenCustomRegionMissing | Self::GgenDriftDetected | Self::GgenRenderedSurfaceDrift => "GGEN",
+            Self::GgenCustomRegionMissing
+            | Self::GgenDriftDetected
+            | Self::GgenRenderedSurfaceDrift => "GGEN",
             Self::NoCicdTomlFound | Self::PipelineStageFailed => "PIPELINE",
             Self::PublicPrivateTermLeak => "PUBLIC",
-            Self::PublishDryRunWithoutReceipt | Self::PublishNoCicdToml | Self::PublishNoReceipt => "PUBLISH",
+            Self::PublishDryRunWithoutReceipt
+            | Self::PublishNoCicdToml
+            | Self::PublishNoReceipt => "PUBLISH",
             Self::SpecMissingForChange | Self::TaskDoneWithoutEvidence => "SPEC",
             Self::TargetDirOversize | Self::TargetPruneRequiresDryRun => "TARGET",
             Self::TestFailuresBlockClose | Self::TrybuildFixtureChanged => "TEST",
             Self::TestsImpactUnknown | Self::TestsStaleMapping => "TESTS",
-            Self::WpmCommandUnavailable | Self::WpmRuntimeCourtNotInvoked | Self::WpmUnconfirmedReceiptCourt | Self::WpmVerdictKeyMismatch => "WPM",
+            Self::WpmCommandUnavailable
+            | Self::WpmRuntimeCourtNotInvoked
+            | Self::WpmUnconfirmedReceiptCourt
+            | Self::WpmVerdictKeyMismatch => "WPM",
             Self::WorkspaceStructureInvalid => "WORKSPACE",
         }
     }
@@ -367,7 +434,11 @@ mod tests {
     #[test]
     fn cicd_code_category_not_empty() {
         for code in CicdCode::all_variants() {
-            assert!(!code.category().is_empty(), "Code {:?} has empty category", code);
+            assert!(
+                !code.category().is_empty(),
+                "Code {:?} has empty category",
+                code
+            );
         }
     }
 
