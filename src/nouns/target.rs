@@ -1,5 +1,8 @@
 use crate::adapters::TargetScannerAdapter;
 use crate::evidence::ProcessEvent;
+use crate::ui::badge::{self, Verdict};
+use crate::ui::theme::{self, Role};
+use crate::ui::{chart, panel};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct TargetNoun;
@@ -45,13 +48,32 @@ impl VerbCommand for TargetShowVerb {
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
         let max_gb = 20.0_f64;
         let verdict_str = TargetScannerAdapter::verdict(size_gb, max_gb);
-        println!("target directory: {}", target_dir);
-        println!("total size:       {:.2} GB", size_gb);
-        println!("max configured:   {:.1} GB", max_gb);
-        println!("verdict:          {}", verdict_str);
+
+        println!("{}", panel::header("target directory state"));
+
+        // Aligned key/value with a live gauge. "target directory" and the "GB"
+        // readouts remain contiguous plain-text substrings off-TTY.
+        let dir_v = theme::paint(target_dir, Role::Value);
+        let usage_v = format!(
+            "{}  {:.2} / {:.1} GB",
+            chart::gauge(size_gb, max_gb, 18),
+            size_gb,
+            max_gb
+        );
+        let verdict_v = badge::tag(Verdict::from_tag(verdict_str));
+        let mut rows: Vec<(&str, String)> = vec![
+            ("target directory", dir_v),
+            ("usage", usage_v),
+            ("verdict", verdict_v),
+        ];
         if verdict_str != "pass" {
-            println!("recommendation:   run 'cargo cicd target prune' to free space");
+            rows.push((
+                "recommendation",
+                theme::paint("run 'cargo cicd target prune' to free space", Role::Warning),
+            ));
         }
+        let rows_ref: Vec<(&str, &str)> = rows.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        println!("{}", panel::kv(&rows_ref));
 
         // Count top-level artifacts in the target directory
         let _artifact_count = std::fs::read_dir(target_dir)
