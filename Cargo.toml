@@ -162,6 +162,10 @@ name = "ggen_customization_guard"
 path = "tests/ggen_customization_guard.rs"
 
 [[test]]
+name = "ocel_chicago_tdd"
+path = "tests/ocel_chicago_tdd.rs"
+
+[[test]]
 name = "refusal_calibration"
 path = "tests/refusal_calibration.rs"
 
@@ -174,3 +178,4 @@ assert_cmd = { workspace = true }
 tempfile = { workspace = true }
 predicates = { workspace = true }
 toml = { workspace = true }
+chicago-tdd-tools = { path = "/tmp/chicago-tdd-tools" }
