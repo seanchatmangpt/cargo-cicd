@@ -42,4 +42,3 @@ pub struct PolicyResult {
     pub recommendation: Option<String>,
     pub event_kind: String,
 }
-

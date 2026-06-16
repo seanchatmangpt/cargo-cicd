@@ -51,8 +51,10 @@ impl FingerprintAdapter {
         let target_dir = root.join("target");
         if !target_dir.exists() {
             // No artifacts yet; return empty digest.
-            let empty: Vec<(std::path::PathBuf, crate::advanced::fingerprint::Fingerprint)> =
-                Vec::new();
+            let empty: Vec<(
+                std::path::PathBuf,
+                crate::advanced::fingerprint::Fingerprint,
+            )> = Vec::new();
             return Some(workspace_digest(&empty));
         }
 
@@ -113,10 +115,10 @@ mod tests {
         drop(file);
 
         // Compute digest twice and assert determinism.
-        let digest1 = FingerprintAdapter::digest_artifacts(root)
-            .expect("first digest should succeed");
-        let digest2 = FingerprintAdapter::digest_artifacts(root)
-            .expect("second digest should succeed");
+        let digest1 =
+            FingerprintAdapter::digest_artifacts(root).expect("first digest should succeed");
+        let digest2 =
+            FingerprintAdapter::digest_artifacts(root).expect("second digest should succeed");
 
         assert_eq!(
             digest1, digest2,

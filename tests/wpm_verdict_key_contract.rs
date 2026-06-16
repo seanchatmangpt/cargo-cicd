@@ -16,7 +16,7 @@ fn wpm_verdict_json_with_wrong_key_does_not_produce_admitted() {
     // The gate is state == "Admitted", not a fitness value
     // This test documents that we do NOT rely on fitness key for admission decisions
     assert_eq!(state, "Admitted"); // state field is present and correct
-    // Confirm overall_fitness is absent (this is the wrong-key scenario)
+                                   // Confirm overall_fitness is absent (this is the wrong-key scenario)
     assert!(
         v.get("overall_fitness").is_none(),
         "overall_fitness should be absent in this fixture"

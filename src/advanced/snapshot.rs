@@ -134,7 +134,10 @@ mod tests {
     #[test]
     fn round_trip_default() {
         let snap = EngineSnapshot::default();
-        assert_eq!(snap.schema_version, EngineSnapshot::current_schema_version());
+        assert_eq!(
+            snap.schema_version,
+            EngineSnapshot::current_schema_version()
+        );
         let bytes = encode(&snap).expect("encode should succeed");
         let decoded = decode(&bytes).expect("decode should succeed");
         assert_eq!(snap, decoded);

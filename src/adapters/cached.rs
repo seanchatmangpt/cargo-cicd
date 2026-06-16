@@ -76,10 +76,7 @@ impl CacheLayer {
         #[cfg(feature = "advanced")]
         {
             if let Some(ref cache) = self.cache {
-                return cache
-                    .get_or_insert_with(key, f)
-                    .bytes
-                    .clone();
+                return cache.get_or_insert_with(key, f).bytes.clone();
             }
             // If cache is None (shouldn't happen unless explicitly disabled), fall through.
             f()
@@ -109,7 +106,10 @@ mod tests {
 
         // Second call: should return cached value without calling the closure.
         let result2 = layer.get_or_scan("test_key", || b"different_data".to_vec());
-        assert_eq!(result2, b"cached_data", "cache hit should return the original cached value");
+        assert_eq!(
+            result2, b"cached_data",
+            "cache hit should return the original cached value"
+        );
     }
 
     #[test]

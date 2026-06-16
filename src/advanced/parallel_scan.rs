@@ -162,10 +162,7 @@ pub fn scan(root: &Path) -> std::io::Result<ScanReport> {
         let collected = &collected;
         Box::new(move |result| {
             if let Ok(entry) = result {
-                let is_file = entry
-                    .file_type()
-                    .map(|ft| ft.is_file())
-                    .unwrap_or(false);
+                let is_file = entry.file_type().map(|ft| ft.is_file()).unwrap_or(false);
                 if is_file {
                     if let Ok(meta) = entry.metadata() {
                         let path = entry.path().to_path_buf();
@@ -239,10 +236,7 @@ pub fn reclaimable_target_bytes(root: &Path) -> u64 {
         let collected = &collected;
         Box::new(move |result| {
             if let Ok(entry) = result {
-                let is_file = entry
-                    .file_type()
-                    .map(|ft| ft.is_file())
-                    .unwrap_or(false);
+                let is_file = entry.file_type().map(|ft| ft.is_file()).unwrap_or(false);
                 if is_file && is_under_target(entry.path()) {
                     if let Ok(meta) = entry.metadata() {
                         collected
@@ -285,7 +279,7 @@ mod tests {
         write_file(&root.join("src/lib.rs"), b"pub fn x() {}\n"); // 14 bytes
         write_file(&root.join("README.md"), b"# title\n"); // 8 bytes
         write_file(&root.join("Cargo.toml"), b"[package]\n"); // 10 bytes
-        // Fake build output under target/.
+                                                              // Fake build output under target/.
         write_file(&root.join("target/debug/app"), b"BINARYDATA"); // 10 bytes
         write_file(&root.join("target/debug/app.d"), b"deps:\n"); // 6 bytes
     }

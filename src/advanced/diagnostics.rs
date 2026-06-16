@@ -127,13 +127,7 @@ toolchain = \"1.79.0\"
 ";
 
     fn sample_toolchain_diag() -> EngineDiagnostic {
-        toolchain_mismatch_at(
-            "cicd.toml",
-            SAMPLE_TOML,
-            "1.79.0",
-            "1.79.0",
-            "1.81.0",
-        )
+        toolchain_mismatch_at("cicd.toml", SAMPLE_TOML, "1.79.0", "1.79.0", "1.81.0")
     }
 
     #[test]
@@ -217,13 +211,7 @@ toolchain = \"1.79.0\"
 
     #[test]
     fn missing_needle_yields_safe_span() {
-        let diag = toolchain_mismatch_at(
-            "cicd.toml",
-            SAMPLE_TOML,
-            "no-such-substring",
-            "a",
-            "b",
-        );
+        let diag = toolchain_mismatch_at("cicd.toml", SAMPLE_TOML, "no-such-substring", "a", "b");
         // Rendering must still succeed and include the code.
         let rendered = render(&diag);
         assert!(rendered.contains("cargo_cicd::toolchain_mismatch"));

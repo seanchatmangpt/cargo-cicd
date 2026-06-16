@@ -426,14 +426,12 @@ impl VerbCommand for LspExplainVerb {
         "Explain a diagnostic code (e.g. CICD-GIT-001)"
     }
     fn build_command(&self) -> clap::Command {
-        clap::Command::new(self.name())
-            .about(self.about())
-            .arg(
-                clap::Arg::new("code")
-                    .help("Diagnostic code to explain (e.g. CICD-GIT-001)")
-                    .required(false)
-                    .index(1),
-            )
+        clap::Command::new(self.name()).about(self.about()).arg(
+            clap::Arg::new("code")
+                .help("Diagnostic code to explain (e.g. CICD-GIT-001)")
+                .required(false)
+                .index(1),
+        )
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();

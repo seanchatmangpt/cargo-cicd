@@ -209,8 +209,15 @@ mod tests {
             calls.fetch_add(1, Ordering::SeqCst);
             b"recomputed".to_vec()
         });
-        assert_eq!(second.bytes, b"computed", "second call must reuse cached value");
-        assert_eq!(calls.load(Ordering::SeqCst), 1, "closure must run only once");
+        assert_eq!(
+            second.bytes, b"computed",
+            "second call must reuse cached value"
+        );
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "closure must run only once"
+        );
     }
 
     #[test]

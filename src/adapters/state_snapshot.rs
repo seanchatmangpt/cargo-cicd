@@ -48,7 +48,7 @@ impl StateSnapshotAdapter {
             workspace_root: engine.workspace.root_path.clone(),
             toolchain: engine.toolchain.active.clone(),
             changed_files: engine.changed_files.changed_rs_files.clone(),
-            target_bytes: 0, // target bytes not available from EngineState
+            target_bytes: 0,          // target bytes not available from EngineState
             git_phase: String::new(), // git phase not available from basic EngineState
             schema_version: EngineSnapshot::current_schema_version(),
             stages: Vec::new(), // stages not available from basic EngineState
@@ -121,13 +121,14 @@ mod tests {
         engine.workspace.name = "cargo-cicd".to_string();
         engine.toolchain.active = "stable".to_string();
         engine.toolchain.rust_version = "1.75.0".to_string();
-        engine.changed_files.changed_rs_files =
-            vec!["src/lib.rs".to_string(), "src/adapters/state_snapshot.rs".to_string()];
+        engine.changed_files.changed_rs_files = vec![
+            "src/lib.rs".to_string(),
+            "src/adapters/state_snapshot.rs".to_string(),
+        ];
         engine.changed_files.total_changed = 2;
 
         // Save to the cache path
-        StateSnapshotAdapter::save(&engine, &cache_path)
-            .expect("save should succeed");
+        StateSnapshotAdapter::save(&engine, &cache_path).expect("save should succeed");
 
         // Load it back
         let loaded = StateSnapshotAdapter::load(&cache_path)
@@ -138,7 +139,10 @@ mod tests {
         assert_eq!(loaded.workspace_root, engine.workspace.root_path);
         assert_eq!(loaded.toolchain, engine.toolchain.active);
         assert_eq!(loaded.changed_files, engine.changed_files.changed_rs_files);
-        assert_eq!(loaded.schema_version, EngineSnapshot::current_schema_version());
+        assert_eq!(
+            loaded.schema_version,
+            EngineSnapshot::current_schema_version()
+        );
     }
 
     #[test]
@@ -146,7 +150,10 @@ mod tests {
         let nonexistent = PathBuf::from("/tmp/never_created_snapshot_12345.snap");
         let result = StateSnapshotAdapter::load(&nonexistent)
             .expect("load should not error on missing file");
-        assert!(result.is_none(), "missing file should return None, not error");
+        assert!(
+            result.is_none(),
+            "missing file should return None, not error"
+        );
     }
 
     #[test]
@@ -154,6 +161,9 @@ mod tests {
         let workspace_root = Path::new("/home/user/my-workspace");
         let cache_path = StateSnapshotAdapter::state_cache_path(workspace_root);
 
-        assert_eq!(cache_path, PathBuf::from("/home/user/my-workspace/.cargo/cicd_state.snapshot"));
+        assert_eq!(
+            cache_path,
+            PathBuf::from("/home/user/my-workspace/.cargo/cicd_state.snapshot")
+        );
     }
 }

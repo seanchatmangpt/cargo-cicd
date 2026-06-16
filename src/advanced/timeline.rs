@@ -146,12 +146,16 @@ mod tests {
         tl.record_at("start", fixed(T0));
         tl.record_at("end", fixed(T1));
 
-        let span = tl.span_between("start", "end").expect("both labels present");
+        let span = tl
+            .span_between("start", "end")
+            .expect("both labels present");
         // T0 -> T1 is exactly 5 seconds.
         assert_eq!(span.get_seconds(), 5);
 
         // Reversed direction yields a negative span.
-        let back = tl.span_between("end", "start").expect("both labels present");
+        let back = tl
+            .span_between("end", "start")
+            .expect("both labels present");
         assert_eq!(back.get_seconds(), -5);
 
         // Missing labels yield None.

@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_imports)]
 
+pub mod adapters;
 #[cfg(feature = "advanced")]
 pub mod advanced;
-pub mod adapters;
 pub mod autonomic;
 pub mod cicd_toml;
 pub mod engine;

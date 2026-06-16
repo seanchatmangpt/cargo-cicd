@@ -24,7 +24,9 @@ fn read_lsp_response(reader: &mut impl Read) -> serde_json::Value {
     let mut header = String::new();
     let mut byte = [0u8; 1];
     loop {
-        reader.read_exact(&mut byte).expect("unexpected EOF reading LSP header");
+        reader
+            .read_exact(&mut byte)
+            .expect("unexpected EOF reading LSP header");
         header.push(byte[0] as char);
         if header.ends_with("\r\n\r\n") {
             break;
@@ -101,7 +103,11 @@ fn lsp_wire_initialize_returns_diagnostic_capabilities() {
         "response must be JSON-RPC 2.0: {}",
         response
     );
-    assert_eq!(response["id"], 1, "response id must match request id: {}", response);
+    assert_eq!(
+        response["id"], 1,
+        "response id must match request id: {}",
+        response
+    );
     assert!(
         response["error"].is_null(),
         "initialize returned an error: {}",

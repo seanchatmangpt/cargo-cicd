@@ -49,8 +49,7 @@ static INIT: Once = Once::new();
 /// never installs a competing global subscriber.
 pub fn init_tracing() {
     INIT.call_once(|| {
-        let filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
         // `try_init` returns an error rather than panicking if a global
         // subscriber is already set, which keeps this call safe to make from

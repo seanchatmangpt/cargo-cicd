@@ -154,7 +154,9 @@ impl WorkspaceGraph {
             }
         }
 
-        seen.into_iter().map(|idx| self.graph[idx].clone()).collect()
+        seen.into_iter()
+            .map(|idx| self.graph[idx].clone())
+            .collect()
     }
 }
 
@@ -223,7 +225,9 @@ mod tests {
         g.add_dependency("c", "a");
 
         assert!(g.has_cycle());
-        let err = g.build_order().expect_err("cyclic graph has no build order");
+        let err = g
+            .build_order()
+            .expect_err("cyclic graph has no build order");
         let cyclic = g.strongly_connected_components();
         let cluster = cyclic
             .iter()
