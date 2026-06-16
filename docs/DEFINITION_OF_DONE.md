@@ -21,9 +21,9 @@ an existing verb.
       the new verb and asserts `output.status.success()`.
 - [ ] Additional CLI tests cover each distinct output path (PASS, WARN, FAIL)
       when the verb can produce more than one verdict.
-- [ ] Help text for the new verb contains no reserved terms (the canonical
-      list is enforced by `invariant_public_boundary_no_forbidden_terms_in_all_help`
-      in `tests/invariants.rs`).
+- [ ] Help text for the new verb contains no forbidden terms (the canonical
+      reserved list lives in `CLAUDE.md`; enforcement is automated by
+      `invariant_public_boundary_no_forbidden_terms_in_all_help()`).
 - [ ] `cargo test --test invariants` passes (all 7 invariants satisfied).
 - [ ] `cargo make test` passes (all test suites).
 - [ ] Evidence gate is not broken: `wasm4pm_evidence_gate` tests pass, or all

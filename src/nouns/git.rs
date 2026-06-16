@@ -145,7 +145,9 @@ impl VerbCommand for GitCloseVerb {
             start_evt.case_id = Some(case_id.clone());
             let mut complete_evt = ProcessEvent::completed("git:close", t0, "PASS");
             complete_evt.case_id = Some(case_id);
-            if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
+            if let Err(e) =
+                crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir)
+            {
                 eprintln!("warning: evidence emission failed: {}", e);
             }
             return Ok(());

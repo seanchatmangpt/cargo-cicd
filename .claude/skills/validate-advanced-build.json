@@ -1,0 +1,342 @@
+{
+  "name": "validate-advanced-build",
+  "version": "1.0.0",
+  "description": "Validates that advanced build features work correctly across multiple feature flag combinations. Tests cargo check, cargo test, and cargo clippy with different feature combinations to identify compatibility issues.",
+  "author": "cargo-cicd",
+  "type": "validation",
+  "category": "build-system",
+
+  "documentation": {
+    "summary": "Multi-feature flag validation for advanced Rust builds",
+    "purpose": "Ensures advanced features and their combinations build, test, and lint without errors. Identifies which feature combinations are compatible and which have conflicts.",
+    "target_audience": "Developers working with advanced features in cargo-cicd",
+    "typical_use_cases": [
+      "Pre-release validation of feature combinations",
+      "Continuous integration for feature-gated code",
+      "Debugging feature flag incompatibilities",
+      "Verifying advanced dependency compatibility"
+    ]
+  },
+
+  "parameters": {
+    "quick": {
+      "type": "boolean",
+      "description": "Skip clippy validation to speed up checks (useful for rapid iteration)",
+      "default": false,
+      "examples": [true, false]
+    },
+    "verbose": {
+      "type": "boolean",
+      "description": "Show full command output including compiler warnings and all test output",
+      "default": false,
+      "examples": [true, false]
+    },
+    "fix": {
+      "type": "boolean",
+      "description": "Attempt to automatically fix detected issues (e.g., clippy warnings with --fix)",
+      "default": false,
+      "examples": [true, false]
+    }
+  },
+
+  "feature_combinations": [
+    {
+      "name": "advanced-only",
+      "flags": "advanced",
+      "description": "Advanced features alone",
+      "order": 1
+    },
+    {
+      "name": "advanced-autonomic",
+      "flags": "advanced,autonomic",
+      "description": "Advanced with autonomic policies",
+      "order": 2
+    },
+    {
+      "name": "advanced-wasm4pm",
+      "flags": "advanced,wasm4pm",
+      "description": "Advanced with wasm4pm evidence gate",
+      "order": 3
+    },
+    {
+      "name": "advanced-contrib",
+      "flags": "advanced,contrib",
+      "description": "Advanced with contrib features",
+      "order": 4
+    },
+    {
+      "name": "advanced-all",
+      "flags": "advanced,autonomic,wasm4pm,contrib",
+      "description": "All advanced features combined",
+      "order": 5
+    }
+  ],
+
+  "validation_steps": [
+    {
+      "step": 1,
+      "name": "cargo-check",
+      "command": "cargo check --features {features}",
+      "description": "Type-check and lint without building",
+      "timeout_seconds": 120,
+      "required": true,
+      "error_severity": "blocker"
+    },
+    {
+      "step": 2,
+      "name": "cargo-test-lib",
+      "command": "cargo test --lib --features {features} --no-fail-fast",
+      "description": "Run library unit tests",
+      "timeout_seconds": 180,
+      "required": true,
+      "error_severity": "blocker",
+      "skip_if": "quick"
+    },
+    {
+      "step": 3,
+      "name": "cargo-clippy",
+      "command": "cargo clippy --features {features} --all-targets -- -D warnings",
+      "description": "Static analysis with clippy (deny warnings)",
+      "timeout_seconds": 150,
+      "required": true,
+      "error_severity": "warning",
+      "skip_if": "quick",
+      "fix_command": "cargo clippy --features {features} --all-targets --fix --allow-dirty --allow-staged"
+    }
+  ],
+
+  "output_format": {
+    "structure": "structured-table",
+    "columns": [
+      {
+        "name": "Feature Combination",
+        "type": "string",
+        "description": "The set of enabled features"
+      },
+      {
+        "name": "cargo check",
+        "type": "status",
+        "values": ["PASS", "FAIL", "SKIP"],
+        "description": "Type-check result"
+      },
+      {
+        "name": "cargo test",
+        "type": "status",
+        "values": ["PASS", "FAIL", "SKIP"],
+        "description": "Unit test result"
+      },
+      {
+        "name": "cargo clippy",
+        "type": "status",
+        "values": ["PASS", "FAIL", "SKIP"],
+        "description": "Clippy lint result"
+      },
+      {
+        "name": "Overall",
+        "type": "status",
+        "values": ["COMPATIBLE", "INCOMPATIBLE", "PARTIAL"],
+        "description": "Overall compatibility status"
+      },
+      {
+        "name": "Issues",
+        "type": "string",
+        "description": "Summary of any errors or warnings found"
+      }
+    ]
+  },
+
+  "result_interpretation": {
+    "pass": {
+      "symbol": "✅",
+      "meaning": "The validation step completed successfully without errors or denying warnings"
+    },
+    "fail": {
+      "symbol": "❌",
+      "meaning": "The validation step failed with errors (compilation errors, test failures, or clippy denials)"
+    },
+    "skip": {
+      "symbol": "⊘",
+      "meaning": "The validation step was skipped (e.g., due to --quick flag)"
+    },
+    "compatible": {
+      "symbol": "✅",
+      "meaning": "All enabled validation steps passed for this feature combination"
+    },
+    "incompatible": {
+      "symbol": "❌",
+      "meaning": "One or more validation steps failed, indicating feature conflicts or breakage"
+    },
+    "partial": {
+      "symbol": "⚠️",
+      "meaning": "Some steps passed and some were skipped (e.g., --quick mode); full validation not completed"
+    }
+  },
+
+  "report_sections": [
+    {
+      "name": "Summary",
+      "content": [
+        "Total combinations tested: {total_combinations}",
+        "Fully compatible: {compatible_count}",
+        "Partially tested: {partial_count}",
+        "Incompatible: {incompatible_count}"
+      ]
+    },
+    {
+      "name": "Compatibility Matrix",
+      "content": "Table showing pass/fail for each combination and validation step"
+    },
+    {
+      "name": "Detailed Results",
+      "content": "For each failed combination, show error output and affected dependency chain"
+    },
+    {
+      "name": "Recommendations",
+      "content": [
+        "Which combinations to use in production",
+        "Which combinations to avoid",
+        "Feature interactions to be aware of",
+        "Suggested fixes for incompatibilities"
+      ]
+    },
+    {
+      "name": "Verbose Output (if requested)",
+      "content": "Full compiler output, test logs, and clippy warnings for all steps"
+    }
+  ],
+
+  "examples": {
+    "example_1": {
+      "scenario": "Quick validation during development",
+      "command": "validate-advanced-build --quick true",
+      "parameters": {
+        "quick": true,
+        "verbose": false,
+        "fix": false
+      },
+      "expected_behavior": "Runs only cargo check for each combination, no clippy or tests, completes in ~1-2 minutes"
+    },
+    "example_2": {
+      "scenario": "Full validation before release",
+      "command": "validate-advanced-build",
+      "parameters": {
+        "quick": false,
+        "verbose": false,
+        "fix": false
+      },
+      "expected_behavior": "Runs all validations (check, test, clippy) for each combination, ~5-10 minutes"
+    },
+    "example_3": {
+      "scenario": "Auto-fix clippy issues and show details",
+      "command": "validate-advanced-build --verbose true --fix true",
+      "parameters": {
+        "quick": false,
+        "verbose": true,
+        "fix": true
+      },
+      "expected_behavior": "Runs all validations with detailed output, attempts to auto-fix clippy warnings"
+    }
+  },
+
+  "error_handling": {
+    "build_failure": {
+      "cause": "Compilation error in a feature combination",
+      "action": "Report feature conflict, show conflicting dependencies or incompatible code paths",
+      "next_steps": "Review conditional compilation blocks and feature flags"
+    },
+    "test_failure": {
+      "cause": "Unit test failures with a specific feature combination",
+      "action": "Show failing test output and feature context",
+      "next_steps": "Debug test with: cargo test --lib --features <combo> -- <test_name> --nocapture"
+    },
+    "clippy_denial": {
+      "cause": "Clippy warnings treated as errors",
+      "action": "List denied warnings and their locations",
+      "next_steps": "Use --fix flag to auto-correct, or review warnings manually"
+    },
+    "timeout": {
+      "cause": "Validation step exceeded timeout",
+      "action": "Report which step timed out and feature combination",
+      "next_steps": "May indicate infinite loop or very slow compilation; investigate build times"
+    }
+  },
+
+  "compatibility_logic": {
+    "description": "Rules for determining overall compatibility",
+    "rules": [
+      {
+        "rule": "All steps pass",
+        "result": "COMPATIBLE"
+      },
+      {
+        "rule": "Any step fails",
+        "result": "INCOMPATIBLE"
+      },
+      {
+        "rule": "Steps skipped (--quick) and remaining steps pass",
+        "result": "PARTIAL"
+      },
+      {
+        "rule": "Clippy warning found but --fix succeeds",
+        "result": "COMPATIBLE_WITH_FIXES"
+      }
+    ]
+  },
+
+  "feature_dependency_graph": {
+    "description": "How features depend on each other (from Cargo.toml)",
+    "advanced": ["process-data", "ignore", "rayon", "blake3", "tracing", "tracing-subscriber", "miette", "thiserror", "moka", "bitcode", "petgraph", "jiff", "hdrhistogram", "aho-corasick"],
+    "autonomic": ["process-data"],
+    "contrib": ["process-data"],
+    "wasm4pm": ["process-data"],
+    "process-data": []
+  },
+
+  "environment": {
+    "rust_version_minimum": "1.85",
+    "rustup_components": ["clippy", "rustfmt"],
+    "required_tools": ["cargo", "cargo-make"],
+    "optional_tools": []
+  },
+
+  "performance_expectations": {
+    "quick_mode": {
+      "estimated_time_minutes": "1-2",
+      "steps_included": ["cargo check"]
+    },
+    "standard_mode": {
+      "estimated_time_minutes": "5-10",
+      "steps_included": ["cargo check", "cargo test", "cargo clippy"]
+    },
+    "with_fix": {
+      "estimated_time_minutes": "7-15",
+      "steps_included": ["cargo check", "cargo test", "cargo clippy with --fix"]
+    }
+  },
+
+  "artifact_retention": {
+    "save_reports": true,
+    "report_location": "target/cargo-cicd/validation-reports/",
+    "keep_last_n_reports": 10,
+    "include_in_report": [
+      "start_time",
+      "end_time",
+      "duration",
+      "parameters_used",
+      "rust_version",
+      "compiler_version",
+      "all_results"
+    ]
+  },
+
+  "integration": {
+    "ci_cd_friendly": true,
+    "exit_codes": {
+      "0": "All combinations compatible",
+      "1": "One or more combinations incompatible",
+      "2": "Timeout or system error"
+    },
+    "json_output_available": true,
+    "machine_parseable": true
+  }
+}

@@ -20,7 +20,11 @@ fn lifecycle_raise_and_clear_work_with_store() {
         "raise must insert one finding"
     );
 
-    clear_by_code(&mut store, TEST_URI, CicdCode::GitDirtyTreeBlocksClose.as_str());
+    clear_by_code(
+        &mut store,
+        TEST_URI,
+        CicdCode::GitDirtyTreeBlocksClose.as_str(),
+    );
 
     assert_eq!(
         store.get_all(TEST_URI).len(),
@@ -45,13 +49,25 @@ fn clear_by_code_is_code_scoped() {
         CicdFinding::minimal(CicdCode::EvidenceMissing, "evidence finding"),
     );
 
-    assert_eq!(store.get_all(TEST_URI).len(), 2, "both findings must be present");
+    assert_eq!(
+        store.get_all(TEST_URI).len(),
+        2,
+        "both findings must be present"
+    );
 
     // Clear only CICD-GIT-001 — EvidenceMissing must survive.
-    clear_by_code(&mut store, TEST_URI, CicdCode::GitDirtyTreeBlocksClose.as_str());
+    clear_by_code(
+        &mut store,
+        TEST_URI,
+        CicdCode::GitDirtyTreeBlocksClose.as_str(),
+    );
 
     let remaining: Vec<CicdCode> = store.get_all(TEST_URI).iter().map(|f| f.code).collect();
-    assert_eq!(remaining.len(), 1, "one finding must remain after targeted clear");
+    assert_eq!(
+        remaining.len(),
+        1,
+        "one finding must remain after targeted clear"
+    );
     assert!(
         remaining.contains(&CicdCode::EvidenceMissing),
         "EvidenceMissing must survive clear_by_code(GIT-001), got: {:?}",

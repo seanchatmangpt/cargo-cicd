@@ -353,6 +353,11 @@ Feature flag for community maintainer tooling. Implies `process-data`. Enables v
 
 ## Reserved Terms (Internal Only)
 
-A small set of internal code names is reserved and **must never appear** in any public-facing output: help text, CLI stdout/stderr, documentation, or user-visible error messages.
+A small set of terms is reserved for internal use and **must never appear** in any public-facing output: help text, CLI stdout/stderr, documentation, or user-visible error messages. They cover internal subsystem code names, manufacturing-pipeline jargon, capacity measurements, and adjudication metaphors that have no meaning for end users.
 
-The canonical list is defined and enforced by the invariant test `invariant_public_boundary_no_forbidden_terms_in_all_help()` in `tests/invariants.rs`, which scans all `--help` output and fails the release gate if any reserved term is found. That test is the single source of truth — the terms are deliberately not reproduced here so this glossary stays public-safe.
+This public glossary deliberately does **not** enumerate the reserved terms — listing them here would itself be a leak into a user-facing document. The canonical list lives in `CLAUDE.md` (excluded from the published package) and is encoded in two enforcement gates:
+
+- `invariant_public_boundary_no_forbidden_terms_in_all_help()` in `tests/invariants.rs` scans all `--help` output.
+- `docs_no_forbidden_terms()` in `tests/ggen_customization_guard.rs` scans every public `docs/` page.
+
+Either gate failing blocks the release.

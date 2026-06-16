@@ -135,7 +135,11 @@ fn invariant_noun_names_are_lowercase_ascii() {
         let trimmed = word.trim_matches(|c: char| !c.is_alphabetic());
         if trimmed.len() > 2
             && trimmed.chars().all(|c| c.is_alphabetic())
-            && trimmed.chars().next().map(|c| c.is_lowercase()).unwrap_or(false)
+            && trimmed
+                .chars()
+                .next()
+                .map(|c| c.is_lowercase())
+                .unwrap_or(false)
         {
             assert!(
                 trimmed == trimmed.to_lowercase(),
@@ -207,8 +211,16 @@ fn invariant_no_forbidden_terms_in_help() {
 #[test]
 fn invariant_all_nouns_accept_help() {
     let nouns = [
-        "status", "git", "target", "test", "trybuild", "workspace", "publish", "evidence",
-        "pipeline", "lsp",
+        "status",
+        "git",
+        "target",
+        "test",
+        "trybuild",
+        "workspace",
+        "publish",
+        "evidence",
+        "pipeline",
+        "lsp",
     ];
     for noun in &nouns {
         let output = Command::cargo_bin("cargo-cicd")

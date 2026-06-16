@@ -1,0 +1,146 @@
+# Pre-commit framework configuration for cargo-cicd
+# Install with: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Rust formatting
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0.0
+    hooks:
+      - id: fmt
+        name: Rust format check
+        description: Check Rust code is formatted with rustfmt
+        types: [rust]
+        args: [--all, --check]
+
+      - id: clippy
+        name: Clippy linter
+        description: Run clippy on Rust code
+        types: [rust]
+        args: [--all-targets, --all-features, --, -D warnings]
+
+  # Cargo security audit
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.1
+    hooks:
+      - id: python-safety-dependencies-check
+        name: Cargo audit
+        description: Check Rust dependencies for known vulnerabilities
+        files: ^Cargo.lock$
+        language: system
+        entry: bash -c 'command -v cargo-audit >/dev/null && cargo audit || echo "cargo-audit not installed"'
+        pass_filenames: false
+
+  # Conventional commits
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v2.4.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Conventional commit format
+        description: Enforce conventional commit message format
+        stages: [commit-msg]
+        args:
+          - --force-scope
+          - --scope-regex=core|cli|target|test|git|autonomic|docs|receipts|lsp
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: YAML linter
+        description: Lint YAML files
+        types: [yaml]
+        args: [--config-data, "{extends: default, rules: {line-length: {max: 120}}}"]
+
+  # Trailing whitespace & general file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        types: [text]
+
+      - id: end-of-file-fixer
+        name: Fix end of file
+        description: Ensure files end with newline
+        types: [text]
+
+      - id: check-yaml
+        name: Check YAML syntax
+        types: [yaml]
+
+      - id: check-toml
+        name: Check TOML syntax
+        types: [toml]
+
+      - id: check-json
+        name: Check JSON syntax
+        types: [json]
+
+      - id: debug-statements
+        name: Check for debugger imports
+        types: [rust]
+
+  # Markdown linting (optional, for docs)
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.37.0
+    hooks:
+      - id: markdownlint
+        name: Markdown linter
+        description: Lint Markdown documentation
+        types: [markdown]
+        args: [--config, .markdownlint.json]
+
+# Local custom hooks
+  - repo: local
+    hooks:
+      - id: forbidden-terms
+        name: Check for forbidden terms
+        description: Prevent commits with forbidden terminology
+        entry: bash scripts/check-forbidden-terms.sh
+        language: script
+        types: [rust, text]
+        stages: [commit]
+
+      - id: cargo-check
+        name: Cargo check
+        description: Verify code compiles
+        entry: cargo check --all --all-features
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [commit]
+
+      - id: cargo-test-lib
+        name: Cargo test (lib)
+        description: Run unit tests
+        entry: cargo test --lib --all --all-features
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [commit]
+
+# Configuration
+default_language_version:
+  rust: "1.85"
+
+default_stages: [commit]
+
+# Skip these files globally
+exclude: |
+  (?x)^(
+    target/|
+    .cargo/|
+    .git/|
+    receipts/|
+    docs/(testing|release|deferred|wasm4pm)/|
+    ontology/|
+    queries/|
+    templates/|
+    cicd.toml|
+    ggen.toml|
+    tests/wasm4pm_evidence/
+  )
+
+fail_fast: false

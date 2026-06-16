@@ -3,6 +3,8 @@ use anyhow::Result;
 use clap_noun_verb::CliBuilder;
 
 mod adapters;
+#[cfg(feature = "advanced")]
+mod advanced;
 mod autonomic;
 mod cicd_toml;
 mod engine;
@@ -84,7 +86,8 @@ fn main() -> Result<()> {
         }
     }
 
-    let cli = cli
+    #[allow(unused_mut)]
+    let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::pipeline::PipelineNoun::new())
         .noun(nouns::status::StatusNoun::new())
@@ -96,6 +99,11 @@ fn main() -> Result<()> {
         .noun(nouns::workspace::WorkspaceNoun::new())
         .noun(nouns::lsp::LspNoun::new())
         .noun(nouns::ui::UiNoun::new());
+
+    #[cfg(feature = "advanced")]
+    {
+        cli = cli.noun(nouns::analyze::AnalyzeCommand::new());
+    }
 
     cli.run().map_err(|e| anyhow::anyhow!("{}", e))
 }

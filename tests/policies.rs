@@ -1,7 +1,7 @@
 //! Autonomic policy unit tests.
 //! Proves each policy: observes signals, emits verdict, stays in suggest mode.
-use cargo_cicd::policies::*;
 use cargo_cicd::engine::EngineState;
+use cargo_cicd::policies::*;
 
 /// target_pressure policy: empty target = pass.
 #[test]

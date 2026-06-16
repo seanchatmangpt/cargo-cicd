@@ -177,10 +177,7 @@ impl VerbCommand for EvidenceShowVerb {
                 continue;
             }
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
-                let event_type = val
-                    .get("command")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?");
+                let event_type = val.get("command").and_then(|v| v.as_str()).unwrap_or("?");
                 let verdict = val
                     .get("verdict_claimed")
                     .and_then(|v| v.as_str())

@@ -9,7 +9,11 @@ use cargo_cicd_core::diagnostics::CicdFinding;
 /// One quick-fix action is produced per repair command in `finding.repairs`.
 /// Each action links back to `diagnostic` so the editor can highlight the
 /// associated squiggle when the action is selected.
-pub fn finding_to_actions(f: &CicdFinding, _uri: &Url, diagnostic: Option<&Diagnostic>) -> Vec<CodeAction> {
+pub fn finding_to_actions(
+    f: &CicdFinding,
+    _uri: &Url,
+    diagnostic: Option<&Diagnostic>,
+) -> Vec<CodeAction> {
     let linked_diagnostics = diagnostic.map(|d| vec![d.clone()]);
 
     f.repairs
