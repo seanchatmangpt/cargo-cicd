@@ -135,7 +135,7 @@ impl Diagnostic {
 /// `label:` prefix, then the message.
 pub fn line(sev: Severity, msg: &str) -> String {
     let glyph = Style::new().fg(sev.color()).paint(sev.glyph());
-    let label = sev.header_style().paint(&format!("{}:", sev.label()));
+    let label = sev.header_style().paint(format!("{}:", sev.label()));
     format!("{glyph} {label} {msg}")
 }
 

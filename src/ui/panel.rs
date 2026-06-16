@@ -259,7 +259,7 @@ pub fn banner(title: &str, subtitle: &str) -> String {
         format!(
             "{}{}{}",
             border.paint(corner_l),
-            border.paint(&bx.h.repeat(inner + 2)),
+            border.paint(bx.h.repeat(inner + 2)),
             border.paint(corner_r),
         )
     };
