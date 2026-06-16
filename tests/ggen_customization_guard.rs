@@ -191,7 +191,14 @@ fn docs_no_forbidden_terms() {
     {
         let path = entry.path();
         // Skip internal docs dirs (wasm4pm, release, testing, contributing, dod, deferred).
-        let internal = ["wasm4pm", "release", "testing", "contributing", "dod", "deferred"];
+        let internal = [
+            "wasm4pm",
+            "release",
+            "testing",
+            "contributing",
+            "dod",
+            "deferred",
+        ];
         if path
             .components()
             .any(|c| internal.contains(&c.as_os_str().to_str().unwrap_or("")))
