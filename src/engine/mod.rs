@@ -22,19 +22,43 @@ pub use toolchain_state::ToolchainState;
 pub use trybuild_state::TrybuildState;
 pub use workspace_state::WorkspaceState;
 
-/// Full Level 5 engine state — all dimensions
+/// Full Level 5 engine state — the aggregate root for all workspace dimensions.
+///
+/// Populated by [`EngineState::from_workspace`] via independent adapters.
+/// Each adapter silently fails; partial data is better than no data.
+/// Use [`Default`] in tests to get an all-zero state without filesystem access.
+///
+/// # Example
+///
+/// ```
+/// use cargo_cicd::EngineState;
+/// let state = EngineState::default();
+/// assert!(state.workspace.name.is_empty());
+/// assert!(state.git_phase.dirty_files.is_empty());
+/// ```
 #[derive(Debug, Default)]
 pub struct EngineState {
+    /// Workspace metadata: name, root path, members, toolchain, Rust edition.
     pub workspace: WorkspaceState,
+    /// Active Rust toolchain and compiler version.
     pub toolchain: ToolchainState,
+    /// Target directory path and cumulative size in bytes.
     pub target: TargetState,
+    /// Changed `.rs` files since `origin/main`, classified into test and trybuild sets.
     pub changed_files: ChangedFileState,
+    /// Estimated test count and whether conservative mode is active.
     pub test_plan: TestPlanState,
+    /// Trybuild fixture inventory and snapshot mode setting.
     pub trybuild: TrybuildState,
+    /// Git branch, dirty/staged/untracked files, and ahead/behind counts.
     pub git_phase: GitPhaseState,
+    /// Process events accumulated in this session (mirrors the `cicd.toml` events table).
     pub process_events: ProcessEventState,
+    /// Paths to `cicd.toml` and any other emitted artifact manifests.
     pub artifacts: ArtifactState,
+    /// Autonomic policy entries and their current verdicts.
     pub policies: PolicyState,
+    /// Feature flag surface contract for v26.6.2.
     pub projection: ProjectionProfile,
 }
 
