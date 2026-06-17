@@ -1,4 +1,5 @@
 use crate::adapters::ChangedFileDetector;
+use crate::evidence::ProcessEvent;
 use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 

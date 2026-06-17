@@ -22,6 +22,7 @@ impl NounCommand for LspNoun {
         "Language server for local CI/CD readiness diagnostics"
     }
     fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
+        #[allow(unused_mut)]
         let mut v: Vec<Box<dyn VerbCommand>> = vec![
             Box::new(LspServeVerb),
             Box::new(LspDoctorVerb),

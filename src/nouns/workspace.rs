@@ -2,6 +2,7 @@ use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector}
 use crate::autonomic::policies::{
     run_all_policies, EvidenceState, GitState, PolicyVerdict, WorkspaceInfo,
 };
+use crate::evidence::ProcessEvent;
 use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::badge::{self, Verdict};
 use crate::ui::theme::{self, Role};
