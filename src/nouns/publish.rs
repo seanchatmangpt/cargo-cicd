@@ -294,10 +294,8 @@ impl VerbCommand for PublishValidateVerb {
 
         if !has_name || !has_version {
             overall = "FAIL";
-        } else if !has_description || !has_license {
-            if overall == "PASS" {
-                overall = "WARN";
-            }
+        } else if (!has_description || !has_license) && overall == "PASS" {
+            overall = "WARN";
         }
 
         // README.md exists?

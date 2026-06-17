@@ -1,0 +1,111 @@
+# Scenario 05 — Complete release pipeline
+#
+# Runs every gate in the standard release sequence and asserts PASS at each step.
+# This is the canonical pre-release checklist in executable form.
+#
+# Gate sequence:
+#   workspace doctor → status show → target show → git status → test changed →
+#   trybuild changed → publish → wpm audit (if available) → wpm receipt doctor (if available)
+#
+# All steps must pass for this scenario to report PASS.
+# wasm4pm steps are BLOCKED (not FAIL) if wpm is unavailable.
+
+[scenario]
+name        = "05-full-release"
+description = "Complete release pipeline: all gates in sequence, all verdicts must be PASS or ACCEPT"
+verdict_expected = "PASS"
+# wasm4pm steps will be BLOCKED if wpm is absent, not FAIL.
+# The scenario overall reports PASS if all non-BLOCKED steps pass.
+allows_blocked_steps = true
+
+[setup]
+description = "Clean, committed workspace. No uncommitted changes. Toolchain pinned."
+requires_git = true
+requires_cargo_toml = true
+requires_clean_git = true
+
+# Gate 1: Workspace health
+[[steps]]
+label       = "Gate 1 — Workspace doctor"
+command     = "cargo cicd workspace doctor"
+expected_exit_code = 0
+expected_output_contains = ["pass", "ok"]
+evidence_event = "workspace doctor"
+wasm4pm_verdict = "accept"
+
+# Gate 2: Overall status
+[[steps]]
+label       = "Gate 2 — Status show"
+command     = "cargo cicd status"
+expected_exit_code = 0
+expected_output_contains = ["pass", "toolchain"]
+evidence_event = "status show"
+wasm4pm_verdict = "accept"
+
+# Gate 3: Target directory pressure
+[[steps]]
+label       = "Gate 3 — Target show (no pressure)"
+command     = "cargo cicd target show"
+expected_exit_code = 0
+evidence_event = "target show"
+wasm4pm_verdict = "accept"
+
+# Gate 4: Git phase clean
+[[steps]]
+label       = "Gate 4 — Git status (clean)"
+command     = "cargo cicd git status"
+expected_exit_code = 0
+expected_output_contains = ["clean"]
+evidence_event = "git status"
+wasm4pm_verdict = "accept"
+
+# Gate 5: Changed-file test selection
+[[steps]]
+label       = "Gate 5 — Test changed"
+command     = "cargo cicd test changed"
+expected_exit_code = 0
+evidence_event = "test changed"
+wasm4pm_verdict = "accept"
+
+# Gate 6: Trybuild fixture selection
+[[steps]]
+label       = "Gate 6 — Trybuild changed"
+command     = "cargo cicd trybuild changed"
+expected_exit_code = 0
+evidence_event = "trybuild changed"
+wasm4pm_verdict = "accept"
+
+# Gate 7: Publish pre-flight (creates receipt)
+[[steps]]
+label       = "Gate 7 — Publish"
+command     = "cargo cicd publish"
+expected_exit_code = 0
+evidence_event = "publish run"
+wasm4pm_verdict = "accept"
+
+# Gate 8: wasm4pm XES audit (BLOCKED if wpm absent)
+[[steps]]
+label       = "Gate 8 — wpm audit XES evidence"
+command     = "${WPM_BIN:-wpm} audit target/cargo-cicd/evidence/events.xes"
+expected_exit_code = 0
+expected_output_contains = ["Accept", "accept"]
+blocked_if_missing = "wpm"
+
+# Gate 9: wasm4pm receipt doctor (BLOCKED if wpm absent)
+[[steps]]
+label       = "Gate 9 — wpm receipt doctor"
+command     = "${WPM_BIN:-wpm} receipt doctor --format json --strict target/cargo-cicd/evidence/receipts/latest.json"
+expected_exit_code = 0
+expected_output_contains = ["Accept", "accept"]
+blocked_if_missing = "wpm"
+
+[teardown]
+description = "No teardown required; workspace was not mutated."
+
+[summary]
+# When all non-BLOCKED steps pass:
+pass_message = "All release gates cleared. Workspace is ready."
+# When any non-BLOCKED step fails:
+fail_message = "One or more release gates failed. Review the step output above."
+# When wasm4pm steps are BLOCKED:
+blocked_note = "wasm4pm gates were BLOCKED (wpm not found). Run validate-with-wasm4pm.sh when wpm is available."

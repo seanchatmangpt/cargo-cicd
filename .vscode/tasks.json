@@ -1,0 +1,418 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "cargo make build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Build workspace via cargo-make (preferred)"
+    },
+    {
+      "label": "Build (fallback)",
+      "type": "shell",
+      "command": "cargo build",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Build workspace via cargo build (fallback if cargo-make unavailable)"
+    },
+    {
+      "label": "Check",
+      "type": "shell",
+      "command": "cargo make check",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Lint + type-check without building (cargo make check)"
+    },
+    {
+      "label": "Format",
+      "type": "shell",
+      "command": "cargo fmt",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Format all Rust source files"
+    },
+    {
+      "label": "Clippy",
+      "type": "shell",
+      "command": "cargo clippy -- -D warnings",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Run Clippy lints, deny warnings"
+    },
+    {
+      "label": "Test All",
+      "type": "shell",
+      "command": "cargo make test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Run all tests via cargo-make"
+    },
+    {
+      "label": "Test: Invariants",
+      "type": "shell",
+      "command": "cargo test --test invariants",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Enforce the 7 non-negotiable public boundary invariants"
+    },
+    {
+      "label": "Test: CLI",
+      "type": "shell",
+      "command": "cargo test --test cli",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "CLI command projection tests"
+    },
+    {
+      "label": "Test: Feature Projection",
+      "type": "shell",
+      "command": "cargo test --test feature_projection",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Verify the feature flag surface contract"
+    },
+    {
+      "label": "Test: cicd.toml Truth",
+      "type": "shell",
+      "command": "cargo test --test cicd_toml_truth",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "cicd.toml schema and truth tests"
+    },
+    {
+      "label": "Test: Autonomic Policies",
+      "type": "shell",
+      "command": "cargo test --test autonomic_policies",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Autonomic policy evaluation tests"
+    },
+    {
+      "label": "Test: Changed Tests",
+      "type": "shell",
+      "command": "cargo test --test changed_tests",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Changed-file test selection tests"
+    },
+    {
+      "label": "Test: Git Phase Closure",
+      "type": "shell",
+      "command": "cargo test --test git_phase_closure",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Git phase closure enforcement tests"
+    },
+    {
+      "label": "Test: wasm4pm Gate",
+      "type": "shell",
+      "command": "cargo test --test wasm4pm_evidence_gate",
+      "group": "test",
+      "options": {
+        "env": {
+          "REQUIRE_WPM_ORACLE": "1"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "wasm4pm evidence-gate tests (release gate; requires wpm oracle)"
+    },
+    {
+      "label": "Test: wasm4pm Evidence Mutation",
+      "type": "shell",
+      "command": "cargo test --test wasm4pm_evidence_mutation",
+      "group": "test",
+      "options": {
+        "env": {
+          "REQUIRE_WPM_ORACLE": "1"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "wasm4pm evidence mutation tests (requires wpm oracle)"
+    },
+    {
+      "label": "Test: wasm4pm Refusal Cases",
+      "type": "shell",
+      "command": "cargo test --test wasm4pm_refusal_cases",
+      "group": "test",
+      "options": {
+        "env": {
+          "REQUIRE_WPM_ORACLE": "1"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "wasm4pm refusal calibration tests (requires wpm oracle)"
+    },
+    {
+      "label": "Test: process-data feature",
+      "type": "shell",
+      "command": "cargo test --features process-data",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Run all tests with the process-data feature enabled"
+    },
+    {
+      "label": "Test: autonomic feature",
+      "type": "shell",
+      "command": "cargo test --features autonomic",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": "$rustc",
+      "detail": "Run all tests with the autonomic feature enabled (implies process-data)"
+    },
+    {
+      "label": "cargo cicd: Status Show",
+      "type": "shell",
+      "command": "cargo cicd status show",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Show full CI/CD workspace status"
+    },
+    {
+      "label": "cargo cicd: Target Show",
+      "type": "shell",
+      "command": "cargo cicd target show",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Show target directory size and state"
+    },
+    {
+      "label": "cargo cicd: Target Prune (dry run)",
+      "type": "shell",
+      "command": "cargo cicd target prune",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Plan target directory cleanup (suggest mode -- no files deleted)"
+    },
+    {
+      "label": "cargo cicd: Workspace Doctor",
+      "type": "shell",
+      "command": "cargo cicd workspace doctor",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Diagnose workspace health (checks Cargo.toml, git, toolchain, policies)"
+    },
+    {
+      "label": "cargo cicd: Evidence Doctor",
+      "type": "shell",
+      "command": "cargo cicd evidence doctor",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Run wpm receipt doctor on the latest process receipt"
+    },
+    {
+      "label": "cargo cicd: Git Status",
+      "type": "shell",
+      "command": "cargo cicd git status",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Show git repository state via cargo-cicd"
+    },
+    {
+      "label": "cargo cicd: Test Changed",
+      "type": "shell",
+      "command": "cargo cicd test changed",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Show changed-file test plan (tests for changed files only)"
+    },
+    {
+      "label": "cargo cicd: Publish Run",
+      "type": "shell",
+      "command": "cargo cicd publish run",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Publish cicd.toml with current workspace state"
+    },
+    {
+      "label": "cargo cicd: Pipeline Run",
+      "type": "shell",
+      "command": "cargo cicd pipeline run",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Execute the full declared manufacturing pipeline in sequence"
+    },
+    {
+      "label": "cargo cicd: Status Audit",
+      "type": "shell",
+      "command": "cargo cicd status audit",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Adjudicate current evidence XES file via the wasm4pm oracle"
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "description": "Development-focused configuration with continuous testing and permissions",
+  "hooks": {
+    "SessionStart": {
+      "description": "Full development environment setup",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "if ! command -v cargo-make &> /dev/null; then cargo install cargo-make; fi"],
+          "description": "Install cargo-make if not present"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "rustup update stable"],
+          "description": "Update Rust toolchain"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo make check"],
+          "description": "Run linter and type-checker"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --lib --quiet"],
+          "description": "Run unit tests quickly"
+        }
+      ]
+    },
+    "before-commit": {
+      "description": "Validate before committing",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo fmt --all -- --check"],
+          "description": "Check code formatting",
+          "failureStrategy": "warn"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo clippy --all-targets -- -D warnings"],
+          "description": "Run clippy linter",
+          "failureStrategy": "warn"
+        }
+      ]
+    },
+    "pre-push": {
+      "description": "Comprehensive validation before push",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test invariants"],
+          "description": "Verify public boundary invariants",
+          "timeout": 60000
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test feature_projection"],
+          "description": "Verify feature flag contract",
+          "timeout": 60000
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cargo build",
+        "cargo test",
+        "cargo make check",
+        "cargo make lint",
+        "cargo fmt",
+        "cargo clippy",
+        "cargo cicd status",
+        "cargo cicd workspace doctor",
+        "cargo cicd test changed",
+        "cargo install cargo-make",
+        "rustup update",
+        "git status",
+        "git diff",
+        "git log"
+      ]
+    },
+    "files": {
+      "read": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "CLAUDE.md",
+        "cicd.toml",
+        "src/**/*.rs",
+        "tests/**/*.rs",
+        "crates/**/*.rs",
+        "docs/**/*.md"
+      ],
+      "write": [
+        "src/**/*.rs",
+        "tests/**/*.rs",
+        "crates/**/*.rs",
+        "Cargo.toml"
+      ],
+      "blocked": [
+        ".git/**",
+        "target/**",
+        ".env*",
+        "**/*.lock"
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_INCREMENTAL": "1",
+    "CARGO_NET_RETRY": "3"
+  }
+}

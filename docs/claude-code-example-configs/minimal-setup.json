@@ -1,0 +1,29 @@
+{
+  "description": "Minimal SessionStart configuration for cargo-cicd web sessions",
+  "hooks": {
+    "SessionStart": {
+      "description": "Quick setup for Claude Code web session",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "rustup update stable && rustup component add rustfmt clippy"],
+          "description": "Update Rust toolchain and install formatters"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo install cargo-make"],
+          "description": "Install cargo-make for build automation"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo make check"],
+          "description": "Lint and type-check without full build"
+        }
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_INCREMENTAL": "1"
+  }
+}

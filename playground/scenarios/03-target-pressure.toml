@@ -1,0 +1,72 @@
+# Scenario 03 — Target directory pressure
+#
+# A workspace whose target/ directory exceeds the configured threshold
+# should receive a WARN verdict and a prune recommendation.
+# This exercises TargetScannerAdapter and TargetPressurePolicy.
+#
+# Expected final verdict: WARN (prune recommended, not forced).
+
+[scenario]
+name        = "03-target-pressure"
+description = "Verify that an oversized target/ directory triggers a prune recommendation"
+verdict_expected = "WARN"
+
+[setup]
+description = """
+Simulate a large target/ directory by writing a placeholder binary blob.
+The TargetScannerAdapter walks target/ up to max_depth=3; a single file
+placed at target/debug/placeholder is sufficient to exceed a low threshold
+configured for test purposes.
+"""
+requires_git = true
+requires_cargo_toml = true
+
+# Manual setup for interactive use:
+#
+#   mkdir -p target/debug
+#   dd if=/dev/zero of=target/debug/placeholder bs=1M count=25 2>/dev/null
+#
+# This creates a ~25 MB file, which should exceed any reasonable threshold.
+
+[setup.create_synthetic_target]
+# Path relative to workspace root.
+path       = "target/debug/placeholder"
+size_mb    = 25
+# The TargetScannerAdapter threshold is typically 20 GB for production.
+# For playground purposes, cicd.toml [target] threshold is set to 10 MB
+# so a 25 MB placeholder is sufficient to trigger the warning.
+# See playground/crates/app/cicd.toml (if present) or set via:
+#   [target]
+#   prune_threshold_mb = 10
+note = "Size threshold must be lowered in cicd.toml for this scenario to trigger WARN in a clean checkout."
+
+[[steps]]
+label       = "Show target directory size"
+command     = "cargo cicd target show"
+expected_exit_code = 0
+expected_output_contains = ["target", "size"]
+evidence_event = "target show"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+label       = "Dry-run prune reports recommendations"
+command     = "cargo cicd target prune"
+expected_exit_code = 0
+# Prune without --apply is always a dry-run; it prints what it would delete.
+expected_output_contains = ["prune", "dry-run"]
+evidence_event = "target prune dry-run"
+wasm4pm_verdict = "accept"
+
+[[steps]]
+label       = "Confirm prune requires --apply to act"
+command     = "cargo cicd target prune"
+expected_exit_code = 0
+# Nothing is deleted in dry-run mode.
+# The placeholder file must still exist after this step.
+evidence_event = "target prune dry-run confirm"
+expected_output_not_contains = ["deleted", "removed"]
+wasm4pm_verdict = "accept"
+
+[teardown]
+description = "Remove synthetic target placeholder."
+delete_files = ["target/debug/placeholder"]

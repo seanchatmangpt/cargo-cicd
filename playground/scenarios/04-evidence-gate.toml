@@ -1,0 +1,72 @@
+# Scenario 04 — Evidence emission and wasm4pm audit
+#
+# This scenario walks through the full evidence gate:
+#   1. Run a command that emits process evidence (XES format).
+#   2. Verify the XES file was written to target/cargo-cicd/evidence/.
+#   3. Invoke wpm audit on the XES file.
+#   4. Invoke wpm receipt doctor on the receipt JSON.
+#   5. Assert Accept verdict from both oracle checks.
+#
+# This is a releasing scenario. It is BLOCKED if wpm is not present.
+# Internal smoke tests can pass without wpm; release closure cannot.
+#
+# Evidence format: XES (XML Event Stream), not JSONL.
+# Evidence dir:    target/cargo-cicd/evidence/
+# wpm binary:      Discovered via WPM_BIN env var, ../wasm4pm/target/release/wpm,
+#                  ~/wasm4pm/target/release/wpm, or PATH.
+
+[scenario]
+name        = "04-evidence-gate"
+description = "Emit process evidence as XES and validate through the wasm4pm oracle"
+verdict_expected = "ACCEPT"
+requires_wasm4pm = true
+
+[setup]
+description = "A clean, committed workspace. Evidence dir is created on demand."
+requires_git = true
+requires_cargo_toml = true
+requires_clean_git = true
+
+[[steps]]
+label       = "Run status (emits evidence)"
+command     = "cargo cicd status"
+expected_exit_code = 0
+evidence_event = "status show"
+# This step causes cargo-cicd to write XES to target/cargo-cicd/evidence/events.xes.
+
+[[steps]]
+label       = "Verify evidence XES file was written"
+command     = "test -f target/cargo-cicd/evidence/events.xes"
+expected_exit_code = 0
+# If this fails, evidence emission is broken — not a wasm4pm problem.
+
+[[steps]]
+label       = "wpm audit — positive evidence"
+# WPM_BIN must be set or wpm must be on PATH.
+# run-all-scenarios.sh discovers wpm the same way validate-with-wasm4pm.sh does.
+command     = "${WPM_BIN:-wpm} audit target/cargo-cicd/evidence/events.xes"
+expected_exit_code = 0
+expected_output_contains = ["Accept", "accept"]
+# A non-zero exit from wpm audit means the evidence is malformed or refused.
+blocked_if_missing = "wpm"
+
+[[steps]]
+label       = "Run publish to emit a receipt"
+command     = "cargo cicd publish"
+expected_exit_code = 0
+evidence_event = "publish run"
+
+[[steps]]
+label       = "Verify receipt JSON was written"
+command     = "test -f target/cargo-cicd/evidence/receipts/latest.json"
+expected_exit_code = 0
+
+[[steps]]
+label       = "wpm receipt doctor — strict validation"
+command     = "${WPM_BIN:-wpm} receipt doctor --format json --strict target/cargo-cicd/evidence/receipts/latest.json"
+expected_exit_code = 0
+expected_output_contains = ["Accept", "accept"]
+blocked_if_missing = "wpm"
+
+[teardown]
+description = "Evidence files persist for inspection; no cleanup required."
