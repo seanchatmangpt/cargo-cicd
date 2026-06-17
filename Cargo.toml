@@ -105,6 +105,19 @@ jiff = { version = "0.2", optional = true, features = ["serde"] }
 hdrhistogram = { version = "7", optional = true }
 aho-corasick = { version = "1", optional = true }
 
+[[example]]
+name = "01_first_clean"
+path = "examples/01_first_clean.rs"
+
+[[example]]
+name = "02_ocel_evidence"
+path = "examples/02_ocel_evidence.rs"
+
+[[example]]
+name = "03_max_pipeline"
+path = "examples/03_max_pipeline.rs"
+required-features = ["advanced"]
+
 [[test]]
 name = "feature_projection"
 path = "tests/feature_projection.rs"
@@ -162,6 +175,10 @@ name = "ggen_customization_guard"
 path = "tests/ggen_customization_guard.rs"
 
 [[test]]
+name = "ocel_chicago_tdd"
+path = "tests/ocel_chicago_tdd.rs"
+
+[[test]]
 name = "refusal_calibration"
 path = "tests/refusal_calibration.rs"
 
@@ -174,3 +191,4 @@ assert_cmd = { workspace = true }
 tempfile = { workspace = true }
 predicates = { workspace = true }
 toml = { workspace = true }
+chicago-tdd-tools = { path = "/tmp/chicago-tdd-tools" }

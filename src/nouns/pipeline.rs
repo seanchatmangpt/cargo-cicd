@@ -36,12 +36,14 @@ impl PipelineRunVerb {
     fn execute(&self) -> anyhow::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();
 
-        // Fresh session: remove existing JSONL + XES so this pipeline run
+        // Fresh session: remove existing JSONL + XES + OCEL so this pipeline run
         // starts a clean trace.
         let jsonl = evidence_dir.join("events.jsonl");
         let xes = evidence_dir.join("events.xes");
+        let ocel = evidence_dir.join("events.ocel.json");
         let _ = std::fs::remove_file(&jsonl);
         let _ = std::fs::remove_file(&xes);
+        let _ = std::fs::remove_file(&ocel);
         // Create a new session id after clearing state.
         let case_id = {
             let session_file = evidence_dir.join(".session");
@@ -108,6 +110,7 @@ impl PipelineRunVerb {
         // append_events() calls (which rebuild events.xes from JSONL) do not
         // overwrite the canonical form used by the oracle.
         let audit_xes = evidence_dir.join("audit-events.xes");
+        let audit_ocel = evidence_dir.join("audit-events.ocel.json");
         {
             let declared_pipeline: &[&str] = &[
                 "status:show",
@@ -131,6 +134,9 @@ impl PipelineRunVerb {
             if let Err(e) = crate::evidence::emit_xes_fresh(&canonical_events, &audit_xes) {
                 eprintln!("warning: canonical audit XES write failed: {}", e);
             }
+            if let Err(e) = crate::evidence::emit_ocel_fresh(&canonical_events, &audit_ocel) {
+                eprintln!("warning: canonical audit OCEL write failed: {}", e);
+            }
         }
 
         // ── status:audit (inline) ───────────────────────────────────────────────
@@ -142,10 +148,23 @@ impl PipelineRunVerb {
 
         let wpm = crate::integrations::Wasm4pmShell::detect();
         let audit_result = if let Some(wpm_shell) = &wpm {
-            let xes_path = &audit_xes;
-            if xes_path.exists() {
+            // Prefer OCEL 2.0 adjudication; fall back to XES if OCEL not available.
+            if audit_ocel.exists() {
                 let r = wpm_shell
-                    .audit(xes_path.to_str().unwrap_or(""))
+                    .receipt_verify_ocel2(audit_ocel.to_str().unwrap_or(""))
+                    .unwrap_or_else(|_| wpm_shell
+                        .audit(audit_xes.to_str().unwrap_or(""))
+                        .unwrap_or_else(|e| crate::integrations::WpmResult {
+                            command: "wpm audit".to_string(),
+                            success: false,
+                            stdout: String::new(),
+                            stderr: e.to_string(),
+                            verdict: crate::integrations::WpmVerdict::Fail,
+                        }));
+                Some(r)
+            } else if audit_xes.exists() {
+                let r = wpm_shell
+                    .audit(audit_xes.to_str().unwrap_or(""))
                     .unwrap_or_else(|e| crate::integrations::WpmResult {
                         command: "wpm audit".to_string(),
                         success: false,
@@ -290,6 +309,15 @@ impl VerbCommand for PipelineStatusVerb {
         println!(
             "events.xes:     {}",
             if xes_path.exists() {
+                "present"
+            } else {
+                "missing"
+            }
+        );
+        let ocel_path = evidence_dir.join("events.ocel.json");
+        println!(
+            "events.ocel.json: {}",
+            if ocel_path.exists() {
                 "present"
             } else {
                 "missing"

@@ -1,0 +1,266 @@
+# cargo-cicd Documentation Index
+
+cargo-cicd keeps Rust workspaces clean, fast, and push-ready. This index
+organizes all documentation using the [Diátaxis](https://diataxis.fr/) framework,
+which divides documentation into four distinct quadrants based on what the reader
+is trying to do. Diátaxis prevents the most common documentation failure: mixing
+information that serves different needs into the same document, which serves none
+of them well.
+
+---
+
+## The Diátaxis quadrants
+
+```
+                   Practical
+                       |
+         TUTORIAL       |       HOW-TO GUIDE
+     (learning by       |    (solving a specific
+          doing)        |         problem)
+                       |
+  Study ———————————————+——————————————— Work
+                       |
+       EXPLANATION      |       REFERENCE
+   (understanding       |    (looking things up
+       the design)      |      while working)
+                       |
+                   Theoretical
+```
+
+| Quadrant | Axis | Reader's goal | Writer's role |
+|----------|------|---------------|---------------|
+| Tutorial | Practical + Study | Acquire new skills by doing | Teacher |
+| How-to guide | Practical + Work | Solve a specific real-world problem | Guide |
+| Reference | Theoretical + Work | Look up accurate information while working | Documenter |
+| Explanation | Theoretical + Study | Understand why things are the way they are | Analyst |
+
+---
+
+## Tutorials
+
+**Tutorials are learning-oriented.** They take a newcomer through a complete
+experience from start to finish. The reader acquires skills by doing real work
+in a guided environment. Tutorials assume no prior familiarity with cargo-cicd.
+Use this section when you are using cargo-cicd for the first time, or when you
+want to see the full workflow end-to-end.
+
+| Document | What you will learn |
+|----------|---------------------|
+| [Tutorial 1 — Your First Clean Workspace](tutorials/01-first-clean-workspace.md) | Install cargo-cicd, run `status`, and see a CLEAN/DIRTY verdict — complete first session |
+| [Tutorial 2 — Your First OCEL Evidence Record](tutorials/02-ocel-evidence.md) | Emit an OCEL 2.0 evidence file, inspect its structure, understand the Blocked verdict |
+| [Tutorial 3 — Run the Full Pipeline](tutorials/03-full-pipeline.md) | Enable all features and run `03_max_pipeline`; all 10 advanced modules in one program |
+| [Getting Started](tutorials/getting-started.md) | Alternate getting-started path: `workspace doctor`, status, publish |
+| [First Playground Run](tutorials/first-playground-run.md) | Explore commands in a scratch workspace without touching your real project |
+| [Combinatorial Maximalism (showcase)](tutorials/combinatorial-maximalism.md) | Moved to Explanation — see `docs/explanation/combinatorial-maximalism.md` |
+
+---
+
+## How-to guides
+
+**How-to guides are problem-oriented.** They give a practitioner the steps to
+solve a specific, well-defined real-world problem. They assume you already know
+what cargo-cicd is and why you are using it. Use this section when you know what
+you want to accomplish and need to know how to do it.
+
+| Document | Problem solved |
+|----------|----------------|
+| [Inspect workspace status](how-to/inspect-workspace-status.md) | Read the current health of your workspace — dirty files, test state, publish readiness |
+| [Run changed tests](how-to/run-changed-tests.md) | Run only the tests affected by your recent changes, not the full suite |
+| [Run changed trybuild fixtures](how-to/run-changed-trybuild.md) | Validate compiler-error snapshots for crates you have changed |
+| [Control the target directory](how-to/control-target-directory.md) | Inspect target size and configure pruning thresholds |
+| [Manage the target directory](how-to/manage-target-directory.md) | Prune stale build artefacts to reclaim disk space |
+| [Close a git phase](how-to/close-git-phase.md) | Merge a branch to trunk after verifying tests and evidence are clean |
+| [Close a git phase (alternate)](how-to/close-a-git-phase.md) | Variant of the close guide covering edge cases and refusal messages |
+| [Publish with cicd.toml](how-to/publish-cicd-toml.md) | Publish a crate to crates.io with a cicd.toml receipt |
+| [Run the playground](how-to/run-the-playground.md) | Spin up the local playground workspace for experimentation |
+| [Use all feature flags](how-to/use-all-features.md) | Enable autonomic, wasm4pm, advanced, and contrib features together |
+
+---
+
+## Reference
+
+**Reference material is information-oriented.** It is the technical description
+of the machinery — commands, flags, schemas, and formats — consulted while you
+are working. Reference material does not explain why things exist; it accurately
+and completely describes what they are. Use this section when you need the exact
+syntax, schema, or contract for something you are already working with.
+
+### Canonical reference: `cargo doc`
+
+The authoritative reference for all public Rust types, functions, and traits is
+generated by `cargo doc`. The files in `docs/reference/` supplement it for CLI
+flags and TOML schemas that rustdoc cannot capture, but `cargo doc` is the
+primary source of truth.
+
+```sh
+# Browse the full API reference locally:
+cargo doc --no-deps --open
+
+# Include the advanced modules:
+cargo doc --no-deps --features advanced --open
+```
+
+Key entry points in `cargo doc`:
+- `cargo_cicd::EngineState` — the aggregate root for all workspace dimensions
+- `cargo_cicd::evidence` — OCEL 2.0 evidence emission and XES compatibility layer
+- `cargo_cicd::ocel` — OCEL 2.0 types (OcelLog, OcelEvent, OcelObject, …)
+- `cargo_cicd::advanced` — all 10 optional best-of-breed modules
+- `cargo_cicd::CicdToml` — the `cicd.toml` schema
+
+### Supplementary markdown reference
+
+| Document | Contents |
+|----------|----------|
+| [Command reference](reference/commands.md) | All commands in noun-verb form with descriptions, global flags, and exit codes |
+| [cicd.toml schema](reference/cicd-toml.md) | Every field in `cicd.toml`: type, default, whether user-writable |
+| [Configuration](reference/configuration.md) | Configuration keys recognized by cargo-cicd at startup |
+| [Evidence format](reference/evidence-format.md) | XES and JSONL event schemas, field definitions, and serialization rules |
+| [Feature flags](reference/feature-flags.md) | `process-data`, `autonomic`, `wasm4pm`, `advanced`, `contrib` — what each enables and implies |
+| [Capabilities](reference/capabilities.md) | The full capability surface derived from the ontology: all nouns, verbs, and their properties |
+
+### Per-command reference
+
+Each document covers one command: flags, arguments, output format, exit codes,
+and evidence emitted.
+
+| Command | Reference page |
+|---------|----------------|
+| `cargo cicd status show` | [reference/commands/status.md](reference/commands/status.md) |
+| `cargo cicd target show` | [reference/commands/target-show.md](reference/commands/target-show.md) |
+| `cargo cicd target prune` | [reference/commands/target-prune.md](reference/commands/target-prune.md) |
+| `cargo cicd test changed` | [reference/commands/test-changed.md](reference/commands/test-changed.md) |
+| `cargo cicd trybuild changed` | [reference/commands/trybuild-changed.md](reference/commands/trybuild-changed.md) |
+| `cargo cicd git status` | [reference/commands/git-status.md](reference/commands/git-status.md) |
+| `cargo cicd git close` | [reference/commands/git-close.md](reference/commands/git-close.md) |
+| `cargo cicd publish run` | [reference/commands/publish-run.md](reference/commands/publish-run.md) |
+| `cargo cicd workspace doctor` | [reference/commands/workspace-doctor.md](reference/commands/workspace-doctor.md) |
+
+### Command quick-reference (alternate presentation)
+
+The `docs/commands/` directory contains alternative command pages organized by noun:
+
+| Noun | Page |
+|------|------|
+| git | [commands/git.md](commands/git.md) |
+| publish | [commands/publish.md](commands/publish.md) |
+| status | [commands/status.md](commands/status.md) |
+| target | [commands/target.md](commands/target.md) |
+| test | [commands/test.md](commands/test.md) |
+| trybuild | [commands/trybuild.md](commands/trybuild.md) |
+| workspace | [commands/workspace.md](commands/workspace.md) |
+
+---
+
+## Explanation
+
+**Explanation is understanding-oriented.** It discusses context, background, and
+design decisions. Explanation answers the question "why?" rather than "what?" or
+"how?". Use this section when you want to understand the rationale behind a
+design choice, not when you need to accomplish a task.
+
+| Document | What it explains |
+|----------|-----------------|
+| [Why local-first CI/CD](explanation/why-local-first-cicd.md) | Why cargo-cicd runs on your machine before you push, rather than on a remote server after |
+| [Why cicd.toml](explanation/why-cicd-toml.md) | Why workspace state is persisted in a TOML file rather than kept in memory or a database |
+| [Evidence emission](explanation/evidence-emission.md) | How and why cargo-cicd emits XES process evidence, and the role of the wasm4pm oracle |
+| [Why wasm4pm evidence validation](explanation/why-wasm4pm-evidence-validation.md) | The reasoning behind external adjudication of process evidence rather than self-certification |
+| [Why changed test planning](explanation/why-changed-test-planning.md) | Why `test changed` runs only a subset of tests, and why this is safe rather than risky |
+| [Autonomic policies](explanation/autonomic-policies.md) | What the autonomic policy layer is, how suggest mode works, and why policies never take destructive action |
+| [Combinatorial maximalism rationale](explanation/combinatorial-maximalism-rationale.md) | The philosophy behind exhaustive combinatorial testing of noun-verb combinations |
+
+---
+
+## Architecture decisions
+
+Architecture Decision Records (ADRs) document the significant technical choices
+made in cargo-cicd and the reasoning behind them. Each ADR is immutable once
+accepted — it records what was decided and why, not what is currently preferred.
+ADRs are not how-to guides or explanations; they are historical records of
+decisions that shaped the system.
+
+| ADR | Decision |
+|-----|----------|
+| [ADR-001](adr/ADR-001-three-crate-separation.md) | CLI, integration, and domain logic are separated into three crates with enforced import rules |
+| [ADR-002](adr/ADR-002-evidence-gate-invariants.md) | Seven non-negotiable evidence gate invariants that all process evidence must satisfy |
+| [ADR-003](adr/ADR-003-receipt-doctor-primary-gate.md) | `wpm receipt doctor` is the primary release gate, not `wpm audit` |
+| [ADR-004](adr/ADR-004-lsp-observer-not-actor.md) | The LSP integration is a read-only observer; it never mutates workspace state |
+| [ADR-005](adr/ADR-005-keyed-subtraction-lifecycle.md) | Evidence events use a keyed subtraction lifecycle rather than append-only accumulation |
+| [ADR-006](adr/ADR-006-trailing-var-arg-pattern.md) | Trailing var-arg pattern for forwarding unknown flags to underlying cargo commands |
+| [ADR-007](adr/ADR-007-no-silent-fallback-on-verdict-keys.md) | Verdict key mismatches must panic rather than fall back silently to a default |
+| [ADR-008](adr/ADR-008-pipeline-vs-ambient-trace.md) | Pipeline runs and ambient single-command runs produce distinct trace classes in XES |
+| [ADR-009](adr/ADR-009-forbidden-terms-public-boundary.md) | Certain internal terms are forbidden from all public-facing output and enforced by an invariant test |
+| [ADR-010](adr/ADR-010-publish-gate-adjudicated-receipt.md) | Publish requires an adjudicated wasm4pm receipt, not just a clean status check |
+
+---
+
+## Supplementary documentation
+
+These sections exist outside the four Diátaxis quadrants but are part of the
+cargo-cicd documentation corpus.
+
+### LSP integration
+
+Documentation for the `cargo cicd lsp explain` endpoint and IDE integration.
+
+| Document | Contents |
+|----------|----------|
+| [LSP overview](lsp/README.md) | What the LSP integration provides and how to connect an editor |
+| [Lifecycle](lsp/LIFECYCLE.md) | How the LSP server starts, handles requests, and shuts down |
+| [Diagnostics](lsp/DIAGNOSTICS.md) | Which diagnostics the LSP server emits and their severity levels |
+| [Editor integration](lsp/EDITOR_INTEGRATION.md) | Per-editor setup instructions (VS Code, Neovim, Helix) |
+| [Conformance](lsp/CONFORMANCE.md) | Which LSP protocol capabilities are implemented and which are out of scope |
+
+### Testing documentation
+
+| Document | Contents |
+|----------|----------|
+| [Invariants](testing/INVARIANTS.md) | The seven non-negotiable invariants and what would happen if each were violated |
+| [Capability test matrix](testing/CAPABILITY_TEST_MATRIX.md) | Which test covers which capability, and which capabilities lack test coverage |
+| [Combinatorial maximalist test plan](testing/COMBINATORIAL_MAXIMALIST_TEST_PLAN.md) | The strategy for exhaustive noun-verb-flag combination testing |
+| [wasm4pm evidence gate](testing/WASM4PM_EVIDENCE_GATE.md) | How the wasm4pm evidence gate tests are structured and what they validate |
+| [wasm4pm evidence case matrix](testing/WASM4PM_EVIDENCE_CASE_MATRIX.md) | All evidence test cases: happy path, mutation, and refusal |
+| [wasm4pm refusal ledger](testing/WASM4PM_REFUSAL_LEDGER.md) | Catalogued refusal cases and the expected oracle response for each |
+| [Negative fixture ledger](testing/NEGATIVE_FIXTURE_LEDGER.md) | Fixture workspaces used by negative-path tests, and what each exercises |
+| [wasm4pm oracle discovery](testing/WASM4PM_ORACLE_DISCOVERY.md) | How the test harness locates the `wpm` binary at runtime |
+
+### wasm4pm integration
+
+| Document | Contents |
+|----------|----------|
+| [Allowed surfaces](wasm4pm/WASM4PM_ALLOWED_SURFACES.md) | Which cargo-cicd surfaces may call the wasm4pm oracle |
+| [Excluded surfaces](wasm4pm/WASM4PM_EXCLUDED_SURFACES.md) | Surfaces explicitly prohibited from calling the oracle, and why |
+| [Capability inventory](wasm4pm/WASM4PM_CAPABILITY_INVENTORY.md) | Full inventory of wasm4pm capabilities used by cargo-cicd |
+| [Capability map](wasm4pm/WASM4PM_CAPABILITY_MAP.md) | Mapping from cargo-cicd commands to the oracle capabilities they invoke |
+| [Full capability map](wasm4pm/WASM4PM_FULL_CAPABILITY_MAP.md) | Extended mapping including edge cases and conditional invocations |
+| [Integration recommendation](wasm4pm/WASM4PM_INTEGRATION_RECOMMENDATION.md) | The recommendation document that preceded ADR-010 |
+| [Leverage matrix](wasm4pm/WASM4PM_LEVERAGE_MATRIX.md) | Which oracle capabilities provide the highest value per integration cost |
+
+---
+
+## Quick navigation by goal
+
+Use the table below when you know what you are trying to accomplish and want
+to go directly to the right document.
+
+| I want to... | Go here |
+|--------------|---------|
+| Install cargo-cicd for the first time | [Getting Started](tutorials/getting-started.md) |
+| See what commands are available | [Command reference](reference/commands.md) |
+| Check if my workspace is ready to push | [Inspect workspace status](how-to/inspect-workspace-status.md) |
+| Run only the tests that matter for my change | [Run changed tests](how-to/run-changed-tests.md) |
+| Free up disk space from the target directory | [Manage the target directory](how-to/manage-target-directory.md) |
+| Merge my branch to main safely | [Close a git phase](how-to/close-git-phase.md) |
+| Publish a crate to crates.io | [Publish with cicd.toml](how-to/publish-cicd-toml.md) |
+| Look up a specific flag or exit code | [Per-command reference](reference/commands/) |
+| Understand what cicd.toml fields mean | [cicd.toml schema](reference/cicd-toml.md) |
+| Configure target pruning | [cicd.toml schema — target section](reference/cicd-toml.md) |
+| Enable optional features (autonomic, wasm4pm) | [Feature flags](reference/feature-flags.md) |
+| Understand XES evidence format | [Evidence format](reference/evidence-format.md) |
+| Understand why changed tests are safe | [Why changed test planning](explanation/why-changed-test-planning.md) |
+| Understand why cicd.toml exists | [Why cicd.toml](explanation/why-cicd-toml.md) |
+| Understand how evidence adjudication works | [Why wasm4pm evidence validation](explanation/why-wasm4pm-evidence-validation.md) |
+| Understand the overall design philosophy | [Why local-first CI/CD](explanation/why-local-first-cicd.md) |
+| Find out why a technical decision was made | [Architecture decisions](adr/) |
+| Connect an IDE to the cargo-cicd language server | [Editor integration](lsp/EDITOR_INTEGRATION.md) |
+| Debug a failing evidence gate test | [wasm4pm evidence gate](testing/WASM4PM_EVIDENCE_GATE.md) |
+| See the full test coverage picture | [Capability test matrix](testing/CAPABILITY_TEST_MATRIX.md) |
