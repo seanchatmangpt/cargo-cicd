@@ -1,5 +1,6 @@
 use crate::adapters::ChangedFileDetector;
 use crate::evidence::ProcessEvent;
+use crate::nouns::process_helpers::run_cargo;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct TestNoun;

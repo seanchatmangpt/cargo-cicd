@@ -1,5 +1,6 @@
 use crate::adapters::GitStatusAdapter;
 use crate::evidence::ProcessEvent;
+use crate::nouns::process_helpers::run_git;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct GitNoun;
