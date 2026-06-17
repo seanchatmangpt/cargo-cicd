@@ -86,7 +86,6 @@ fn main() -> Result<()> {
         }
     }
 
-    #[allow(unused_mut)]
     let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::pipeline::PipelineNoun::new())
@@ -97,8 +96,12 @@ fn main() -> Result<()> {
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
         .noun(nouns::workspace::WorkspaceNoun::new())
-        .noun(nouns::lsp::LspNoun::new())
         .noun(nouns::ui::UiNoun::new());
+
+    #[cfg(feature = "lsp")]
+    {
+        cli = cli.noun(nouns::lsp::LspNoun::new());
+    }
 
     #[cfg(feature = "advanced")]
     {
