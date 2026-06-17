@@ -3,6 +3,7 @@ use crate::adapters::{
 };
 use crate::cicd_toml::CicdToml;
 use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::init_evidence;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct PublishNoun;
@@ -49,10 +50,7 @@ impl VerbCommand for PublishRunVerb {
         "Emit cicd.toml with current workspace state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let (mut start_evt, t0) = ProcessEvent::started("publish:run");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("publish:run");
 
         let mut cicd = CicdToml::from_current_workspace();
         let target_gb = TargetScannerAdapter::total_size_gb(&cicd.workspace.target_dir);

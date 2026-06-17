@@ -1,5 +1,5 @@
 use crate::adapters::ChangedFileDetector;
-use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct TrybuildNoun;
@@ -131,10 +131,7 @@ impl VerbCommand for TrybuildChangedVerb {
         "Run trybuild for changed fixtures only"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let (mut start_evt, t0) = ProcessEvent::started("trybuild:changed");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("trybuild:changed");
         let fixture_dir = "tests/ui";
         let base = "origin/main";
         let changed = ChangedFileDetector::changed_rs_files(base);
@@ -161,11 +158,7 @@ impl VerbCommand for TrybuildChangedVerb {
             println!("to update snapshots: TRYBUILD=overwrite cargo test");
         }
 
-        let mut complete_evt = ProcessEvent::completed("trybuild:changed", t0, "PASS");
-        complete_evt.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, "PASS", "trybuild:changed", &evidence_dir);
         let _ = fixture_dir;
         Ok(())
     }
