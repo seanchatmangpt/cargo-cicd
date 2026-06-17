@@ -2,7 +2,7 @@ use crate::adapters::{
     ChangedFileDetector, GitStatusAdapter, TargetScannerAdapter, ToolchainDetector,
 };
 use crate::cicd_toml::CicdToml;
-use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct PublishNoun;
@@ -45,6 +45,7 @@ impl VerbCommand for PublishRunVerb {
         "Emit cicd.toml with current workspace state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("publish:run");
         let mut cicd = CicdToml::from_current_workspace();
         let target_gb = TargetScannerAdapter::total_size_gb(&cicd.workspace.target_dir);
         cicd.state.target_size_gb = (target_gb * 100.0).round() / 100.0;
@@ -69,7 +70,6 @@ impl VerbCommand for PublishRunVerb {
         //   RECEIPT_DOCTOR:accepted   — oracle admitted the receipt; proceed.
         //   WARN:oracle_unavailable   — wpm not found; proceed with a warning.
         //   (bail!)                   — oracle refused receipt; publish is blocked.
-        let evidence_dir = crate::evidence::evidence_dir();
         let publish_readiness = match crate::evidence::ReceiptDoctor::discover() {
             None => {
                 eprintln!(
@@ -152,13 +152,7 @@ impl VerbCommand for PublishRunVerb {
         println!("  dirty:        {}", cicd.state.dirty);
         println!("  changed:      {}", cicd.state.changed_files);
 
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let mut event = ProcessEvent::new("publish:run", "PASS");
-        event.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[event], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, "PASS", "publish:run", &evidence_dir);
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::autonomic::policies::{run_all_policies, GitState, PolicyVerdict, WorkspaceInfo};
-use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct WorkspaceNoun;
@@ -41,6 +41,7 @@ impl VerbCommand for WorkspaceDoctorVerb {
         "Diagnose workspace health"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("workspace:doctor");
         println!("workspace doctor");
         println!("================");
 
@@ -113,13 +114,7 @@ impl VerbCommand for WorkspaceDoctorVerb {
             "PASS"
         };
 
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-        let mut event = ProcessEvent::new("workspace:doctor", verdict);
-        event.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[event], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, verdict, "workspace:doctor", &evidence_dir);
         Ok(())
     }
 }
