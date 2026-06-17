@@ -199,6 +199,14 @@ path = "tests/lsp_check_anti_llm.rs"
 name = "test_lsp"
 path = "tests/cli/test_lsp.rs"
 
+[[test]]
+name = "oracle_key_lifecycle"
+path = "tests/oracle_key_lifecycle.rs"
+
+[[test]]
+name = "code_provenance_detection"
+path = "tests/code_provenance_detection.rs"
+
 [dev-dependencies]
 assert_cmd = { workspace = true }
 tempfile = { workspace = true }
