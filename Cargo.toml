@@ -58,6 +58,10 @@ exclude = [
 name = "cargo-cicd"
 path = "src/main.rs"
 
+[[bin]]
+name = "cicd-evidence-gen"
+path = "src/bin/cicd-evidence-gen.rs"
+
 [features]
 default = []
 process-data = []
@@ -214,6 +218,10 @@ path = "tests/xes_v2_compliance.rs"
 [[test]]
 name = "certification_policies"
 path = "tests/certification_policies.rs"
+
+[[test]]
+name = "evidence_manifest"
+path = "tests/evidence_manifest.rs"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

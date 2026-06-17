@@ -54,6 +54,7 @@ pub mod code_provenance;
 pub mod engine;
 pub mod evidence;
 pub mod evidence_jsonl;
+pub mod evidence_manifest;
 pub mod evidence_xes_v2;
 pub mod integrations;
 pub mod nouns;
