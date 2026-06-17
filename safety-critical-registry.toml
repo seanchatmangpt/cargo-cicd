@@ -1,0 +1,23 @@
+# Safety-Critical Crate Registry
+# Managed by cargo-cicd certification infrastructure
+# Vision 2030: https://github.com/seanchatmangpt/cargo-cicd
+#
+# Each [[entries]] block describes one certified crate version.
+# Fields:
+#   crate_name    - name on crates.io
+#   version       - certified version
+#   cert_body_id  - ID from src/certification/mod.rs::known_cert_bodies()
+#   standards     - list of standards satisfied
+#   certified_at  - YYYY-MM-DD
+#   receipt_hash  - "sha256:<hex>" of the receipt JSON
+#   evidence_url  - (optional) public evidence archive URL
+
+[[entries]]
+# Example entry (remove and replace with real certified crates)
+crate_name = "example-safety-crate"
+version = "0.1.0"
+cert_body_id = "ferrous-systems"
+standards = ["IEC 61508 SIL 2"]
+certified_at = "2026-06-17"
+receipt_hash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+evidence_url = "https://evidence.example.com/example-safety-crate/0.1.0/"
