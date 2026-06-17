@@ -17,6 +17,7 @@ pub mod evidence_helpers;
 pub mod git;
 pub mod lsp;
 pub mod pipeline;
+pub mod process_helpers;
 pub mod publish;
 pub mod status;
 pub mod target;

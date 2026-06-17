@@ -1,5 +1,6 @@
 use crate::adapters::GitStatusAdapter;
 use crate::evidence::ProcessEvent;
+use crate::nouns::process_helpers::run_git;
 use crate::ui::badge::{self, Verdict};
 use crate::ui::panel;
 use crate::ui::theme::{self, Role};
