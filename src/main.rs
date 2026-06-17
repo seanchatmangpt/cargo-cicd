@@ -103,6 +103,11 @@ fn main() -> Result<()> {
         cli = cli.noun(nouns::lsp::LspNoun::new());
     }
 
+    #[cfg(feature = "autoarch")]
+    {
+        cli = cli.noun(nouns::autoarch::AutoArchNoun::new());
+    }
+
     #[cfg(feature = "advanced")]
     {
         cli = cli.noun(nouns::analyze::AnalyzeCommand::new());

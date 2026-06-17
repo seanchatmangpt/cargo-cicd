@@ -66,6 +66,7 @@ path = "src/bin/cicd-evidence-gen.rs"
 default = []
 process-data = []
 autonomic = ["process-data"]
+autoarch = ["autonomic"]
 contrib = ["process-data"]
 wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
 anti-llm-cheat = ["dep:lsp-max-anti-cheat"]

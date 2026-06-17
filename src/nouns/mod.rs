@@ -26,6 +26,8 @@ pub mod trybuild;
 pub mod ui;
 pub mod workspace;
 
-// Advanced nouns (feature-gated)
+// Feature-gated nouns
+#[cfg(feature = "autoarch")]
+pub mod autoarch;
 #[cfg(feature = "advanced")]
 pub mod analyze;

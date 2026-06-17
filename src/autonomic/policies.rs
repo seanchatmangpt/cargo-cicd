@@ -64,6 +64,37 @@ pub struct EvidenceState {
     pub receipt_stale: bool,
 }
 
+/// Searchable policy thresholds — the "hyperparameters" of the autonomic layer.
+///
+/// Default values reproduce the legacy hardcoded behavior exactly, so existing
+/// callers that pass `PolicyConfig::default()` see zero behavior change.
+/// The `autoarch tune` verb searches this space to recommend per-workspace values.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PolicyConfig {
+    /// Target directory size in GB that triggers a prune suggestion.
+    pub target_max_gb: f64,
+    /// Fraction of `target_max_gb` at which a warning fires (0.0–1.0).
+    pub target_warn_ratio: f64,
+    /// Commits behind remote before sync is suggested. `0` means any lag triggers.
+    pub behind_threshold: usize,
+    /// Dirty files before commit is suggested. `0` means any dirt triggers.
+    pub dirty_threshold: usize,
+    /// Evidence age in seconds beyond which staleness is flagged.
+    pub evidence_staleness_secs: u64,
+}
+
+impl Default for PolicyConfig {
+    fn default() -> Self {
+        Self {
+            target_max_gb: 20.0,
+            target_warn_ratio: 0.8,
+            behind_threshold: 0,
+            dirty_threshold: 0,
+            evidence_staleness_secs: 3600,
+        }
+    }
+}
+
 // ── individual policy checks ─────────────────────────────────────────────────
 
 /// Evaluate target-directory pressure against `max_gb`.
@@ -272,8 +303,22 @@ pub fn run_all_policies(
     git: &GitState,
     evidence: &EvidenceState,
 ) -> Vec<PolicyResult> {
+    run_all_policies_with_config(workspace, git, evidence, &PolicyConfig::default())
+}
+
+/// Run all suggest-mode policies with explicit threshold configuration.
+///
+/// Used by `autoarch tune` to score candidate `PolicyConfig` values against the
+/// current workspace state. The default `PolicyConfig` reproduces `run_all_policies`
+/// behavior exactly. All policies remain in `Suggest` mode — no mutations.
+pub fn run_all_policies_with_config(
+    workspace: &WorkspaceInfo,
+    git: &GitState,
+    evidence: &EvidenceState,
+    config: &PolicyConfig,
+) -> Vec<PolicyResult> {
     vec![
-        check_target_pressure(workspace.target_gb, workspace.max_gb),
+        check_target_pressure(workspace.target_gb, config.target_max_gb),
         check_toolchain_mismatch(
             &workspace.active_toolchain,
             workspace.pinned_toolchain.as_deref(),
