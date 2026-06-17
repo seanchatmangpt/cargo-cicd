@@ -191,6 +191,14 @@ path = "tests/refusal_calibration.rs"
 name = "lsp_explain"
 path = "tests/lsp_explain.rs"
 
+[[test]]
+name = "lsp_check_anti_llm"
+path = "tests/lsp_check_anti_llm.rs"
+
+[[test]]
+name = "test_lsp"
+path = "tests/cli/test_lsp.rs"
+
 [dev-dependencies]
 assert_cmd = { workspace = true }
 tempfile = { workspace = true }
