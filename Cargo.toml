@@ -211,6 +211,10 @@ path = "tests/code_provenance_detection.rs"
 name = "xes_v2_compliance"
 path = "tests/xes_v2_compliance.rs"
 
+[[test]]
+name = "certification_policies"
+path = "tests/certification_policies.rs"
+
 [dev-dependencies]
 assert_cmd = { workspace = true }
 tempfile = { workspace = true }

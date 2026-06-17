@@ -48,6 +48,7 @@ pub mod adapters;
 #[cfg(feature = "advanced")]
 pub mod advanced;
 pub mod autonomic;
+pub mod certification;
 pub mod cicd_toml;
 pub mod code_provenance;
 pub mod engine;
