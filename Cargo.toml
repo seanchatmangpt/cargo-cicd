@@ -43,6 +43,7 @@ process-data = []
 autonomic = ["process-data"]
 contrib = ["process-data"]
 wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
+anti-llm-cheat = []
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -112,6 +113,14 @@ path = "tests/refusal_calibration.rs"
 [[test]]
 name = "lsp_explain"
 path = "tests/lsp_explain.rs"
+
+[[test]]
+name = "lsp_check_anti_llm"
+path = "tests/lsp_check_anti_llm.rs"
+
+[[test]]
+name = "test_lsp"
+path = "tests/cli/test_lsp.rs"
 
 [dev-dependencies]
 assert_cmd = "2"
