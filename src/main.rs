@@ -83,7 +83,7 @@ fn main() -> Result<()> {
         }
     }
 
-    let cli = cli
+    let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::pipeline::PipelineNoun::new())
         .noun(nouns::status::StatusNoun::new())
@@ -92,8 +92,12 @@ fn main() -> Result<()> {
         .noun(nouns::trybuild::TrybuildNoun::new())
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
-        .noun(nouns::workspace::WorkspaceNoun::new())
-        .noun(nouns::lsp::LspNoun::new());
+        .noun(nouns::workspace::WorkspaceNoun::new());
+
+    #[cfg(feature = "lsp")]
+    {
+        cli = cli.noun(nouns::lsp::LspNoun::new());
+    }
 
     cli.run().map_err(|e| anyhow::anyhow!("{}", e))
 }
