@@ -1,5 +1,6 @@
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct StatusNoun;
@@ -36,11 +37,7 @@ pub struct StatusShowVerb;
 
 impl StatusShowVerb {
     fn execute(&self) -> anyhow::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("status:show");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("status:show");
 
         println!("cargo-cicd workspace status");
         println!("===========================");
@@ -58,12 +55,7 @@ impl StatusShowVerb {
         println!("git:          {}", dirty_word);
 
         let ev_verdict = if dirty { "WARN" } else { "PASS" };
-        let mut complete_evt = ProcessEvent::completed("status:show", t0, ev_verdict);
-        complete_evt.case_id = Some(case_id.clone());
-
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, ev_verdict, "status:show", &evidence_dir);
         Ok(())
     }
 }

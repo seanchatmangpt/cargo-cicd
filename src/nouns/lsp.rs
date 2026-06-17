@@ -1,4 +1,5 @@
 use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct LspNoun;
@@ -298,11 +299,7 @@ impl VerbCommand for LspServeVerb {
         "Start the cargo-cicd LSP server"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("lsp:serve");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("lsp:serve");
 
         println!("starting cargo-cicd-lsp server...");
 
@@ -337,11 +334,7 @@ impl VerbCommand for LspServeVerb {
             }
         };
 
-        let mut complete_evt = ProcessEvent::completed("lsp:serve", t0, verdict);
-        complete_evt.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, verdict, "lsp:serve", &evidence_dir);
         Ok(())
     }
 }
@@ -355,11 +348,7 @@ impl VerbCommand for LspDoctorVerb {
         "Check LSP health: binary presence, wpm oracle, workspace structure"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("lsp:doctor");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("lsp:doctor");
 
         println!("lsp doctor");
         println!("==========");
@@ -408,11 +397,7 @@ impl VerbCommand for LspDoctorVerb {
         let verdict = if all_ok { "PASS" } else { "FAIL" };
         println!("result: {}", verdict);
 
-        let mut complete_evt = ProcessEvent::completed("lsp:doctor", t0, verdict);
-        complete_evt.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, verdict, "lsp:doctor", &evidence_dir);
         Ok(())
     }
 }
@@ -436,11 +421,7 @@ impl VerbCommand for LspExplainVerb {
             )
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("lsp:explain");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("lsp:explain");
 
         let code = args
             .get_one_str_opt("code")
@@ -464,24 +445,14 @@ impl VerbCommand for LspExplainVerb {
                 for entry in CICD_CATALOG {
                     eprintln!("  {}  {}", entry.code, entry.title);
                 }
-                let mut complete_evt = ProcessEvent::completed("lsp:explain", t0, "FAIL");
-                complete_evt.case_id = Some(case_id);
-                if let Err(e) =
-                    crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir)
-                {
-                    eprintln!("warning: evidence emission failed: {}", e);
-                }
+                finish_evidence(start_evt, t0, case_id, "FAIL", "lsp:explain", &evidence_dir);
                 return Err(clap_noun_verb::error::NounVerbError::execution_error(
                     format!("unknown diagnostic code: {code}"),
                 ));
             }
         };
 
-        let mut complete_evt = ProcessEvent::completed("lsp:explain", t0, verdict);
-        complete_evt.case_id = Some(case_id);
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(start_evt, t0, case_id, verdict, "lsp:explain", &evidence_dir);
         Ok(())
     }
 }

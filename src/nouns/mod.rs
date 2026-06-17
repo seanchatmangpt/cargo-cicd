@@ -1,4 +1,5 @@
 pub mod evidence;
+pub mod evidence_helpers;
 pub mod git;
 pub mod lsp;
 pub mod pipeline;
