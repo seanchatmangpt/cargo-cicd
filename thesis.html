@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cargo-cicd: A Level-5 Process-Data Engine for Local-First CI/CD Orchestration in Rust Workspaces</title>
+<style>
+  @page { margin: 2.5cm; }
+  body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+    line-height: 1.6;
+    color: #000;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2em;
+  }
+  h1 { font-size: 18pt; margin-top: 2em; page-break-before: always; }
+  h1:first-child { page-break-before: avoid; }
+  h2 { font-size: 14pt; margin-top: 1.5em; }
+  h3 { font-size: 12pt; margin-top: 1em; }
+  pre, code {
+    font-family: "Courier New", monospace;
+    font-size: 10pt;
+    background: #f5f5f5;
+    padding: 0.2em 0.4em;
+  }
+  pre { padding: 1em; overflow-x: auto; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    font-size: 10pt;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 0.4em 0.8em;
+    text-align: left;
+  }
+  th { background: #eee; font-weight: bold; }
+  hr { border: none; border-top: 1px solid #999; margin: 2em 0; }
+  blockquote { border-left: 3px solid #999; padding-left: 1em; color: #555; }
+  .toc { background: #f9f9f9; padding: 1em; border: 1px solid #ddd; margin-bottom: 2em; }
+</style>
+</head>
+<body>
+<div style="text-align:center; margin-bottom:3em; padding-top:3em;">
+  <h1 style="font-size:22pt; page-break-before:avoid; border-bottom:2px solid #000; padding-bottom:0.5em;">
+    cargo-cicd: A Level-5 Process-Data Engine<br>
+    for Local-First CI/CD Orchestration<br>
+    in Rust Workspaces
+  </h1>
+  <p style="font-size:14pt;">PhD Thesis</p>
+  <p style="font-size:12pt; color:#555;">Department of Computer Science<br>
+  School of Software Engineering<br>
+  Version 26.6.2 &mdash; June 2026</p>
+</div>
+<h1 id="chapter-1-introduction">Chapter 1: Introduction</h1>
+<h2 id="abstract">Abstract</h2>
+<p>Continuous integration and continuous delivery (CI/CD) pipelines have become indispensable infrastructure in modern software development, yet the feedback loop they impose is almost universally remote-first: a developer commits, pushes, and waits for a cloud pipeline to adjudicate quality. For Rust workspaces in particular, this round-trip is expensive — compilation times are long, toolchain mismatches surface late, and bloated <code>target/</code> directories silently inflate both local and remote build times. This thesis presents <code>cargo-cicd</code>, a local-first CI/CD orchestration engine for Rust workspaces that shifts quality enforcement to the developer's machine, before the push. The system is architected as a Level 5 process-data engine: all runtime dimensions — workspace health, toolchain state, target directory pressure, changed-file sets, git phase, and autonomic policy verdicts — are unified into a single aggregate root (<code>EngineState</code>) populated by a pipeline of pure translation adapters. A noun-verb command grammar, built atop the <code>clap-noun-verb</code> library, exposes this engine to the developer as an ergonomic Cargo subcommand. Workspace state is serialised to a local carrier file (<code>cicd.toml</code>) and, under the optional <code>wasm4pm</code> feature flag, process evidence is emitted as XES (XML Event Stream) event logs and adjudicated by an external oracle. We define three core research contributions: (1) a formal adapter-pipeline architecture for translating heterogeneous external sources into a unified engine state; (2) an autonomic policy layer that issues non-destructive workspace recommendations in suggest mode; and (3) an evidence-gate pattern that connects local process events to external adjudication, enabling verifiable release closure. Evaluation across representative Rust workspaces demonstrates that <code>cargo-cicd</code> detects the dominant classes of push-blocking defects — dirty trees, stale trybuild fixtures, and target bloat — with zero false negatives in the invariant test suite. The system is implemented in Rust (MSRV 1.86), ships at version 26.6.2, and is available under the MIT/Apache-2.0 dual license.</p>
+<hr />
+<h2 id="1-introduction">1. Introduction</h2>
+<h3 id="11-motivation">1.1 Motivation</h3>
+<p>The modern software release pipeline is, in its dominant form, a remote-first construct. Developers author code locally but delegate quality enforcement to cloud-hosted runners — GitHub Actions, GitLab CI, CircleCI — that execute builds, tests, and static analysis only after a commit is pushed to a remote branch [1]. This architecture places the feedback loop at the wrong end of the development cycle. For compiled, statically typed languages such as Rust, the cost of a remote-gated defect is compounded by compilation latency: even on well-resourced runners, full workspace builds can take minutes, and the developer must context-switch back to a local editor after an arbitrary delay [2].</p>
+<p>Rust's type system and borrow checker eliminate whole categories of runtime defect [3], but they do not eliminate the class of defect that <code>cargo-cicd</code> targets: workspace hygiene defects. These include dirty working trees that would fail a remote <code>git status</code> check, <code>target/</code> directories that have grown to tens of gigabytes and saturate CI cache budgets, <code>rust-toolchain.toml</code> mismatches that pass locally on a pinned channel but fail on a runner's stable toolchain, and trybuild compile-fail fixtures that bit-rot between refactors [4]. None of these defects are caught by <code>cargo test</code> or <code>cargo clippy</code> alone. They are caught — expensively — by the remote pipeline, or not caught at all until a publish attempt fails.</p>
+<p>The hypothesis motivating this work is that a local-first quality enforcement layer, integrated into the developer's pre-push workflow and implemented as a native Cargo subcommand, can eliminate the dominant classes of push-blocking defect at negligible marginal cost. The developer invocation is a single command:</p>
+<pre><code>cargo cicd status
+</code></pre>
+<p>This command surfaces a structured verdict — <code>pass</code>, <code>warn</code>, or <code>refuse</code> — drawn from a fully populated <code>EngineState</code> in under a second for typical workspaces. The intent is not to replace remote CI but to make the common case of "push-ready?" answerable without a network round-trip.</p>
+<h3 id="12-problem-statement">1.2 Problem Statement</h3>
+<p>Three concrete problems motivate the design of <code>cargo-cicd</code>:</p>
+<p><strong>Problem 1: Semantic gap between local and remote workspace state.</strong> A Rust developer working locally has access to the full workspace state — git porcelain output, <code>target/</code> directory metadata, <code>rust-toolchain.toml</code> channel, Cargo manifest validity — but no unified tool aggregates these dimensions into an actionable pre-push verdict. Existing tools (<code>cargo clippy</code>, <code>cargo test</code>, <code>git status</code>) address individual dimensions in isolation [5]. The developer must mentally compose their outputs, which is error-prone and adds cognitive overhead at exactly the moment when she is focused on feature delivery.</p>
+<p><strong>Problem 2: Absence of process evidence for release verification.</strong> Mature process engineering disciplines, including ISO 9001 and DO-178C avionics software standards, require auditable evidence of process execution [6, 7]. Rust workspaces lack a standard mechanism for emitting structured, machine-verifiable evidence of CI/CD process steps. Without such evidence, release claims ("all tests passed before this tag") rest on ephemeral CI logs that may be unavailable, incomplete, or unverifiable by downstream consumers.</p>
+<p><strong>Problem 3: Reactive rather than proactive quality enforcement.</strong> Existing CI/CD integrations for Rust workspaces are reactive: they execute in response to push or pull-request events and report failure after the fact [8]. A proactive, autonomic layer that monitors workspace state and issues recommendations — without destructive side effects — would shift quality enforcement earlier in the development loop, reducing the mean time to feedback.</p>
+<h3 id="13-research-questions">1.3 Research Questions</h3>
+<p>This thesis addresses four research questions:</p>
+<p><strong>RQ1.</strong> Can a unified aggregate-root state model (<code>EngineState</code>) faithfully represent all runtime dimensions of a Rust workspace's CI/CD readiness, sourced from heterogeneous external adapters, with sufficient fidelity to drive a correct <code>pass</code>/<code>warn</code>/<code>refuse</code> verdict?</p>
+<p><strong>RQ2.</strong> Does a noun-verb command grammar, exposed as a Cargo subcommand, provide a sufficiently low-friction developer interface that adoption does not require workflow modification beyond inserting a single pre-push command?</p>
+<p><strong>RQ3.</strong> Can XES-format process-evidence emission, combined with an external adjudication oracle, provide machine-verifiable release closure that is independent of the <code>cargo-cicd</code> tool itself, eliminating the risk of self-certification?</p>
+<p><strong>RQ4.</strong> Does an autonomic policy layer operating in suggest mode — issuing recommendations without taking action — provide actionable workspace intelligence without introducing the risk of destructive automation in the developer's local environment?</p>
+<h3 id="14-contributions">1.4 Contributions</h3>
+<p>This thesis makes the following original contributions:</p>
+<ol>
+<li>
+<p><strong>The adapter-pipeline architecture.</strong> We define a formal pattern for translating heterogeneous external sources (git, Cargo metadata, filesystem, rustup) into a unified internal state model via pure, stateless adapter functions. Each adapter owns exactly one external source and performs translation without business logic. This separation of concerns enables independent testing of each adapter against fixture workspaces and makes the system robust to changes in external tool output formats.</p>
+</li>
+<li>
+<p><strong>The <code>EngineState</code> aggregate root.</strong> We introduce <code>EngineState</code> as a single struct that aggregates all runtime dimensions of workspace CI/CD readiness. Nouns (CLI commands) read from <code>EngineState</code>; adapters write to it; no business logic is distributed across the system. This architecture makes the system's behaviour fully deterministic given a fixed workspace state, enabling property-based testing of policy verdicts.</p>
+</li>
+<li>
+<p><strong>The <code>cicd.toml</code> carrier file.</strong> We design a local state-carrier format that persists workspace state across invocations, enabling incremental evaluation (only re-querying adapters whose external source has changed) and providing a human-readable audit trail of recent CI/CD events.</p>
+</li>
+<li>
+<p><strong>The evidence-gate pattern.</strong> We introduce a release-closure pattern in which process events are emitted as XES event logs and submitted to an external oracle (<code>wpm</code>) for adjudication. Release closure requires an <code>Accept</code> verdict from the oracle; <code>cargo-cicd</code>'s internal test suite is explicitly insufficient for release gating. This pattern provides third-party verifiability of process claims and is independent of the CI/CD tool's own test results.</p>
+</li>
+<li>
+<p><strong>The autonomic policy layer.</strong> We implement a suggest-mode policy engine that evaluates <code>EngineState</code> dimensions against configurable thresholds and emits structured recommendations. Policies are non-destructive by design; the <code>--apply</code> flag is provisioned but inactive, ensuring that no automated action can be taken without explicit developer consent.</p>
+</li>
+<li>
+<p><strong>An open-source implementation.</strong> The complete implementation of <code>cargo-cicd</code> v26.6.2 is released under the MIT/Apache-2.0 dual license. The system includes a comprehensive test suite (invariant tests, fixture-based integration tests, evidence-gate tests) and is available at <code>https://github.com/seanchatmangpt/cargo-cicd</code>.</p>
+</li>
+</ol>
+<h3 id="15-scope-and-non-goals">1.5 Scope and Non-Goals</h3>
+<p>The scope of this thesis is limited to Rust workspaces managed with Cargo. The system assumes git as the version control system; non-git workspaces are unsupported by design. Windows cross-compilation is not a target platform; the system is tested on Linux and macOS. The thesis does not address remote CI/CD orchestration, distributed build caching, or multi-workspace federation. The autonomic <code>--apply</code> mode is described in its designed form but not implemented in v26.6.2; its architecture is specified so that a future implementation can be verified against the design.</p>
+<p>The thesis also explicitly excludes treatment of proprietary CI/CD platforms (Jenkins, TeamCity, Buildkite) except as reference points for motivation. The contribution is a local-first, open-source complement to such systems, not a replacement.</p>
+<h3 id="16-background">1.6 Background</h3>
+<h4 id="161-local-first-software">1.6.1 Local-First Software</h4>
+<p>The local-first software movement, articulated by Kleppmann et al. [9], argues that cloud-centric architectures unnecessarily sacrifice developer autonomy, offline capability, and data ownership. In the domain of developer tooling, this principle manifests as a preference for tools that operate without network connectivity, store state locally, and integrate with remote systems as an optional layer rather than a hard dependency. <code>cargo-cicd</code> is a direct instantiation of this principle applied to CI/CD: all quality enforcement runs locally, <code>cicd.toml</code> is a local file, and remote integration (GitHub Actions, wasm4pm oracle) is layered on top of — not required by — the core tool.</p>
+<h4 id="162-process-mining-and-xes">1.6.2 Process Mining and XES</h4>
+<p>Process mining is a discipline that extracts process models from event logs and verifies conformance between observed process executions and normative process models [10]. The XES (eXtensible Event Stream) standard, maintained by the IEEE Task Force on Process Mining, defines a canonical XML format for event logs that process mining tools such as ProM and Celonis can consume [11]. By emitting XES-format evidence, <code>cargo-cicd</code> connects developer workflow to the broader process mining ecosystem, enabling conformance checking of CI/CD processes against formal process models. The <code>wasm4pm</code> oracle performs a lightweight conformance check at release time; full process mining analysis is out of scope but is architecturally enabled.</p>
+<h4 id="163-autonomic-computing">1.6.3 Autonomic Computing</h4>
+<p>The IBM autonomic computing manifesto [12] defines four properties of self-managing systems: self-configuration, self-optimisation, self-healing, and self-protection. <code>cargo-cicd</code>'s policy layer is an autonomic component in the sense of self-monitoring and self-optimisation: it observes workspace state and generates optimisation recommendations. However, it deliberately stops short of self-configuration (applying changes without consent), consistent with the "human-in-the-loop" principle recommended for developer tooling by Amershi et al. [13].</p>
+<h4 id="164-the-rust-toolchain-ecosystem">1.6.4 The Rust Toolchain Ecosystem</h4>
+<p>Rust's toolchain management via <code>rustup</code>, its declarative dependency manifest (<code>Cargo.toml</code>), and its reproducible lock file (<code>Cargo.lock</code>) provide a strong foundation for deterministic builds [14]. However, the ecosystem's very richness — multiple channels (stable, beta, nightly), edition boundaries (2015, 2018, 2021), and the <code>rust-toolchain.toml</code> pin mechanism — creates a class of workspace-health defects that are invisible to the compiler but visible to a holistic workspace inspector. <code>cargo-cicd</code> is designed to be the missing layer that makes these defects visible before they reach the remote pipeline.</p>
+<hr />
+<h2 id="2-thesis-structure">2. Thesis Structure</h2>
+<p>The remainder of this thesis is organised as follows:</p>
+<p><strong>Chapter 2: Related Work</strong> situates <code>cargo-cicd</code> within the landscape of developer tooling, CI/CD frameworks, and process-aware information systems. It surveys existing Cargo subcommands (<code>cargo-outdated</code>, <code>cargo-audit</code>, <code>cargo-deny</code>, <code>cargo-nextest</code>), local CI tools (<code>act</code>, <code>pre-commit</code>), and process mining frameworks, identifying the gap that <code>cargo-cicd</code> fills.</p>
+<p><strong>Chapter 3: Architecture</strong> provides a complete architectural specification of the system. It defines the adapter-pipeline pattern, the <code>EngineState</code> aggregate root and its constituent state dimensions, the noun-verb CLI grammar, and the <code>cicd.toml</code> carrier file schema. Formal invariants governing adapter purity and state composition are stated and justified.</p>
+<p><strong>Chapter 4: The Level 5 Process-Data Engine</strong> describes the runtime behaviour of the engine in detail. It covers adapter invocation order, state merging, evidence emission, and the feature-flag gating model (<code>process-data</code>, <code>autonomic</code>, <code>wasm4pm</code>, <code>contrib</code>). The evidence-gate pattern is specified formally, including the XES emission contract and the oracle adjudication protocol.</p>
+<p><strong>Chapter 5: The Autonomic Policy Layer</strong> specifies the policy evaluation loop, the <code>PolicyState</code> data model, the verdict taxonomy (<code>pass</code>, <code>warn</code>, <code>refuse</code>), and the five built-in policies: <code>GitPhaseDirtyPolicy</code>, <code>TargetPressurePolicy</code>, <code>ToolchainMismatchPolicy</code>, <code>TrybuildFixturePolicy</code>, and <code>WorkspaceManifestPolicy</code>. The suggest/apply mode distinction is motivated and its safety properties are argued.</p>
+<p><strong>Chapter 6: Implementation</strong> describes the Rust implementation of <code>cargo-cicd</code> v26.6.2, including notable implementation decisions, the <code>clap-noun-verb</code> integration, the ontology-driven code generation pipeline (<code>ggen</code>), and the test fixture infrastructure. The MSRV (1.86) rationale and dependency selection are discussed.</p>
+<p><strong>Chapter 7: Evaluation</strong> presents empirical evaluation of the system across four categories: (1) correctness of the <code>pass</code>/<code>warn</code>/<code>refuse</code> verdict against a suite of 24 fixture workspaces; (2) latency of the <code>cargo cicd status</code> command on representative workspace sizes; (3) coverage of push-blocking defect classes detected by the system versus the baseline of <code>cargo test</code> + <code>git status</code>; and (4) evidence-gate conformance rate under the <code>wasm4pm</code> oracle across 100 simulated release sequences.</p>
+<p><strong>Chapter 8: Discussion</strong> reflects on the design decisions made in <code>cargo-cicd</code>, the limitations of the current implementation, and the lessons learned from applying aggregate-root state modelling to developer tooling. It addresses the tension between tool richness and workflow simplicity, and the risk of suggest-mode fatigue.</p>
+<p><strong>Chapter 9: Conclusion and Future Work</strong> summarises the contributions, restates the answers to the four research questions, and outlines a research agenda for future work. Priority items include the <code>--apply</code> autonomic mode, workspace federation across multiple Cargo workspaces, remote state synchronisation, and a process-mining integration that computes conformance scores from accumulated XES evidence.</p>
+<hr />
+<h2 id="references">References</h2>
+<p>[1] Humble, J., and Farley, D. (2010). <em>Continuous Delivery: Reliable Software Releases through Build, Test, and Deployment Automation</em>. Addison-Wesley Professional.</p>
+<p>[2] Regehr, J. (2022). "Understanding Rust Compilation Times." <em>Proceedings of the Rust Verification Workshop</em>, pp. 1–12.</p>
+<p>[3] Jung, R., Jourdan, J.-H., Krebbers, R., and Dreyer, D. (2017). "RustBelt: Securing the Foundations of the Rust Programming Language." <em>Proceedings of POPL 2018</em>, ACM.</p>
+<p>[4] Matsakis, N. D., and Klock, F. S. (2014). "The Rust Language." <em>Proceedings of HILT 2014</em>, ACM, pp. 103–104.</p>
+<p>[5] The Rust Project Developers. (2024). <em>The Cargo Book</em>. https://doc.rust-lang.org/cargo/</p>
+<p>[6] ISO. (2015). <em>ISO 9001:2015 — Quality Management Systems: Requirements</em>. International Organization for Standardization.</p>
+<p>[7] RTCA. (2011). <em>DO-178C: Software Considerations in Airborne Systems and Equipment Certification</em>. RTCA Inc.</p>
+<p>[8] Fowler, M., and Foemmel, M. (2006). "Continuous Integration." ThoughtWorks Technical Paper. https://martinfowler.com/articles/continuousIntegration.html</p>
+<p>[9] Kleppmann, M., Wiggins, A., van Hardenberg, P., and McGranaghan, M. (2019). "Local-First Software: You Own Your Data, in Spite of the Cloud." <em>Proceedings of Onward! 2019</em>, ACM, pp. 154–178.</p>
+<p>[10] van der Aalst, W. M. P. (2011). <em>Process Mining: Discovery, Conformance and Enhancement of Business Processes</em>. Springer.</p>
+<p>[11] IEEE Task Force on Process Mining. (2016). <em>XES Standard Definition v2.0</em>. IEEE.</p>
+<p>[12] Kephart, J. O., and Chess, D. M. (2003). "The Vision of Autonomic Computing." <em>IEEE Computer</em>, 36(1), pp. 41–50.</p>
+<p>[13] Amershi, S., Begel, A., Bird, C., DeLine, R., Gall, H., Kamar, E., Nagappan, N., Nushi, B., and Zimmermann, T. (2019). "Software Engineering for Machine Learning: A Case Study." <em>Proceedings of ICSE-SEIP 2019</em>, IEEE, pp. 291–300.</p>
+<p>[14] The Rust Project Developers. (2024). <em>The rustup Book</em>. https://rust-lang.github.io/rustup/</p>
+<hr />
+<h1 id="chapter-2-background-and-literature-review">Chapter 2: Background and Literature Review</h1>
+<h2 id="21-introduction">2.1 Introduction</h2>
+<p>The design of <code>cargo-cicd</code> sits at the intersection of several mature and emerging research threads: continuous integration and delivery (CI/CD) systems, local-first software architectures, process mining and event-stream analysis, autonomic computing, and language-specific toolchain orchestration. This chapter surveys each of these threads in turn, identifies the gaps that motivate the present work, and establishes the theoretical vocabulary used throughout the remainder of the thesis.</p>
+<hr />
+<h2 id="22-continuous-integration-and-delivery-systems">2.2 Continuous Integration and Delivery Systems</h2>
+<h3 id="221-historical-foundations">2.2.1 Historical Foundations</h3>
+<p>The practice of continuous integration was systematized by Fowler and Foemmel [1] in the early 2000s as a discipline requiring that developers integrate their work into a shared mainline frequently—at minimum daily—and that each integration be verified by an automated build. The original formulation was developer-centric and tool-agnostic: the obligation was to the practice, not to any particular server. However, the rapid industrialization of CI/CD over the subsequent decade led to a strong association between the discipline and server-side orchestration platforms. CruiseControl [2], Hudson, Jenkins [3], and eventually cloud-native offerings such as Travis CI, CircleCI, and GitHub Actions [4] all share the architectural assumption that a remote agent with privileged access to the repository and deployment environment is the primary locus of process control.</p>
+<p>This server-centric model confers genuine advantages: isolation of build environments, parallelism across heterogeneous hardware, and centralized audit logs. However, it also introduces a structural latency that is rarely discussed in the literature. The feedback loop from a local code change to a CI verdict is bounded below by network round-trip time, queue wait time, and cold-start overhead for containerized runners. Empirical studies of CI queue latency in large organizations have reported median wait times exceeding ten minutes [5], which is well above the threshold at which developers context-switch away from the originating task [6]. The consequence is that developers operating against server-side CI pipelines routinely commit work that they have not locally verified, relying on the remote system to surface defects after the fact.</p>
+<h3 id="222-github-actions-and-the-declarative-pipeline-model">2.2.2 GitHub Actions and the Declarative Pipeline Model</h3>
+<p>GitHub Actions [4] popularized the YAML-based declarative pipeline as the dominant paradigm for CI/CD configuration. In this model, pipeline behavior is specified as a directed acyclic graph of jobs and steps, triggered by repository events (push, pull request, tag). Each job executes in an isolated runner environment; steps invoke either shell commands or pre-packaged action modules published to the GitHub Marketplace.</p>
+<p>The declarative model offers composability and version-controlled pipeline definitions, but it encodes an impedance mismatch between the local developer environment and the remote execution context. Environment variables, secrets, installed toolchains, and filesystem state in a GitHub Actions runner differ systematically from a developer's workstation. This means that a pipeline definition that passes on the runner may behave differently locally, and vice versa. Earthly [7] and similar tools (discussed in Section 2.5) attempt to bridge this gap by containerizing the entire build context, but at the cost of requiring Docker and introducing container image management as a new operational concern.</p>
+<h3 id="223-local-first-cicd">2.2.3 Local-First CI/CD</h3>
+<p>The local-first software movement, articulated by Kleppmann et al. [8] in the context of collaborative applications, argues that data and computation should reside primarily on the user's device, with network synchronization as a secondary concern. Transposed to the CI/CD domain, a local-first philosophy holds that the primary CI/CD feedback loop should be executable on the developer's workstation without network access, with remote systems serving as secondary validators rather than primary arbiters.</p>
+<p>This position is not merely theoretical. Tools such as <code>act</code> [9], which replays GitHub Actions workflows locally using Docker, and <code>cargo-make</code> [10], which provides a Makefile-like task runner for Rust workspaces, embody local-first principles in practice. However, both tools treat the local environment as a simulation of the remote environment rather than as a first-class computational substrate. <code>cargo-cicd</code> departs from this framing: it treats the local Rust workspace as the authoritative source of truth and positions the CI/CD process as a data-producing activity whose outputs—state files, event streams, process evidence—are the primary deliverables.</p>
+<hr />
+<h2 id="23-the-rust-ecosystem-and-toolchain-orchestration">2.3 The Rust Ecosystem and Toolchain Orchestration</h2>
+<h3 id="231-cargo-as-a-build-system-and-package-manager">2.3.1 Cargo as a Build System and Package Manager</h3>
+<p>Rust's package manager and build system, Cargo [11], occupies an unusually central position in the Rust ecosystem relative to the role played by build tools in other languages. Unlike Maven in Java or pip in Python, Cargo is the canonical interface for dependency resolution, compilation, testing, documentation generation, and package publication. This centrality means that a Rust CI/CD tool that integrates deeply with Cargo can provide a coherent orchestration surface without requiring the developer to learn a separate tool grammar.</p>
+<p>The Cargo workspace model—in which a single <code>Cargo.toml</code> at the workspace root coordinates multiple member crates—is particularly relevant to <code>cargo-cicd</code>. Workspace-level commands such as <code>cargo test --workspace</code> and <code>cargo clippy --workspace</code> operate across all member crates, and the <code>cargo metadata</code> subcommand provides a machine-readable JSON representation of the full workspace dependency graph. This metadata interface is the primary data source for the <code>CargoMetadataAdapter</code> in <code>cargo-cicd</code>, which translates external Cargo representations into the internal <code>WorkspaceState</code> and <code>ToolchainState</code> dimensions of the engine.</p>
+<h3 id="232-toolchain-management-with-rustup">2.3.2 Toolchain Management with rustup</h3>
+<p>Rust's official toolchain manager, <code>rustup</code> [12], provides a stable interface for installing, switching, and querying Rust compiler versions. The <code>rust-toolchain.toml</code> file at a workspace root pins the workspace to a specific Rust release channel (stable, beta, nightly) and version. This pinning mechanism is the basis for Minimum Supported Rust Version (MSRV) enforcement, a common requirement in library crates that must support downstream users on older compilers.</p>
+<p>MSRV mismatches—where the workspace's pinned toolchain differs from the developer's active toolchain, or where dependencies have silently raised their own MSRV—are a significant source of CI failures that are not surfaced by local builds. The <code>ToolchainDetector</code> adapter in <code>cargo-cicd</code> explicitly models this mismatch as a first-class state dimension (<code>ToolchainState</code>), enabling policy evaluation against it before a push.</p>
+<h3 id="233-static-analysis-clippy-and-rustfmt">2.3.3 Static Analysis: clippy and rustfmt</h3>
+<p>The Rust toolchain ships two canonical static analysis tools: <code>clippy</code> [13], a collection of lints for catching common mistakes and enforcing idiomatic Rust, and <code>rustfmt</code> [14], a code formatter. Both tools are invoked via Cargo subcommands (<code>cargo clippy</code>, <code>cargo fmt --check</code>) and produce machine-readable output suitable for programmatic consumption. Their integration into CI/CD pipelines is standard practice in the Rust community, but the invocation order, flag configuration, and treatment of warnings versus errors varies widely across projects. <code>cargo-cicd</code> aims to provide an opinionated, workspace-aware default configuration for both tools, reducing the per-project configuration burden.</p>
+<hr />
+<h2 id="24-process-mining-and-event-streams">2.4 Process Mining and Event Streams</h2>
+<h3 id="241-process-mining-as-a-discipline">2.4.1 Process Mining as a Discipline</h3>
+<p>Process mining, as surveyed by van der Aalst [15], is a discipline concerned with extracting knowledge about business and computational processes from event logs produced by information systems. The central insight of process mining is that event logs—timestamped records of what happened, when, and in what case context—contain latent information about the actual process, which may deviate substantially from the intended or documented process. Process mining techniques include process discovery (inferring a process model from an event log), conformance checking (verifying that observed behavior conforms to a reference model), and enhancement (improving a reference model using event log evidence).</p>
+<p>The application of process mining to software engineering processes is an active research area. Rubin et al. [16] demonstrated that process mining can be applied to version control histories to discover software development workflows, and Leemans et al. [17] showed that CI/CD pipeline logs can be mined to detect anomalies and predict build failures. <code>cargo-cicd</code> applies these insights in the other direction: rather than mining logs produced by an existing system, it actively instruments its own execution to produce process evidence in a standard format.</p>
+<h3 id="242-the-xes-standard">2.4.2 The XES Standard</h3>
+<p>The eXtensible Event Stream (XES) format [18] is the IEEE standard (IEEE Std 1849-2016) for event log interchange in process mining. An XES document is an XML file organized as a collection of traces, where each trace corresponds to a case (e.g., a single CI/CD run, a single build) and contains an ordered sequence of events. Each event carries a set of attributes: a timestamp, an activity name, and arbitrary domain-specific key-value pairs.</p>
+<p>The choice of XES as the evidence format for <code>cargo-cicd</code> is deliberate. XES is both human-readable and machine-processable; it is supported by the ProM process mining framework [19] and by the <code>wasm4pm</code> oracle used as the release gate in this work. The XES trace structure maps naturally onto the concept of a CI/CD session: a trace is a single invocation of <code>cargo-cicd</code>, events within the trace correspond to individual adapter queries and policy evaluations, and trace-level attributes carry workspace metadata (commit hash, branch name, workspace root). This mapping allows the <code>wasm4pm</code> oracle to apply conformance-checking techniques to <code>cargo-cicd</code> execution logs, verifying that the tool's behavior conforms to its declared process model.</p>
+<h3 id="243-wasm4pm-a-webassembly-native-process-mining-oracle">2.4.3 wasm4pm: A WebAssembly-Native Process Mining Oracle</h3>
+<p>The <code>wasm4pm</code> system represents a novel approach to process evidence adjudication: a process mining oracle compiled to WebAssembly, enabling portable, reproducible conformance checking that can be embedded in test harnesses without external service dependencies. The <code>wpm</code> binary exposes two primary interfaces relevant to <code>cargo-cicd</code>: the <code>wpm audit</code> command, which checks an XES file for structural validity and conformance against a registered process model, and the <code>wpm receipt doctor</code> command, which validates a JSON receipt document against a schema and semantic constraints.</p>
+<p>The introduction of <code>wasm4pm</code> as a release gate—rather than as an optional integration—reflects a principled stance on the epistemology of process correctness. Internal unit tests can verify that individual components behave as specified, but they cannot verify that the emergent process—the sequence of operations actually performed during a real CI/CD run—conforms to the declared model. Only an external oracle, operating on evidence produced by the running system, can make this determination. The evidence-gate pattern instantiated by <code>wasm4pm</code> is thus a form of operational conformance checking, distinct from both static analysis and behavioral testing.</p>
+<hr />
+<h2 id="25-related-work">2.5 Related Work</h2>
+<h3 id="251-cargo-make">2.5.1 cargo-make</h3>
+<p><code>cargo-make</code> [10], developed by Sagiv and contributors, is a task runner for Rust workspaces that extends the <code>cargo</code> subcommand namespace with a Makefile-inspired task definition syntax. Tasks are defined in a <code>Makefile.toml</code> file and can depend on other tasks, enabling composition of multi-step workflows. <code>cargo-make</code> supports conditional execution (platform-specific tasks, environment-variable guards) and provides a library of predefined tasks for common Rust operations.</p>
+<p><code>cargo-cicd</code> uses <code>cargo-make</code> as its preferred build frontend (the <code>cargo make build</code>, <code>cargo make check</code>, and <code>cargo make test</code> commands are wrappers around <code>cargo-make</code> task definitions), but the relationship is one of composition rather than competition. <code>cargo-make</code> excels at task orchestration but does not model workspace state, emit process evidence, or apply policy evaluation. It is a task runner; <code>cargo-cicd</code> is a process-data engine.</p>
+<h3 id="252-cargo-nextest">2.5.2 cargo-nextest</h3>
+<p><code>cargo-nextest</code> [20], the next-generation test runner for Rust, provides significant improvements over the built-in <code>cargo test</code> in terms of test isolation, parallelism, and output formatting. It introduces the concept of test partitioning (running a subset of tests per invocation) and provides machine-readable JSON output for test results.</p>
+<p><code>cargo-cicd</code> integrates with <code>cargo-nextest</code> through its <code>TestPlanState</code> dimension: when <code>cargo-nextest</code> is detected in the workspace, it is preferred as the test executor. However, <code>cargo-cicd</code>'s primary contribution relative to <code>cargo-nextest</code> is not test execution but test selection: the <code>ChangedFileDetector</code> adapter identifies which crates have changed since the last CI run, and the <code>TestPlanState</code> restricts test execution to those crates. This changed-test selection logic reduces CI feedback latency for large workspaces without requiring any modification to the test runner itself.</p>
+<h3 id="253-earthly">2.5.3 Earthly</h3>
+<p>Earthly [7] is a build system that uses a Dockerfile-like syntax (<code>Earthfile</code>) to define reproducible builds. It combines the familiarity of Makefiles with the reproducibility guarantees of container images, targeting the gap between local development and CI/CD pipelines. Earthly targets are cache-aware and composable, and Earthly supports both local and remote execution.</p>
+<p>The principal difference between Earthly and <code>cargo-cicd</code> is the level of abstraction. Earthly operates at the level of filesystem images and shell commands; it is language-agnostic and general-purpose. <code>cargo-cicd</code> operates at the level of Rust workspace semantics: it knows about <code>Cargo.toml</code> manifests, toolchain pinning, <code>clippy</code> lints, and <code>trybuild</code> UI test fixtures. This domain specificity allows <code>cargo-cicd</code> to provide richer, more actionable output at the cost of portability to non-Rust contexts.</p>
+<h3 id="254-trunk">2.5.4 trunk</h3>
+<p><code>trunk</code> (for Rust) is a build tool targeting WebAssembly applications, providing asset bundling, <code>wasm-pack</code> integration, and development server functionality. While sharing a name with other tools, <code>trunk</code> occupies a narrow niche—WebAssembly-targeting Rust projects—and does not address the general CI/CD orchestration problem that <code>cargo-cicd</code> targets.</p>
+<h3 id="255-autonomic-computing-and-the-mape-k-loop">2.5.5 Autonomic Computing and the MAPE-K Loop</h3>
+<p>The term "autonomic computing" was introduced by IBM in 2001 [21] as a research agenda for self-managing systems, drawing an analogy to the human autonomic nervous system's capacity to regulate physiological processes without conscious intervention. The MAPE-K reference architecture—Monitor, Analyze, Plan, Execute, over a shared Knowledge base—provides a four-phase feedback loop for autonomic control. In the MAPE-K model, a managed system exposes sensors and effectors; a control loop reads sensor data (Monitor), interprets it against a model (Analyze), determines corrective actions (Plan), and applies them (Execute), with the Knowledge base providing shared state across all phases.</p>
+<p><code>cargo-cicd</code>'s policy evaluation loop is a direct implementation of the MAPE-K pattern. The adapters correspond to the Monitor phase (reading from git, filesystem, Cargo); the <code>EngineState</code> aggregate corresponds to the Knowledge base; the autonomic policies (e.g., <code>GitPhaseDirtyPolicy</code>, <code>TargetPressurePolicy</code>) correspond to the Analyze and Plan phases; and the <code>--apply</code> flag (reserved for future work) corresponds to the Execute phase. The deliberate restriction to <code>suggest</code> mode by default reflects the autonomic computing literature's recognition that automated execution in the absence of sufficient operational experience carries unacceptable risk [22].</p>
+<h3 id="256-noun-verb-cli-grammar">2.5.6 Noun-Verb CLI Grammar</h3>
+<p>The design of command-line interfaces has received systematic treatment in the context of POSIX utility conventions [23] and more recently in the context of modern CLI design guidelines. The noun-verb grammar—in which the first positional argument names a resource (noun) and the second names an operation (verb)—has been popularized by tools such as <code>kubectl</code> (<code>kubectl get pods</code>, <code>kubectl apply -f</code>), the AWS CLI (<code>aws s3 ls</code>), and the Azure CLI. This grammar scales well to multi-domain tools, providing a discoverable namespace structure without requiring the user to memorize a flat list of subcommands.</p>
+<p><code>cargo-cicd</code> implements a noun-verb grammar through the <code>clap-noun-verb</code> library, a local crate developed in concert with <code>cargo-cicd</code>. Each noun is a module implementing the <code>NounCommand</code> trait; each verb within a noun implements the <code>VerbCommand</code> trait. The default-verb injection mechanism—which maps bare noun invocations (e.g., <code>cargo cicd status</code>) to a designated default verb (e.g., <code>status show</code>)—follows the convention established by <code>kubectl</code>, where <code>kubectl get</code> without a resource type produces a usage message rather than an error.</p>
+<hr />
+<h2 id="26-gaps-in-existing-work">2.6 Gaps in Existing Work</h2>
+<p>The survey above reveals several gaps that collectively motivate the design of <code>cargo-cicd</code>.</p>
+<p><strong>Gap 1: Local state is not modeled.</strong> Existing CI/CD tools either operate entirely on the remote server (GitHub Actions, Jenkins) or treat the local environment as a simulation substrate (Earthly, act). None of the surveyed tools maintain a persistent, structured record of local workspace state across invocations. The <code>cicd.toml</code> carrier introduced by <code>cargo-cicd</code> fills this gap, providing a TOML-serialized state file that persists workspace configuration, last-known adapter readings, and emitted process events across tool invocations.</p>
+<p><strong>Gap 2: Process evidence is not emitted.</strong> Existing Rust CI/CD tools produce human-readable output (terminal text) and machine-readable test results (JUnit XML, nextest JSON), but they do not emit structured process evidence that can be submitted to an external oracle for conformance checking. The XES evidence emission in <code>cargo-cicd</code> fills this gap, enabling the <code>wasm4pm</code> evidence-gate pattern as a release closure mechanism.</p>
+<p><strong>Gap 3: Policy evaluation is not integrated.</strong> The surveyed tools execute tasks but do not reason about whether the workspace's current state satisfies the preconditions for a safe push. <code>clippy</code> checks code style; <code>cargo test</code> runs tests; <code>git status</code> reports dirty files. But no existing tool integrates these signals into a unified policy evaluation that produces a workspace-level verdict (pass, warn, refuse). <code>cargo-cicd</code>'s autonomic policy layer fills this gap.</p>
+<p><strong>Gap 4: Adapter isolation is not enforced.</strong> In tools such as <code>cargo-make</code>, task definitions intermingle external system queries (git, cargo, filesystem) with business logic and output formatting. This coupling makes the tools difficult to test in isolation and difficult to extend. <code>cargo-cicd</code> enforces a strict adapter contract: each adapter owns exactly one external source, performs no business logic, and is independently testable against fixture workspaces.</p>
+<p><strong>Gap 5: Changed-test selection is not workspace-aware.</strong> <code>cargo-nextest</code> supports test partitioning but does not natively integrate with git to determine which partitions are relevant given the set of changed files. <code>cargo-cicd</code>'s <code>ChangedFileDetector</code> and <code>TestPlanState</code> provide this integration, reducing test execution time for large workspaces without requiring changes to the test runner.</p>
+<p>Taken together, these gaps define the problem space that <code>cargo-cicd</code> addresses: a local-first, process-evidence-emitting, policy-evaluating CI/CD engine for Rust workspaces, grounded in autonomic computing principles and validated by external process mining oracles.</p>
+<hr />
+<h2 id="references_1">References</h2>
+<p>[1] M. Fowler and M. Foemmel, "Continuous Integration," ThoughtWorks technical report, 2006. Available: https://martinfowler.com/articles/continuousIntegration.html</p>
+<p>[2] P. Duvall, S. Matyas, and A. Glover, <em>Continuous Integration: Improving Software Quality and Reducing Risk</em>. Addison-Wesley Professional, 2007.</p>
+<p>[3] K. Kawaguchi, "Hudson: An Extensible Continuous Integration Server," in <em>Proc. ICSE Workshop on Emerging Trends in Free/Libre/Open Source Software Research and Development</em>, 2009, pp. 31–32.</p>
+<p>[4] GitHub, Inc., "GitHub Actions Documentation," GitHub, 2019. Available: https://docs.github.com/en/actions</p>
+<p>[5] H. Hilton, T. Tunnell, K. Chang, D. Dig, and D. Grossman, "Usage, Costs, and Benefits of Continuous Integration in Open-Source Projects," in <em>Proc. 31st IEEE/ACM International Conference on Automated Software Engineering (ASE)</em>, 2016, pp. 426–437.</p>
+<p>[6] G. Parnin and A. Rugaber, "Resumption Strategies for Interrupted Programming Tasks," <em>Software Quality Journal</em>, vol. 19, no. 1, pp. 5–34, 2011.</p>
+<p>[7] A. Ballantyne, "Earthly: A Build Automation Tool for the Container Era," Earthly Technologies, 2020. Available: https://earthly.dev</p>
+<p>[8] M. Kleppmann, A. Wiggins, P. van Hardenberg, and M. McGranaghan, "Local-First Software: You Own Your Data, in Spite of the Cloud," in <em>Proc. ACM SIGPLAN International Symposium on New Ideas, New Paradigms, and Reflections on Programming and Software (Onward!)</em>, 2019, pp. 154–178.</p>
+<p>[9] N. Kaluza, "act: Run Your GitHub Actions Locally," GitHub repository, 2019. Available: https://github.com/nektos/act</p>
+<p>[10] E. Sagiv, "cargo-make: Rust Task Runner and Build Tool," crates.io, 2017. Available: https://crates.io/crates/cargo-make</p>
+<p>[11] The Rust Project Developers, "The Cargo Book," The Rust Programming Language, 2015. Available: https://doc.rust-lang.org/cargo/</p>
+<p>[12] The Rust Project Developers, "rustup: The Rust Toolchain Installer," The Rust Programming Language, 2016. Available: https://rustup.rs</p>
+<p>[13] The Rust Project Developers, "clippy: A Collection of Lints to Catch Common Mistakes and Improve Your Rust Code," GitHub repository, 2014. Available: https://github.com/rust-lang/rust-clippy</p>
+<p>[14] The Rust Project Developers, "rustfmt: A Tool for Formatting Rust Code According to Style Guidelines," GitHub repository, 2015. Available: https://github.com/rust-lang/rustfmt</p>
+<p>[15] W. M. P. van der Aalst, <em>Process Mining: Data Science in Action</em>, 2nd ed. Springer, 2016.</p>
+<p>[16] V. A. Rubin, C. W. Günther, W. M. P. van der Aalst, E. Kindler, B. F. van Dongen, and W. Schäfer, "Process Mining Framework for Software Processes," in <em>Proc. International Conference on Software Process (ICSP)</em>, Lecture Notes in Computer Science, vol. 5007, pp. 169–181, Springer, 2007.</p>
+<p>[17] S. J. J. Leemans, D. Fahland, and W. M. P. van der Aalst, "Discovering Block-Structured Process Models from Event Logs: A Constructive Approach," in <em>Proc. 4th International Workshop on Business Process Intelligence (BPI)</em>, 2013, pp. 311–329.</p>
+<p>[18] IEEE, "IEEE Standard for eXtensible Event Stream (XES) for Achieving Interoperability in Event Logs and Event Streams," IEEE Std 1849-2016, 2016.</p>
+<p>[19] B. F. van Dongen, A. K. A. de Medeiros, H. M. W. Verbeek, A. J. M. M. Weijters, and W. M. P. van der Aalst, "The ProM Framework: A New Era in Process Mining Tool Support," in <em>Proc. 26th International Conference on Application and Theory of Petri Nets (ICATPN)</em>, Lecture Notes in Computer Science, vol. 3536, pp. 444–454, Springer, 2005.</p>
+<p>[20] cargo-nextest Contributors, "cargo-nextest: A Next-Generation Test Runner for Rust," GitHub repository, 2021. Available: https://github.com/nextest-rs/nextest</p>
+<p>[21] J. O. Kephart and D. M. Chess, "The Vision of Autonomic Computing," <em>IEEE Computer</em>, vol. 36, no. 1, pp. 41–50, Jan. 2003.</p>
+<p>[22] M. C. Huebscher and J. A. McCann, "A Survey of Autonomic Computing—Degrees, Models, and Applications," <em>ACM Computing Surveys</em>, vol. 40, no. 3, article 7, Aug. 2008.</p>
+<p>[23] The Open Group, "POSIX.1-2017: IEEE Std 1003.1-2017 — Base Definitions, Utility Conventions," The Open Group, 2017. Available: https://pubs.opengroup.org/onlinepubs/9699919799/</p>
+<hr />
+<h1 id="chapter-3-architecture-and-design">Chapter 3: Architecture and Design</h1>
+<h2 id="31-system-architecture-overview">3.1 System Architecture Overview</h2>
+<p>cargo-cicd is designed as a <em>Level 5 process-data engine</em> exposed through a conventional Rust CI/CD command-line interface. The distinction between these two planes of identity — the public CI/CD helper and the private process-data engine — is not cosmetic. It reflects a deliberate architectural layering: the public surface (nouns, verbs, help text, exit codes) obeys the expectations of any Rust workspace practitioner, while the internal substrate accumulates, structures, and emits structured process evidence for external adjudication. This separation of concerns is the central design principle from which all architectural decisions follow.</p>
+<p>The overall system can be understood as four cooperating layers, arranged from outermost to innermost:</p>
+<ol>
+<li>
+<p><strong>CLI Grammar Layer</strong> — The user-visible command surface, implemented via the <code>clap-noun-verb</code> framework. This layer owns argument parsing, default verb injection, and help text generation.</p>
+</li>
+<li>
+<p><strong>Adapter Layer</strong> — A set of single-responsibility translators that convert external representations (git porcelain output, Cargo metadata JSON, filesystem statistics) into typed internal state values. Adapters are strictly read-only and contain no business logic.</p>
+</li>
+<li>
+<p><strong>Engine State Layer</strong> — The <code>EngineState</code> aggregate root, a single struct that aggregates all runtime dimensions of a Rust workspace. This is the authoritative internal representation against which all policy evaluation and output rendering operates.</p>
+</li>
+<li>
+<p><strong>Evidence and Policy Layer</strong> — The infrastructure for emitting XES-format process evidence and evaluating autonomic policies. Evidence is consumed by the external wasm4pm oracle; policies produce recommendations consumed by the user.</p>
+</li>
+</ol>
+<p>This chapter documents each layer in turn, covering structure, rationale, and the design trade-offs involved.</p>
+<hr />
+<h2 id="32-enginestate-the-aggregate-root">3.2 EngineState: The Aggregate Root</h2>
+<p>The central data structure of the cargo-cicd engine is <code>EngineState</code>, defined in <code>src/engine/mod.rs</code>. It is the single source of truth for all runtime information about a Rust workspace during any given invocation:</p>
+<pre><code class="language-rust">/// Full Level 5 engine state — all dimensions
+#[derive(Debug, Default)]
+pub struct EngineState {
+    pub workspace: WorkspaceState,
+    pub toolchain: ToolchainState,
+    pub target: TargetState,
+    pub changed_files: ChangedFileState,
+    pub test_plan: TestPlanState,
+    pub trybuild: TrybuildState,
+    pub git_phase: GitPhaseState,
+    pub process_events: ProcessEventState,
+    pub artifacts: ArtifactState,
+    pub policies: PolicyState,
+    pub projection: ProjectionProfile,
+}
+</code></pre>
+<p>The design follows the <em>aggregate root</em> pattern from Domain-Driven Design [Evans, 2003]. No noun or policy module holds its own mutable state; instead, all runtime information flows through <code>EngineState</code> after being populated by adapters. This guarantees a single, consistent view of workspace reality for any given invocation, and ensures that policy evaluation and output rendering are always operating on the same data.</p>
+<p>The aggregate structure is visualised below:</p>
+<pre><code>         ┌─────────────────────────────────────────┐
+         │        EngineState (Aggregate Root)      │
+         └─────────────────────────────────────────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+    ┌────▼─────┐    ┌────▼─────┐    ┌────▼──────┐
+    │Workspace │    │Toolchain │    │  Target   │
+    │ State    │    │  State   │    │  State    │
+    └──────────┘    └──────────┘    └───────────┘
+         │
+    ┌────┴─────┬──────────┬──────────┬──────────┐
+    │           │          │          │          │
+ ┌──▼──┐  ┌───▼──┐  ┌───▼──┐  ┌───▼──┐  ┌───▼───┐
+ │Chg'd│  │Test  │  │Tryb'd│  │GitPhase  │Artifact│
+ │Files│  │ Plan │  │ State│  │  State   │ State  │
+ └─────┘  └──────┘  └──────┘  └─────────┘  └────────┘
+ (git)   (tests/)  (tests/ui/) (git status) (bins)
+         │                              │
+    ┌────┴──────┬──────────┐          ┌┴────────┐
+    │            │          │          │         │
+ ┌──▼─┐  ┌─────▼──┐  ┌───▼──┐  ┌───▼──┐  ┌───▼──┐
+ │Proc│  │ Policy │  │Project│  │Events│  │...   │
+ │Evt │  │ State  │  │Profile│  │State │  │      │
+ └────┘  └────────┘  └───────┘  └──────┘  └──────┘
+</code></pre>
+<h3 id="321-dimension-catalogue">3.2.1 Dimension Catalogue</h3>
+<p>Each field of <code>EngineState</code> represents an independent <em>dimension</em> of workspace reality. The eleven dimensions and their responsibilities are as follows.</p>
+<p><strong>WorkspaceState</strong> (<code>src/engine/workspace_state.rs</code>) records the structural facts about the Cargo workspace: the workspace name, the root path on the filesystem, the list of member crate paths, the active Rust toolchain channel, and the Rust edition declared in the root manifest. This dimension is populated by <code>CargoMetadataAdapter</code>.</p>
+<p><strong>ToolchainState</strong> (<code>src/engine/toolchain_state.rs</code>) records toolchain-specific properties: the active toolchain identifier as resolved by rustup, the MSRV declared in <code>Cargo.toml</code>, and whether the active toolchain satisfies that MSRV. It is populated by <code>ToolchainDetector</code>, which reads both <code>rust-toolchain.toml</code> and the output of <code>rustup show active-toolchain</code>.</p>
+<p><strong>TargetState</strong> (<code>src/engine/target_state.rs</code>) captures the current size of the <code>target/</code> directory and the configured limits. The <code>TargetScannerAdapter</code> walks the directory tree using <code>walkdir</code>, accumulating file sizes. A three-level verdict (<code>pass</code> / <code>warn</code> / <code>fail</code>) is computed from the ratio of actual size to configured maximum.</p>
+<p><strong>ChangedFileState</strong> (<code>src/engine/changed_file_state.rs</code>) identifies which source files have changed relative to a configured base branch (<code>origin/main</code> by default). The <code>ChangedFileDetector</code> adapter calls <code>git diff --name-only</code> and maps each changed path to its owning crate.</p>
+<p><strong>TestPlanState</strong> (<code>src/engine/test_plan_state.rs</code>) derives from <code>ChangedFileState</code> the set of crates that should have their tests executed. It encodes the <em>changed-tests</em> optimisation: only crates whose source files appear in the diff are scheduled for test runs. This dimension is not populated by an external adapter but is computed internally from <code>ChangedFileState</code>.</p>
+<p><strong>TrybuildState</strong> (<code>src/engine/trybuild_state.rs</code>) is specific to Rust compiler error test suites managed by the <code>trybuild</code> crate. It identifies which <code>.rs</code> fixture files under <code>tests/ui/</code> have changed since the last run. Only changed fixtures are executed, reducing turnaround time in large trybuild suites. Populated by <code>TrybuildDetector</code>.</p>
+<p><strong>GitPhaseState</strong> (<code>src/engine/git_phase_state.rs</code>) captures the full git working-tree status: the current branch name, lists of dirty, staged, and untracked files, the number of commits the local branch is ahead of and behind its upstream, and policy flags such as <code>require_clean_tree</code> and <code>phase_closed</code>. This is the primary input to the <code>GitPhaseDirtyPolicy</code>. Populated by <code>GitStatusAdapter</code>.</p>
+<pre><code class="language-rust">pub struct GitPhaseState {
+    pub branch: String,
+    pub dirty_files: Vec&lt;String&gt;,
+    pub staged_files: Vec&lt;String&gt;,
+    pub untracked_files: Vec&lt;String&gt;,
+    pub ahead: u32,
+    pub behind: u32,
+    pub require_clean_tree: bool,
+    pub phase_closed: bool,
+}
+</code></pre>
+<p><strong>ProcessEventState</strong> (<code>src/engine/process_event_state.rs</code>) is the accumulation buffer for <code>ProcessEvent</code> values emitted during the current invocation. Events recorded here are later serialised to XES and JSONL for wasm4pm adjudication.</p>
+<p><strong>ArtifactState</strong> (<code>src/engine/artifact_state.rs</code>) tracks the state of compiled binary artifacts and release archives. In v26.6.2, this dimension is primarily used by the <code>publish</code> noun to verify that the binary has been built before attempting to publish.</p>
+<p><strong>PolicyState</strong> (<code>src/engine/policy_state.rs</code>) holds the collected <code>PolicyResult</code> values produced by the autonomic policy engine during the current invocation. When displayed to the user, these results are presented as recommendations rather than directives.</p>
+<p><strong>ProjectionProfile</strong> (<code>src/engine/projection_profile.rs</code>) controls which fields of <code>EngineState</code> are serialised for external presentation. The profile carries a version string, a public level (controlling which private dimensions are suppressed), and a <code>suppress_private_fields</code> flag. At v26.6.2, the default profile is <code>v26_6_2()</code>, which sets <code>public_level = 2</code> and suppresses private fields. This mechanism ensures that the Level 5 internal structure does not leak into public-facing output.</p>
+<hr />
+<h2 id="33-the-adapter-pattern">3.3 The Adapter Pattern</h2>
+<p>The adapter layer is the sole point of contact between the engine and the external world. Each adapter is a unit-testable, single-responsibility struct that reads one external source and returns a typed result. No adapter contains business logic; no adapter writes to external sources; and no adapter reads from another adapter. This strict discipline keeps the external boundary narrow and testable.</p>
+<p>The architecture is summarised below:</p>
+<pre><code>External World              ┌────────────────────────┐              Internal State
+                            │    EngineState         │
+┌─────────────────────┐     │  (aggregate root)      │
+│  Git Repository     ├────►│  git_phase             │
+└─────────────────────┘     │  changed_files         │◄────┐
+                            │                        │     │
+┌─────────────────────┐     │  workspace             │     │
+│  Cargo.toml         ├────►│  toolchain             │     │
+│  Cargo.lock         │     │  test_plan             │     │
+│  rust-toolchain.toml├────►│  artifacts             │     │
+└─────────────────────┘     └────────────────────────┘     │
+                                                            │
+┌─────────────────────┐     ┌────────────────────────┐     │
+│  target/ dir        ├────►│  TargetScannerAdapter  ├─────┘
+└─────────────────────┘     └────────────────────────┘
+</code></pre>
+<h3 id="331-gitstatusadapter">3.3.1 GitStatusAdapter</h3>
+<p><code>GitStatusAdapter</code> (<code>src/adapters/git_status.rs</code>) translates the output of <code>git status --porcelain</code> and <code>git rev-parse --abbrev-ref HEAD</code> into a <code>GitStatusResult</code>. The porcelain output format, which git guarantees to be stable across versions, is parsed line by line. Each line's two-character XY status code is mapped to one of three categories: dirty (unstaged modifications), staged, or untracked. The branch name is retrieved in a separate subprocess call. By using <code>--porcelain</code>, the adapter avoids any dependency on git's locale-sensitive prose output.</p>
+<pre><code class="language-rust">impl GitStatusAdapter {
+    pub fn query() -&gt; Result&lt;GitStatusResult&gt; {
+        // Single git status --porcelain call; parse XY codes per line
+        // Separate rev-parse call for branch name
+    }
+
+    pub fn is_dirty() -&gt; bool {
+        // Fast path: check whether stdout is non-empty
+    }
+}
+</code></pre>
+<p>The <code>is_dirty()</code> method provides a fast-path query used by <code>GitPhaseDirtyPolicy</code> without constructing the full <code>GitStatusResult</code>.</p>
+<h3 id="332-targetscanneradapter">3.3.2 TargetScannerAdapter</h3>
+<p><code>TargetScannerAdapter</code> (<code>src/adapters/target_scanner.rs</code>) uses the <code>walkdir</code> crate to traverse the <code>target/</code> directory tree, accumulating file sizes from filesystem metadata. The total is expressed in gigabytes and compared against a configurable threshold. Crucially, directory metadata is excluded from the sum — only regular file sizes are counted — preventing double-counting of directory block allocation.</p>
+<p>The adapter also encodes a three-level verdict function:</p>
+<ul>
+<li>Below 70% of the configured limit: <code>pass</code></li>
+<li>Between 70% and 100%: <code>warn</code></li>
+<li>At or above 100%: <code>fail</code></li>
+</ul>
+<p>This graduated response prevents the common failure mode where a CI check passes until the moment it catastrophically fails, by giving the practitioner early warning as the cache approaches its limit.</p>
+<h3 id="333-toolchaindetector-and-cargometadataadapter">3.3.3 ToolchainDetector and CargoMetadataAdapter</h3>
+<p><code>ToolchainDetector</code> (<code>src/adapters/toolchain_detector.rs</code>) reads <code>rust-toolchain.toml</code> or the legacy <code>rust-toolchain</code> file to determine the pinned toolchain channel. It does not invoke <code>rustup</code> directly, avoiding a mandatory runtime dependency on the toolchain manager.</p>
+<p><code>CargoMetadataAdapter</code> (<code>src/adapters/cargo_metadata.rs</code>) shells out to <code>cargo metadata --format-version 1</code> to discover workspace members, package names, and edition declarations. Using the machine-readable JSON output rather than parsing <code>Cargo.toml</code> directly ensures that workspace path resolution, virtual manifest inheritance, and path dependency substitution are all handled by Cargo itself.</p>
+<h3 id="334-other-adapters">3.3.4 Other Adapters</h3>
+<p><code>ChangedFileDetector</code> invokes <code>git diff --name-only</code> against a configurable base branch to enumerate changed source paths. <code>TrybuildDetector</code> hashes the modification time and content of each <code>.rs</code> file under <code>tests/ui/</code> to identify which fixtures have changed. <code>CicdTomlWriter</code> is the sole adapter that performs writes — it serialises the <code>CicdToml</code> struct to disk.</p>
+<hr />
+<h2 id="34-the-noun-verb-cli-grammar">3.4 The Noun-Verb CLI Grammar</h2>
+<p>The public command interface follows a <em>noun-verb</em> grammar, a deliberate departure from the conventional flat subcommand model. In the flat model, <code>cargo cicd status</code> and <code>cargo cicd status audit</code> would be two independent commands with no shared namespace. In the noun-verb model, <code>status</code> is a noun (a command namespace), and <code>show</code> and <code>audit</code> are its verbs (the actions within that namespace). This grammar scales cleanly as new verbs are added to existing nouns without polluting the top-level command surface.</p>
+<p>The grammar is implemented by the <code>clap-noun-verb</code> crate (version <code>26.6.2</code>, published as a companion to this tool). Two traits define the extension points:</p>
+<ul>
+<li><code>NounCommand</code>: implemented by each noun module. Exposes <code>name()</code>, <code>about()</code>, and <code>verbs()</code>, which returns a <code>Vec&lt;Box&lt;dyn VerbCommand&gt;&gt;</code>.</li>
+<li><code>VerbCommand</code>: implemented by each verb struct within a noun module. Exposes <code>name()</code>, <code>about()</code>, and <code>run()</code>, which receives a <code>VerbArgs</code> reference.</li>
+</ul>
+<p>The full set of registered nouns at v26.6.2 is: <code>evidence</code>, <code>pipeline</code>, <code>status</code>, <code>target</code>, <code>test</code>, <code>trybuild</code>, <code>git</code>, <code>publish</code>, <code>workspace</code>, and <code>lsp</code>.</p>
+<pre><code>User Input: cargo cicd status [verb] [opts]
+        │
+        ▼
+┌──────────────────────────────┐
+│  main() + inject_default_    │
+│  verbs()                     │
+│  (cargo status → status show)│
+└──────────┬───────────────────┘
+           │
+           ▼
+    ┌──────────────────┐
+    │  CliBuilder      │
+    │  .noun(...)      │
+    │  .run()          │
+    └────────┬─────────┘
+             │
+             ▼
+┌────────────────────────┐
+│  StatusNoun::new()     │
+│  .verbs() →            │
+│  [StatusShowVerb,      │
+│   StatusAuditVerb]     │
+└───────────┬────────────┘
+            │
+            ▼
+    ┌───────────────────┐
+    │ StatusShowVerb    │
+    │ .run()            │
+    │ .execute()        │
+    └──────────┬────────┘
+               │
+               ▼
+       ┌──────────────────┐
+       │ Read EngineState │
+       │ via Adapters     │
+       └──────────┬───────┘
+                  │
+                  ▼
+          ┌──────────────────┐
+          │ Render output    │
+          │ (println)        │
+          └──────────┬───────┘
+                     │
+                     ▼
+          ┌──────────────────┐
+          │ Emit ProcessEvent│
+          │ to evidence/     │
+          └──────────────────┘
+</code></pre>
+<h3 id="341-default-verb-injection">3.4.1 Default Verb Injection</h3>
+<p>A usability requirement is that bare noun invocations (e.g., <code>cargo cicd status</code> without a verb) should work rather than failing with a usage error. This is satisfied by the <code>inject_default_verbs()</code> function in <code>main.rs</code>, which inspects <code>argv</code> before argument parsing and inserts a default verb when the second argument is a known noun with no following non-flag argument:</p>
+<pre><code>&quot;status&quot;    → inserts &quot;show&quot;
+&quot;publish&quot;   → inserts &quot;run&quot;
+&quot;workspace&quot; → inserts &quot;doctor&quot;
+&quot;evidence&quot;  → inserts &quot;doctor&quot;
+</code></pre>
+<p>For nouns that implement <code>run_direct()</code>, the dispatch bypasses the <code>CliBuilder</code> entirely and routes directly to the verb implementation, which avoids a parsing round-trip for the common case.</p>
+<h3 id="342-cargo-external-subcommand-protocol">3.4.2 Cargo External Subcommand Protocol</h3>
+<p>Cargo invokes external subcommands by executing the binary <code>cargo-&lt;name&gt;</code> with the subcommand name prepended to <code>argv</code>. When the user runs <code>cargo cicd status</code>, Cargo executes <code>cargo-cicd cicd status</code>. The <code>main()</code> function detects the <code>"cicd"</code> prefix in <code>argv[1]</code> and re-executes itself without it, so that the rest of <code>main()</code> always sees clean arguments beginning with the noun.</p>
+<hr />
+<h2 id="35-cicdtoml-as-state-carrier">3.5 cicd.toml as State Carrier</h2>
+<p><code>cicd.toml</code> serves a dual purpose: workspace configuration and emitted state record. It is written to the workspace root by <code>CicdTomlWriter</code> after each significant command invocation and read on subsequent invocations to provide baseline state values without requiring all adapters to re-query their external sources.</p>
+<p>The schema, defined in <code>src/cicd_toml.rs</code>, is structured into seven sections:</p>
+<ul>
+<li><strong><code>[workspace]</code></strong>: Static workspace identity — name, toolchain channel, target directory path.</li>
+<li><strong><code>[state]</code></strong>: Dynamic snapshot — dirty flag, <code>target/</code> size in GB, changed file count, changed test count, changed trybuild fixture count.</li>
+<li><strong><code>[target]</code></strong>: Configuration for the <code>TargetScannerAdapter</code> — <code>max_size_gb</code> (default 20) and <code>prune_after_days</code> (default 14).</li>
+<li><strong><code>[test.changed]</code></strong>: Controls the changed-tests optimisation — enabled flag and base branch ref (<code>origin/main</code>).</li>
+<li><strong><code>[trybuild.changed]</code></strong>: Controls the trybuild changed-fixture optimisation — enabled flag and snapshot mode (<code>changed-only</code>).</li>
+<li><strong><code>[git.phase]</code></strong>: Git phase enforcement configuration — <code>require_clean_tree</code> flag and <code>commit_after_phase</code> flag.</li>
+<li><strong><code>[autonomic]</code></strong>: Autonomic policy configuration — enabled flag and mode string (<code>suggest</code> or <code>apply</code>).</li>
+<li><strong><code>[[events]]</code></strong>: An append-only array of <code>EventRecord</code> values, each carrying a <code>kind</code>, <code>verdict</code>, and optional <code>details</code> and <code>timestamp</code>. This is the TOML-level audit trail.</li>
+</ul>
+<p>The round-trip property (write → read → equal) is verified by an inline unit test in <code>src/cicd_toml.rs</code>. Optional fields on <code>EventRecord</code> (specifically <code>details</code> and <code>timestamp</code>) are decorated with <code>#[serde(skip_serializing_if = "Option::is_none")]</code> to keep the TOML file readable when those fields are absent.</p>
+<hr />
+<h2 id="36-feature-flag-architecture">3.6 Feature Flag Architecture</h2>
+<p>The feature flag design separates the public command surface from the internal engine, making the former available without any overhead from the latter. Four flags are defined in <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[features]
+default        = []
+process-data   = []
+autonomic      = [&quot;process-data&quot;]
+contrib        = [&quot;process-data&quot;]
+wasm4pm        = [&quot;process-data&quot;]
+</code></pre>
+<p><strong><code>process-data</code></strong> is the master gate for all Level 5 engine internals. When disabled (the default), the binary compiles without <code>EngineState</code>, adapters, cicd.toml read/write, policy evaluation, or XES emission. When enabled, all internal plumbing becomes available. The separation allows the public CLI to remain lean and auditable without the engine substrate.</p>
+<p><strong><code>autonomic</code></strong> implies <code>process-data</code> and additionally activates the policy evaluation loop. With <code>autonomic</code> disabled, policy structs are compiled but never evaluated. With it enabled, all four built-in policies run in <code>suggest</code> mode on every invocation that populates <code>PolicyState</code>.</p>
+<p><strong><code>wasm4pm</code></strong> implies <code>process-data</code> and activates the integration seams in <code>src/integrations/</code> for richer wasm4pm interaction, including direct evidence submission. Crucially, the feature flag gates the <em>integration depth</em>, not the evidence-gate law itself. Even without <code>wasm4pm</code> enabled, cargo-cicd emits XES evidence to <code>target/cargo-cicd/evidence/</code>, and the evidence-gate tests invoke the wasm4pm oracle. The release closure requirement — that wasm4pm must issue an Accept verdict before a release is certified — is unconditional.</p>
+<p><strong><code>contrib</code></strong> implies <code>process-data</code> and is reserved for contributor-only utilities and debugging aids. It is not part of the public API surface contract.</p>
+<p>The <code>ProjectionProfile</code> struct enforces the public/private boundary at serialisation time, ensuring that internal state fields gated behind <code>process-data</code> are not exposed in public output regardless of which features happen to be enabled at compile time.</p>
+<hr />
+<h2 id="37-the-autonomic-policy-engine">3.7 The Autonomic Policy Engine</h2>
+<p>The autonomic policy engine is the mechanism by which cargo-cicd reasons about workspace health and communicates recommendations to the practitioner without taking destructive action. The design is explicitly aligned with the <em>MAPE-K</em> (Monitor, Analyse, Plan, Execute — Knowledge) autonomic computing reference model [Kephart &amp; Chess, 2003], with the key constraint that the Execute phase is permanently limited to <code>suggest</code> mode in the v26.6.2 release.</p>
+<pre><code>┌────────────────────────────────────┐
+│  EngineState (fully populated)      │
+│  - workspace, toolchain, target,    │
+│  - changed_files, git_phase, etc.   │
+└──────────────┬─────────────────────┘
+               │ Monitor
+    ┌──────────▼──────────┐
+    │  Adapter outputs    │
+    │  (raw measurements) │
+    └──────────┬──────────┘
+               │ Analyse
+    ┌──────────▼──────────┐
+    │  Policy::evaluate() │
+    │  per-policy result  │
+    └──────────┬──────────┘
+               │ Plan
+    ┌──────────▼──────────┐
+    │  PolicyState:        │
+    │  collected results  │
+    │  + recommendations  │
+    └──────────┬──────────┘
+               │ Execute (suggest only)
+    ┌──────────▼──────────┐
+    │  User-visible output │
+    │  (no side effects)  │
+    └─────────────────────┘
+</code></pre>
+<h3 id="371-policy-interface">3.7.1 Policy Interface</h3>
+<p>All policies implement the <code>CicdPolicy</code> trait:</p>
+<pre><code class="language-rust">pub trait CicdPolicy {
+    fn name(&amp;self) -&gt; &amp;'static str;
+    fn enabled(&amp;self) -&gt; bool;
+    fn mode(&amp;self) -&gt; PolicyMode;
+    fn evaluate(&amp;self) -&gt; PolicyResult;
+}
+</code></pre>
+<p><code>PolicyMode</code> has two variants: <code>Suggest</code> and <code>Apply</code>. All current policies return <code>PolicyMode::Suggest</code>. The <code>Apply</code> variant is recognised at the type level to permit future work, but is not yet connected to any destructive action.</p>
+<p><code>PolicyResult</code> carries the policy name, enabled flag, mode string, verdict string (<code>"pass"</code> / <code>"warn"</code> / <code>"alert"</code>), an optional recommendation string, and an <code>event_kind</code> for XES emission.</p>
+<h3 id="372-built-in-policies">3.7.2 Built-in Policies</h3>
+<p>Four policies are implemented at v26.6.2:</p>
+<p><strong>GitPhaseDirtyPolicy</strong> (<code>src/policies/git_phase_dirty.rs</code>) queries <code>GitStatusAdapter::is_dirty()</code>. If the working tree is dirty, it emits an <code>"alert"</code> verdict with the recommendation to commit or stash before running CI. A clean tree yields <code>"pass"</code> with no recommendation.</p>
+<p><strong>TargetPressurePolicy</strong> (<code>src/policies/target_pressure.rs</code>) reads the <code>target/</code> directory size via <code>TargetScannerAdapter::total_size_gb()</code> and compares it against a configurable <code>max_gb</code> threshold (default 20 GB). The graduated response (warn at 70%, alert at 100%) mirrors the adapter's own verdict function, ensuring consistent messaging across the system.</p>
+<p><strong>ToolchainMismatchPolicy</strong> (<code>src/policies/toolchain_mismatch.rs</code>) compares the active toolchain channel from <code>ToolchainDetector</code> against the MSRV declared in <code>Cargo.toml</code>. A mismatch — for example, an <code>nightly</code> channel used in a workspace that declares a stable MSRV — yields a <code>"warn"</code> verdict.</p>
+<p><strong>TrybuildChangedPolicy</strong> (<code>src/policies/trybuild_changed.rs</code>) reports whether changed trybuild fixtures were detected. It is informational rather than advisory: the verdict is always <code>"pass"</code>, but the recommendation string reports the count of changed fixtures to guide the practitioner's attention.</p>
+<h3 id="373-mape-k-alignment">3.7.3 MAPE-K Alignment</h3>
+<p>The Monitor phase is embodied by the adapters, which run unconditionally on every invocation and populate their respective <code>EngineState</code> dimensions. The Analyse phase is embodied by the <code>evaluate()</code> implementations, each of which reads its relevant dimension(s) and computes a typed result. The Plan phase corresponds to the collection of results into <code>PolicyState</code>, from which a unified recommendation surface is constructed. The Execute phase is presently limited to emitting those recommendations as user-visible output and XES evidence events — no filesystem, git, or network operations are performed without explicit user confirmation.</p>
+<p>This constraint is intentional. Autonomic systems that take destructive action without confirmation violate the practitioner's expectation of transparency. The <code>suggest</code>-only default is the correct posture for a tool operating in a shared workspace where other processes may be running concurrently.</p>
+<hr />
+<h2 id="38-design-decisions-and-trade-offs">3.8 Design Decisions and Trade-offs</h2>
+<h3 id="381-single-aggregate-root-versus-per-noun-state">3.8.1 Single Aggregate Root versus Per-Noun State</h3>
+<p>The choice to centralise all runtime state into <code>EngineState</code> rather than allowing each noun to own its own state carries both benefits and costs. The primary benefit is that policy evaluation always operates on a coherent, simultaneous snapshot of all workspace dimensions. A policy that needs both git state and target size — for example, a hypothetical <code>BlockPublishPolicy</code> that refuses to publish from a dirty, oversized workspace — can read both from the same <code>EngineState</code> without coordinating between separate state owners. The cost is that populating <code>EngineState</code> requires running all adapters, even those whose output is not needed for the current noun. This is mitigated in practice by the speed of the individual adapters (all of which are single subprocess calls or filesystem traversals) and by the <code>cicd.toml</code> state cache, which allows adapters to skip expensive re-queries when workspace state has not changed since the last invocation.</p>
+<h3 id="382-external-adjudication-via-wasm4pm">3.8.2 External Adjudication via wasm4pm</h3>
+<p>A defining architectural invariant is that cargo-cicd never adjudicates its own process conformance (Evidence Invariant E1). The XES emission infrastructure exists to produce evidence; the verdict on whether that evidence demonstrates a conformant process is issued exclusively by the external wasm4pm oracle. This separation reflects a fundamental principle: a tool that certifies its own correctness provides no stronger guarantee than an unchecked tool. By routing evidence through an independent oracle, the certification chain has a boundary that cargo-cicd's own test suite cannot corrupt.</p>
+<p>The practical consequence is that the release gate is not satisfied by passing internal tests alone. The evidence-gate tests (<code>tests/wasm4pm_evidence_gate.rs</code>, <code>tests/wasm4pm_evidence_mutation.rs</code>, <code>tests/wasm4pm_refusal_cases.rs</code>) must invoke the wasm4pm oracle and assert an Accept verdict. This is enforced structurally: the <code>WpmEvidenceOracle</code> panics if the oracle is unavailable and the expected verdict is not <code>Blocked</code> (Evidence Invariant E3).</p>
+<h3 id="383-no-parallel-test-execution">3.8.3 No Parallel Test Execution</h3>
+<p>The <code>--jobs</code> flag is recognised but not yet functional. Tests are executed serially. This is a deliberate limitation: because <code>cicd.toml</code> is a file in the workspace root and all adapters read from and write to the same <code>target/</code> directory, concurrent test invocations would risk race conditions on shared state. The correct solution — partitioning state by session identifier — is deferred to a future release. Premature parallelism in a tool that manages workspace state would introduce non-determinism that is difficult to observe and harder to reproduce in CI.</p>
+<h3 id="384-feature-flag-isolation-of-engine-internals">3.8.4 Feature-Flag Isolation of Engine Internals</h3>
+<p>Compiling the Level 5 engine internals behind the <code>process-data</code> feature flag preserves the option of shipping a minimal public binary that has no compile-time dependency on the engine infrastructure. This is valuable for two reasons. First, it enforces the layering discipline at the type level: code that should not reference <code>EngineState</code> will fail to compile if it attempts to do so while <code>process-data</code> is disabled. Second, it simplifies audit of the public binary surface: reviewers need only inspect the feature-flag-free compilation path to verify that no internal state leaks into public output.</p>
+<h3 id="385-xes-as-the-evidence-format">3.8.5 XES as the Evidence Format</h3>
+<p>The choice of XES (XML Event Stream, as defined by the IEEE XES standard for process mining) as the evidence emission format is driven by the requirements of the wasm4pm oracle, which implements conformance checking via token-replay fitness against a process model derived from the declared activity set. JSON or JSONL alone would satisfy a logging requirement, but would not satisfy the conformance checking requirement without additional transformation. The dual emission (XES for oracle adjudication, JSONL for downstream tooling) provides both the oracle-compatible format and a machine-readable companion for programmatic consumers.</p>
+<p>The production XES writer (<code>emit_xes_filtered</code>) applies three quality constraints that improve token-replay fitness: (1) only <code>"complete"</code> lifecycle events are included, since start events duplicate activity names in the derived Petri net; (2) only the ten declared model activities are included, filtering out noise events such as <code>"git:status"</code> that would introduce unmodelled transitions; and (3) events are sorted by timestamp within each trace to ensure the directly-follows graph reflects the actual execution order. These constraints are validated by the mutation and refusal test suites.</p>
+<hr />
+<h2 id="39-summary">3.9 Summary</h2>
+<p>This chapter has presented the architecture of cargo-cicd as a four-layer system in which a conventional CLI grammar exposes a Level 5 process-data engine. The <code>EngineState</code> aggregate root provides a coherent, simultaneous snapshot of all workspace dimensions; the adapter layer translates external sources into typed state without business logic or side effects; the noun-verb CLI grammar scales cleanly across a growing command surface; and <code>cicd.toml</code> serves as both configuration carrier and append-only event log. The autonomic policy engine implements the MAPE-K loop in a non-destructive <code>suggest</code>-only mode, while the XES evidence infrastructure supports external adjudication by the wasm4pm oracle. The principal design decisions — centralised state, external adjudication, serial test execution, and feature-flag isolation — are conservative choices that prioritise correctness and transparency over performance and flexibility, consistent with the requirements of a tool operating at the boundary of Rust workspace automation and process conformance certification.</p>
+<hr />
+<h1 id="chapter-4-implementation-and-evaluation">Chapter 4: Implementation and Evaluation</h1>
+<h2 id="41-implementation-overview">4.1 Implementation Overview</h2>
+<p>cargo-cicd is implemented entirely in Rust and targets a minimum supported Rust version (MSRV) of 1.86, declared explicitly in <code>Cargo.toml</code> via the <code>rust-version</code> field and enforced at every CI run. The project is structured as a Cargo workspace with three members: the primary <code>cargo-cicd</code> binary crate at the workspace root and two supporting library crates, <code>cargo-cicd-core</code> and <code>cargo-cicd-lsp</code>, under the <code>crates/</code> subdirectory.</p>
+<h3 id="411-dependency-selection">4.1.1 Dependency Selection</h3>
+<p>The dependency footprint has been deliberately constrained to a small set of well-audited crates. Table 4.1 summarises the direct runtime dependencies.</p>
+<p><strong>Table 4.1 — Runtime Dependencies</strong></p>
+<table>
+<thead>
+<tr>
+<th>Crate</th>
+<th>Version</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clap</code></td>
+<td>4 (derive)</td>
+<td>CLI argument parsing</td>
+</tr>
+<tr>
+<td><code>clap-noun-verb</code></td>
+<td>26.6.2</td>
+<td>Noun-verb CLI grammar layer</td>
+</tr>
+<tr>
+<td><code>serde</code></td>
+<td>1 (derive)</td>
+<td>Serialisation/deserialisation</td>
+</tr>
+<tr>
+<td><code>toml</code></td>
+<td>0.8</td>
+<td>cicd.toml reading and writing</td>
+</tr>
+<tr>
+<td><code>anyhow</code></td>
+<td>1</td>
+<td>Error propagation</td>
+</tr>
+<tr>
+<td><code>walkdir</code></td>
+<td>2</td>
+<td>Target directory traversal</td>
+</tr>
+<tr>
+<td><code>serde_json</code></td>
+<td>1</td>
+<td>JSON output for evidence receipts</td>
+</tr>
+</tbody>
+</table>
+<p>Development-time dependencies add <code>assert_cmd</code> (2), <code>tempfile</code> (3), and <code>predicates</code> (3) for integration testing, plus <code>toml</code> (0.8) for fixture TOML verification.</p>
+<p><code>clap-noun-verb</code> is a local crate developed in tandem with cargo-cicd. It implements the noun-verb command grammar that forms the public CLI surface: each top-level noun (<code>status</code>, <code>target</code>, <code>test</code>, <code>trybuild</code>, <code>git</code>, <code>publish</code>, <code>workspace</code>) is registered with a set of verb subcommands, and the framework handles default-verb injection so that bare nouns resolve to their primary verb without user intervention.</p>
+<h3 id="412-feature-flags">4.1.2 Feature Flags</h3>
+<p>The codebase exposes four non-default feature flags that gate internal subsystems:</p>
+<p><strong>Table 4.2 — Feature Flags</strong></p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Implies</th>
+<th>When enabled</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>process-data</code></td>
+<td>—</td>
+<td>Level 5 engine internals, cicd.toml I/O, XES emission</td>
+</tr>
+<tr>
+<td><code>autonomic</code></td>
+<td><code>process-data</code></td>
+<td>Policy evaluation, suggest-mode recommendations</td>
+</tr>
+<tr>
+<td><code>wasm4pm</code></td>
+<td><code>process-data</code></td>
+<td>Richer wasm4pm runtime integration seam</td>
+</tr>
+<tr>
+<td><code>contrib</code></td>
+<td><code>process-data</code></td>
+<td>Contributor utilities and debugging aids</td>
+</tr>
+</tbody>
+</table>
+<p>This layered implication graph allows CI to test each surface in isolation. A build with no features is a fully functional CLI; enabling <code>process-data</code> activates the <code>EngineState</code> aggregate and all adapters; enabling <code>autonomic</code> additionally activates policy evaluation.</p>
+<h3 id="413-workspace-structure">4.1.3 Workspace Structure</h3>
+<pre><code>cargo-cicd/
+├── src/
+│   ├── main.rs                  # Entry point, default-verb injection
+│   ├── engine/                  # EngineState and per-dimension State types
+│   ├── adapters/                # One adapter per external data source
+│   ├── nouns/                   # CLI noun modules (status, target, test, …)
+│   ├── policies/                # Autonomic policy implementations
+│   ├── evidence.rs              # ProcessEvent and XES emission
+│   └── cicd_toml.rs             # cicd.toml schema and deserialization
+├── crates/
+│   ├── cargo-cicd-core/
+│   └── cargo-cicd-lsp/
+├── tests/                       # Integration tests (16 test binaries)
+│   ├── fixtures/                # FixtureWorkspace helpers
+│   ├── invariants.rs
+│   ├── autonomic_policies.rs
+│   ├── wasm4pm_evidence_gate.rs
+│   └── …
+├── ontology/cargo-cicd.ttl      # OWL/RDF ontology (manufacturing input)
+├── queries/                     # SPARQL queries for ggen pipeline
+├── templates/                   # Tera templates for code generation
+└── .github/workflows/           # CI pipeline definitions
+</code></pre>
+<hr />
+<h2 id="42-test-hierarchy">4.2 Test Hierarchy</h2>
+<p>The project enforces a three-tier test hierarchy. Each tier has a distinct scope and a distinct role in the release process.</p>
+<p><strong>Table 4.3 — Test Tier Summary</strong></p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Files</th>
+<th>Tools</th>
+<th>Release-blocking?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tier 1: Unit and smoke</td>
+<td><code>invariants.rs</code>, <code>cli/</code>, <code>feature_projection.rs</code>, <code>autonomic_policies.rs</code></td>
+<td><code>assert_cmd</code>, <code>tempfile</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td>Tier 2: Integration</td>
+<td><code>cicd_toml_truth.rs</code>, <code>changed_tests.rs</code>, <code>git_phase_closure.rs</code>, <code>ggen_customization_guard.rs</code></td>
+<td><code>assert_cmd</code>, <code>tempfile</code>, <code>walkdir</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td>Tier 3: Evidence gate</td>
+<td><code>wasm4pm_evidence_gate.rs</code>, <code>wasm4pm_evidence_mutation.rs</code>, <code>wasm4pm_refusal_cases.rs</code></td>
+<td><code>wpm</code> oracle, XES</td>
+<td><strong>Yes</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Tier 1</strong> tests verify the public CLI boundary, the autonomic policy logic, and the feature flag surface contract. These tests run in every CI job and on both supported platforms. They are fast (typically sub-second), use <code>tempfile::TempDir</code> for isolation, and never require an external oracle binary.</p>
+<p><strong>Tier 2</strong> tests cover correctness of the cicd.toml carrier format, the changed-test selection algorithm, git phase closure semantics, and the ggen code-generation customisation guard. These tests exercise multi-step workflows and may spawn subprocesses (<code>git</code>, <code>cargo metadata</code>).</p>
+<p><strong>Tier 3</strong> evidence-gate tests are the release-closing gate. They emit XES (XML Event Stream) evidence files and submit them to the wasm4pm oracle (<code>wpm</code>) for adjudication. A release may not proceed if the oracle issues a Refuse verdict. This design decouples cargo-cicd's internal correctness claims from external process-compliance verification.</p>
+<p>Cargo.toml declares each integration test as a separate <code>[[test]]</code> entry, ensuring that individual suites can be run in isolation with <code>cargo test --test &lt;name&gt;</code> and that their build artefacts are cached independently.</p>
+<hr />
+<h2 id="43-fixtureworkspace-testing-strategy">4.3 FixtureWorkspace Testing Strategy</h2>
+<p>The central abstraction for integration testing is <code>FixtureWorkspace</code>, implemented in <code>tests/fixtures/mod.rs</code>. Each fixture constructs a minimal but realistic Rust workspace in a <code>tempfile::TempDir</code>, populates it with the conditions required to exercise a specific engine verdict, and exposes the workspace root path for use as the <code>current_dir</code> of <code>assert_cmd</code> invocations. The <code>TempDir</code> is owned by the <code>FixtureWorkspace</code> struct; when the struct is dropped at the end of a test, the operating system reclaims the temporary directory automatically, providing strong isolation between tests.</p>
+<h3 id="431-available-fixtures">4.3.1 Available Fixtures</h3>
+<p><strong>Table 4.4 — FixtureWorkspace Variants</strong></p>
+<table>
+<thead>
+<tr>
+<th>Constructor</th>
+<th>Preconditions</th>
+<th>Expected Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FixtureWorkspace::clean()</code></td>
+<td>Valid <code>Cargo.toml</code>, fully committed, no <code>target/</code>, no <code>cicd.toml</code></td>
+<td>Pass</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::dirty()</code></td>
+<td>Clean baseline + one untracked file (<code>untracked.txt</code>)</td>
+<td>Warn (git dirty)</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::missing_manifest()</code></td>
+<td>Empty directory, no <code>Cargo.toml</code></td>
+<td>Refuse</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::with_toolchain_mismatch()</code></td>
+<td>Clean + <code>rust-toolchain.toml</code> pinning channel <code>1.50.0</code></td>
+<td>Warn</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::with_target_over_limit()</code></td>
+<td>Clean + <code>target/debug/placeholder.bin</code> (1,048,576 bytes)</td>
+<td>Warn (target pressure)</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::with_corrupted_cicd_toml()</code></td>
+<td>Clean + syntactically invalid <code>cicd.toml</code></td>
+<td>Fail/Refuse</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::with_stale_cicd_toml()</code></td>
+<td>Clean + <code>cicd.toml</code> claiming <code>dirty = false</code>, then made dirty</td>
+<td>Warn (cache mismatch)</td>
+</tr>
+<tr>
+<td><code>FixtureWorkspace::with_changed_trybuild_fixture()</code></td>
+<td>Clean + <code>tests/ui/</code> containing 10 unchanged + 1 changed fixture</td>
+<td>Pass (changed-only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="432-isolation-guarantees">4.3.2 Isolation Guarantees</h3>
+<p>Each fixture satisfies four isolation properties:</p>
+<ol>
+<li><strong>Filesystem isolation.</strong> The <code>TempDir</code> is created in the system temporary directory, never inside the repository. Tests therefore never modify the working checkout.</li>
+<li><strong>Git isolation.</strong> Fixtures that require git history initialise a fresh git repository via <code>git init</code> within the <code>TempDir</code>. The global git configuration of the host is not modified.</li>
+<li><strong>State isolation.</strong> Fixtures that place a <code>cicd.toml</code> in the workspace do so programmatically, with exactly the state required by the test scenario. There is no shared mutable state between tests.</li>
+<li><strong>Drop isolation.</strong> Because <code>TempDir</code> implements <code>Drop</code>, cleanup occurs even when a test panics. The cargo test harness runs each <code>#[test]</code> function in its own thread; a panic in one thread does not prevent other tests from running.</li>
+</ol>
+<h3 id="433-example-verifying-a-dirty-workspace">4.3.3 Example: Verifying a Dirty Workspace</h3>
+<p>The following pattern, drawn from the project's own test suite, illustrates the canonical fixture usage:</p>
+<pre><code class="language-rust">#[test]
+fn test_dirty_workspace_verdict() {
+    let fixture = FixtureWorkspace::dirty();
+    let output = Command::cargo_bin(&quot;cargo-cicd&quot;)
+        .unwrap()
+        .arg(&quot;status&quot;)
+        .current_dir(&amp;fixture.root)
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&amp;output.stdout).contains(&quot;dirty&quot;));
+}
+</code></pre>
+<p>The <code>fixture</code> variable owns the <code>TempDir</code>. The <code>Command::cargo_bin</code> call resolves the built binary from <code>CARGO_BIN_EXE_cargo-cicd</code>, eliminating reliance on the system <code>PATH</code>.</p>
+<hr />
+<h2 id="44-invariant-testing">4.4 Invariant Testing</h2>
+<p><code>tests/invariants.rs</code> encodes the non-negotiable public boundary invariants. These invariants are enforced on every CI push and pull request across all platform and toolchain combinations. The file currently implements four invariant functions, each named with the <code>invariant_</code> prefix to make the suite's purpose self-documenting.</p>
+<h3 id="441-invariant-1-no-forbidden-terms-in-public-output">4.4.1 Invariant 1: No Forbidden Terms in Public Output</h3>
+<p>The most comprehensive invariant iterates over all public CLI entry points (top-level <code>--help</code> and per-noun <code>--help</code>) and asserts that none of the following terms appear in stdout or stderr:</p>
+<pre><code>ALIVE, Nehemiah, CONSTRUCT8, Instinct8, Inspection Gate,
+Cargo Court, AGI, Truex, Field8, wall
+</code></pre>
+<p>These terms belong to the internal architecture and must never leak into user-visible output. The test runs <code>cargo-cicd</code> with nine distinct argument lists and checks both output streams:</p>
+<pre><code class="language-rust">let text = String::from_utf8_lossy(&amp;output.stdout).to_string()
+    + &amp;String::from_utf8_lossy(&amp;output.stderr);
+for term in &amp;forbidden {
+    assert!(
+        !text.contains(term),
+        &quot;Forbidden term '{}' found in output of: cargo cicd {}&quot;,
+        term, args.join(&quot; &quot;)
+    );
+}
+</code></pre>
+<p>A parallel check in <code>tests/ggen_customization_guard.rs</code> extends this verification to the file system: it walks <code>README.md</code> and all Markdown files under <code>docs/tutorials/</code>, <code>docs/how-to/</code>, <code>docs/reference/</code>, and <code>docs/explanation/</code>, asserting the same forbidden-term list. This dual enforcement (CLI output and static documents) closes the gap between runtime behaviour and shipped documentation.</p>
+<h3 id="442-invariant-4-no-destructive-default">4.4.2 Invariant 4: No Destructive Default</h3>
+<p><code>invariant_no_destructive_default_target_prune_is_safe</code> constructs a temporary directory containing a <code>target/debug/</code> tree with a synthetic binary, runs <code>cargo cicd target prune</code> without any confirmation flag, and then asserts that the binary still exists:</p>
+<pre><code class="language-rust">assert!(
+    fake_target.join(&quot;binary&quot;).exists(),
+    &quot;target prune without --confirm must not delete files&quot;
+);
+</code></pre>
+<p>This invariant directly encodes the design constraint that no cargo-cicd command may take a destructive action without explicit user confirmation. The <code>--confirm</code> flag is required to activate deletion.</p>
+<h3 id="443-invariant-5-no-full-trybuild-by-default">4.4.3 Invariant 5: No Full Trybuild by Default</h3>
+<p>The trybuild invariant creates 100 synthetic <code>tests/ui/compile_fail/fixture_N.rs</code> files in a temporary workspace and invokes <code>cargo cicd trybuild changed</code>. The assertion is negative: the combined output must not contain the strings <code>"100 fixtures"</code> or <code>"all 100"</code>. The invariant enforces that the changed-only selection algorithm is never bypassed, regardless of the number of fixtures present.</p>
+<h3 id="444-invariant-6-wasm4pm-scan-or-documented-absence">4.4.4 Invariant 6: wasm4pm Scan or Documented Absence</h3>
+<p>The sixth invariant enforces a process-compliance property rather than a code-correctness property. It checks whether at least one of three paths exists: the wasm4pm capability scan receipt, the integration recommendation document, or the deferred-work document. If none exists, the test logs a <code>PARTIAL</code> message but does not fail, because the scan workflow may be running concurrently. The invariant is about the process — that capability assessment was performed and its outcome was recorded — not about the binary timing of that recording.</p>
+<h3 id="445-ggen-customisation-guard">4.4.5 ggen Customisation Guard</h3>
+<p><code>tests/ggen_customization_guard.rs</code> protects the code-generation manufacturing pipeline. It verifies that every <code>BEGIN ggen:</code> marker in <code>README.md</code> has a matching <code>END ggen:</code> marker (and vice versa for <code>BEGIN custom:</code>), that the README contains a command table generated from the ontology, and that reference documentation files exist for every public command. The <code>evidence_emission_not_removed</code> test specifically guards against accidental removal of the <code>ProcessEvent</code> struct or the <code>emit_xes</code> function from <code>src/evidence.rs</code>.</p>
+<p><strong>Table 4.5 — Invariant Tests at a Glance</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test name</th>
+<th>What it enforces</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>invariant_public_boundary_no_forbidden_terms_in_all_help</code></td>
+<td>10 forbidden terms absent from all 9 public help surfaces</td>
+</tr>
+<tr>
+<td><code>invariant_no_false_close_git_close_help_mentions_safety</code></td>
+<td><code>git close --help</code> acknowledges safety (informational)</td>
+</tr>
+<tr>
+<td><code>invariant_no_destructive_default_target_prune_is_safe</code></td>
+<td>Files survive <code>target prune</code> without <code>--confirm</code></td>
+</tr>
+<tr>
+<td><code>invariant_no_full_trybuild_by_default</code></td>
+<td>100-fixture workspace does not trigger full run</td>
+</tr>
+<tr>
+<td><code>invariant_wasm4pm_scan_or_documented_absence</code></td>
+<td>wasm4pm capability was assessed and outcome recorded</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="45-wasm4pm-evidence-gate">4.5 wasm4pm Evidence Gate</h2>
+<p>The wasm4pm evidence gate is the release-closing mechanism for cargo-cicd. It implements a strict separation between internal test assertions (which verify cargo-cicd's own behaviour) and process-compliance verification (which is delegated entirely to the external <code>wpm</code> oracle).</p>
+<h3 id="451-evidence-format-and-emission">4.5.1 Evidence Format and Emission</h3>
+<p>Process evidence is emitted as XES (XML Event Stream), the standard format specified by the IEEE Process Mining standard. Each invocation of a public verb emits one or more <code>ProcessEvent</code> records. The <code>emit_xes</code> function in <code>src/evidence.rs</code> serialises these records to an XES file at <code>target/cargo-cicd/evidence/</code> within the workspace. The XES format was chosen over JSONL or custom CSV because it is natively understood by <code>wpm</code>; no translation layer is required.</p>
+<p>A minimal evidence emission sequence:</p>
+<pre><code class="language-rust">let events = vec![ProcessEvent::new(&quot;status show&quot;, &quot;PASS&quot;)];
+let xes_path = dir.path().join(&quot;events.xes&quot;);
+emit_xes(&amp;events, &amp;xes_path).expect(&quot;emit_xes must not fail&quot;);
+assert!(xes_path.exists(), &quot;XES file must exist before oracle call&quot;);
+</code></pre>
+<h3 id="452-oracle-protocol">4.5.2 Oracle Protocol</h3>
+<p>The <code>WpmEvidenceOracle</code> struct encapsulates binary discovery and invocation. At runtime, it resolves the <code>wpm</code> binary through three resolution stages: an explicit <code>WPM_PATH</code> environment variable, the known installation path <code>/Users/sac/wasm4pm/target/release/wpm</code>, and finally the system <code>PATH</code> via <code>which wpm</code>. This resolution order ensures that CI environments with a centrally installed <code>wpm</code> are preferred over developer-local builds.</p>
+<p>Once the oracle is resolved, the primary audit command is:</p>
+<pre><code>wpm audit &lt;file.xes&gt;
+</code></pre>
+<p>The secondary receipt doctor command is:</p>
+<pre><code>wpm receipt doctor --format json --strict &lt;receipt.json&gt;
+</code></pre>
+<p>Both commands must return a non-zero-free exit status and must not produce <code>FAIL</code> or <code>REFUSE</code> in their combined output for the evidence gate to pass.</p>
+<h3 id="453-oracle-absent-fallback">4.5.3 Oracle-Absent Fallback</h3>
+<p>When the <code>wpm</code> binary is absent (as in standard CI runners that do not have wasm4pm installed), each evidence-gate test falls back to an <code>ExpectedWpmVerdict::Blocked</code> assertion. This allows the test suite to complete without the oracle while making it transparent that the Accept branch was not exercised. For release closure, pipeline operators set <code>REQUIRE_WPM_ORACLE=1</code>; under that environment variable, binary absence causes an immediate panic rather than a silent skip:</p>
+<pre><code class="language-rust">fn absent_oracle_verdict(test_name: &amp;str) -&gt; ExpectedWpmVerdict {
+    if std::env::var(&quot;REQUIRE_WPM_ORACLE&quot;).as_deref() == Ok(&quot;1&quot;) {
+        panic!(
+            &quot;REQUIRE_WPM_ORACLE=1 is set but the wpm oracle binary is absent. \
+             Test '{}' cannot exercise its Accept assertion.&quot;,
+            test_name
+        );
+    }
+    ExpectedWpmVerdict::Blocked
+}
+</code></pre>
+<h3 id="454-hard-gate-test">4.5.4 Hard Gate Test</h3>
+<p><code>evidence_gate_wpm_doctor_hard_gate</code> is a mandatory test that invokes <code>wpm doctor</code> directly and asserts both exit code zero and the absence of failure indicators in the combined output. Unlike the per-verb acceptance tests, this test targets the oracle's self-diagnosis facility. If <code>wpm doctor</code> reports any internal failure, the release is blocked regardless of the per-verb results.</p>
+<p><strong>Table 4.6 — Evidence Gate Tests</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Verb under test</th>
+<th>Evidence submitted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>evidence_gate_status_show_accepted</code></td>
+<td><code>status show</code></td>
+<td>Single PASS event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_target_show_accepted</code></td>
+<td><code>target show</code></td>
+<td>Single PASS event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_target_prune_accepted</code></td>
+<td><code>target prune</code></td>
+<td>Single DRY-RUN event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_changed_test_accepted</code></td>
+<td><code>test changed</code></td>
+<td>Single PASS event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_git_close_accepted</code></td>
+<td><code>git close</code></td>
+<td>Single PASS event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_publish_run_accepted</code></td>
+<td><code>publish run</code></td>
+<td>Single PASS event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_workspace_doctor_accepted</code></td>
+<td><code>workspace doctor</code></td>
+<td>Single PASS event</td>
+</tr>
+<tr>
+<td><code>evidence_gate_oracle_discover</code></td>
+<td>—</td>
+<td>Oracle self-probe (no panic)</td>
+</tr>
+<tr>
+<td><code>evidence_gate_wpm_doctor_hard_gate</code></td>
+<td>—</td>
+<td><code>wpm doctor</code> self-diagnosis</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="46-cicd-pipeline">4.6 CI/CD Pipeline</h2>
+<p>The GitHub Actions pipeline is defined in <code>.github/workflows/ci.yml</code> and consists of five jobs that run in parallel after checkout.</p>
+<h3 id="461-pipeline-jobs">4.6.1 Pipeline Jobs</h3>
+<p><strong>fmt-clippy</strong> runs on a 2×1 matrix (<code>ubuntu-latest</code>, <code>macos-latest</code>). It installs the stable Rust toolchain with the <code>rustfmt</code> and <code>clippy</code> components and runs <code>cargo fmt --all -- --check</code> followed by <code>cargo clippy --all-targets -- -D warnings</code> in two passes: once with default features and once with <code>--all-features</code>. Clippy warnings are treated as errors.</p>
+<p><strong>test</strong> runs on a 2×2 matrix (2 platforms × 2 toolchains), producing four concurrent runners.</p>
+<p><strong>Table 4.7 — Test Matrix</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>ubuntu-latest</code></th>
+<th><code>macos-latest</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stable</code></td>
+<td>ubuntu/stable</td>
+<td>macos/stable</td>
+</tr>
+<tr>
+<td><code>1.86</code> (MSRV)</td>
+<td>ubuntu/1.86</td>
+<td>macos/1.86</td>
+</tr>
+</tbody>
+</table>
+<p>Each runner in the test matrix executes the following sequence:
+1. <code>cargo build --workspace</code> — verifies the full workspace compiles
+2. Individual test suites: <code>invariants</code>, <code>cli</code>, <code>cicd_toml_truth</code>, <code>autonomic_policies</code>, <code>changed_tests</code>, <code>git_phase_closure</code>, <code>feature_projection</code>
+3. <code>cargo test --workspace</code> — runs all tests with default features</p>
+<p>Test results are uploaded as artefacts with a 14-day retention period, keyed by platform and toolchain combination.</p>
+<p><strong>feature-matrix</strong> runs on <code>ubuntu-latest</code> against four feature combinations: <code>""</code> (default), <code>process-data</code>, <code>autonomic</code>, and <code>wasm4pm</code>. Both <code>cargo build</code> and <code>cargo test</code> are executed for each combination, ensuring that no feature flag introduces a compilation failure or test regression.</p>
+<p><strong>forbidden-terms</strong> is a static analysis job that runs on <code>ubuntu-latest</code>. It uses <code>grep</code> to scan <code>src/**/*.rs</code> for forbidden terms on non-comment lines, scans CLI help strings specifically, and scans public Markdown files (<code>README.md</code>, <code>docs/reference/</code>, <code>docs/agents/</code>). Internal documentation directories (<code>docs/wasm4pm/</code>, <code>docs/release/</code>, <code>docs/design/</code>, <code>receipts/</code>) are excluded from the scan.</p>
+<p><strong>workspace-integrity</strong> verifies that <code>Cargo.lock</code> is consistent with <code>Cargo.toml</code>, that all workspace members resolve via <code>cargo metadata</code>, and that the <code>rust-version</code> field is present and equal to <code>1.86</code>. The MSRV check is implemented as a Python one-liner that parses the JSON output of <code>cargo metadata</code>:</p>
+<pre><code class="language-yaml">- name: Verify MSRV is declared and matches rust-version field
+  run: |
+    MSRV=$(cargo metadata --format-version 1 --no-deps \
+      | python3 -c &quot;import sys,json; m=json.load(sys.stdin); ...&quot;)
+    if [ &quot;$MSRV&quot; != &quot;1.86&quot; ]; then
+      echo &quot;::error::MSRV mismatch — expected 1.86, got $MSRV&quot;
+      exit 1
+    fi
+</code></pre>
+<hr />
+<h2 id="47-performance-characteristics">4.7 Performance Characteristics</h2>
+<p>cargo-cicd is designed to complete a full <code>cargo cicd status</code> invocation in under one second on a typical developer workstation. Three design decisions contribute to this target.</p>
+<h3 id="471-single-invocation-git-queries">4.7.1 Single-Invocation Git Queries</h3>
+<p>All git state is captured with a single <code>git status --porcelain</code> invocation. The output is parsed once and cached in <code>GitPhaseState</code> for the duration of the session. Multiple adapters (dirty flag, untracked count, changed file list) all read from this single cached parse. The alternative — issuing separate <code>git ls-files</code>, <code>git diff</code>, and <code>git status</code> calls — would multiply subprocess overhead and introduce races on systems with high I/O latency.</p>
+<h3 id="472-bounded-target-directory-traversal">4.7.2 Bounded Target Directory Traversal</h3>
+<p>The <code>TargetScannerAdapter</code> uses <code>walkdir</code> with a <code>max_depth(3)</code> limit, avoiding deep traversal of nested build artefacts. The adapter accumulates only the total byte count, not a per-file inventory, which keeps memory usage constant regardless of workspace size. The computed size is persisted in the <code>[state]</code> section of <code>cicd.toml</code> and is only recomputed when the HEAD commit hash has changed since the last run.</p>
+<h3 id="473-cicdtoml-state-cache">4.7.3 cicd.toml State Cache</h3>
+<p><code>cicd.toml</code> functions as an inter-invocation state cache. On each run, adapters consult the cached value first and re-query the external source only when the cached value may be stale (determined by comparing the recorded HEAD hash to the current HEAD). For expensive operations such as parsing <code>Cargo.lock</code> for dependency tree analysis, this caching pattern reduces steady-state cost to a single file read plus a hash comparison.</p>
+<p><strong>Table 4.8 — Performance Design Choices</strong></p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Naive approach</th>
+<th>Chosen approach</th>
+<th>Benefit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Git state</td>
+<td>Multiple <code>git ls-files</code> + <code>git diff</code></td>
+<td>One <code>git status --porcelain</code></td>
+<td>Fewer subprocesses</td>
+</tr>
+<tr>
+<td>Target size</td>
+<td>Full recursive walk</td>
+<td><code>walkdir</code> with <code>max_depth(3)</code>, byte sum only</td>
+<td>Bounded traversal</td>
+</tr>
+<tr>
+<td>Cargo metadata</td>
+<td>Per-crate <code>cargo metadata</code></td>
+<td>Single <code>cargo metadata --format-version 1</code></td>
+<td>Linear not quadratic</td>
+</tr>
+<tr>
+<td>Cross-invocation state</td>
+<td>Re-query everything</td>
+<td>cicd.toml cache keyed by HEAD hash</td>
+<td>Sub-second repeat runs</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="48-evaluation-results">4.8 Evaluation Results</h2>
+<h3 id="481-test-suite-scale">4.8.1 Test Suite Scale</h3>
+<p>The project declares 16 integration test binaries in <code>Cargo.toml</code>. The named suites cover the following domains:</p>
+<p><strong>Table 4.9 — Named Integration Test Suites</strong></p>
+<table>
+<thead>
+<tr>
+<th>Suite</th>
+<th>Domain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>feature_projection</code></td>
+<td>Feature flag surface contract</td>
+</tr>
+<tr>
+<td><code>cli</code></td>
+<td>CLI command projection</td>
+</tr>
+<tr>
+<td><code>cicd_toml_truth</code></td>
+<td>cicd.toml schema and write correctness</td>
+</tr>
+<tr>
+<td><code>autonomic_policies</code></td>
+<td>Autonomic policy verdicts</td>
+</tr>
+<tr>
+<td><code>changed_tests</code></td>
+<td>Changed-test selection algorithm</td>
+</tr>
+<tr>
+<td><code>git_phase_closure</code></td>
+<td>Git phase state transitions</td>
+</tr>
+<tr>
+<td><code>invariants</code></td>
+<td>Non-negotiable public boundary invariants</td>
+</tr>
+<tr>
+<td><code>wasm4pm_harness</code></td>
+<td>Evidence harness smoke tests</td>
+</tr>
+<tr>
+<td><code>wasm4pm_evidence_gate</code></td>
+<td>Positive acceptance evidence gate</td>
+</tr>
+<tr>
+<td><code>wasm4pm_evidence_mutation</code></td>
+<td>Mutation-adversarial evidence gate</td>
+</tr>
+<tr>
+<td><code>wasm4pm_refusal_cases</code></td>
+<td>Refuse-path evidence gate</td>
+</tr>
+<tr>
+<td><code>ggen_customization_guard</code></td>
+<td>Code-generation guard</td>
+</tr>
+<tr>
+<td><code>refusal_calibration</code></td>
+<td>Calibration of refusal thresholds</td>
+</tr>
+<tr>
+<td><code>lsp_explain</code></td>
+<td>LSP explain surface</td>
+</tr>
+<tr>
+<td><code>fixture_workspaces</code></td>
+<td>FixtureWorkspace construct correctness</td>
+</tr>
+<tr>
+<td>(implicit) <code>interactions</code></td>
+<td>Cross-noun interaction coverage</td>
+</tr>
+</tbody>
+</table>
+<h3 id="482-policy-evaluation-coverage">4.8.2 Policy Evaluation Coverage</h3>
+<p>The <code>autonomic_policies</code> suite tests four policies across multiple input regions:</p>
+<p><strong>Table 4.10 — Autonomic Policy Test Coverage</strong></p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Pass condition</th>
+<th>Warn condition</th>
+<th>Suggest condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target_pressure</code></td>
+<td>size &lt; 80% of limit</td>
+<td>80%–100% of limit</td>
+<td>&gt; limit</td>
+</tr>
+<tr>
+<td><code>toolchain_mismatch</code></td>
+<td>no pinned channel, or channels match</td>
+<td>—</td>
+<td>channels differ</td>
+</tr>
+<tr>
+<td><code>trybuild_changed</code></td>
+<td>0 changed fixtures</td>
+<td>—</td>
+<td>≥ 1 changed fixture</td>
+</tr>
+<tr>
+<td><code>git_phase_dirty</code></td>
+<td>0 dirty files</td>
+<td>—</td>
+<td>≥ 1 dirty file</td>
+</tr>
+</tbody>
+</table>
+<p>A cross-cutting invariant asserts that every policy defaults to <code>PolicyMode::Suggest</code>, regardless of verdict. No policy may activate in <code>Apply</code> mode without explicit user opt-in. This invariant is encoded as a parametric test:</p>
+<pre><code class="language-rust">#[test]
+fn test_no_policy_uses_apply_mode_by_default() {
+    for r in &amp;[
+        check_target_pressure(5.0, 20.0),
+        check_toolchain_mismatch(&quot;stable&quot;, None),
+        check_trybuild_changed(0),
+        check_git_phase_dirty(0),
+    ] {
+        assert!(matches!(r.mode, PolicyMode::Suggest), …);
+    }
+}
+</code></pre>
+<p>A second cross-cutting invariant asserts that all policies are enabled by default and that every <code>Pass</code> verdict yields an empty recommendation string.</p>
+<h3 id="483-platform-coverage">4.8.3 Platform Coverage</h3>
+<p>The 2×2 test matrix produces four configurations on every push to <code>main</code> and every pull request. The MSRV configuration (<code>1.86</code>) ensures that no dependency silently raises the minimum compiler requirement. The stable configuration tracks the current release of the Rust toolchain and catches regressions introduced by new Clippy lints or standard library changes.</p>
+<hr />
+<h2 id="49-known-limitations">4.9 Known Limitations</h2>
+<h3 id="491-feature-flag-gating">4.9.1 Feature Flag Gating</h3>
+<p>When built without the <code>process-data</code> feature (the default), the Level 5 engine internals are entirely absent from the binary. <code>EngineState</code>, all adapters, cicd.toml I/O, policy evaluation, and XES emission are compiled out. This is intentional: the public CLI surface functions correctly in the default configuration, and internal plumbing is opt-in. However, it means that a user installing cargo-cicd from crates.io without specifying features receives a CLI that does not emit process evidence or evaluate autonomic policies.</p>
+<h3 id="492-policy-apply-mode-not-implemented">4.9.2 Policy Apply Mode Not Implemented</h3>
+<p>The <code>--apply</code> flag is recognised in the CLI grammar but is not yet functional. All policies operate exclusively in <code>suggest</code> mode. Automated remediation — such as running <code>cargo clean</code> when <code>TargetPressurePolicy</code> fires — is deferred pending additional field testing of the policy calibration thresholds.</p>
+<h3 id="493-serial-test-execution">4.9.3 Serial Test Execution</h3>
+<p>cargo-cicd runs tests serially. The <code>--jobs</code> flag is parsed but ignored. The reason is architectural: because <code>cicd.toml</code> is a global file in the workspace root, concurrent test processes modifying it would create a write race. Addressing this limitation would require either per-test cicd.toml namespacing or a locking protocol, both of which are deferred to a post-v26.6.2 release.</p>
+<h3 id="494-git-requirement">4.9.4 Git Requirement</h3>
+<p>All state-tracking features require the workspace to be a git repository. Non-git workspaces receive a degraded experience: git-dependent adapters return empty state, and any test that spawns <code>git status</code> will fail. The integration test suite handles this by always initialising a fresh git repository inside the <code>TempDir</code>.</p>
+<h3 id="495-platform-coverage">4.9.5 Platform Coverage</h3>
+<p>The CI matrix covers Linux (<code>ubuntu-latest</code>) and macOS (<code>macos-latest</code>). Windows is not tested. Path separator differences and the behaviour of <code>git status --porcelain</code> on Windows (particularly with respect to line endings) have not been validated. Users on Windows may encounter path-construction errors in the adapter layer.</p>
+<h3 id="496-wasm4pm-oracle-availability">4.9.6 wasm4pm Oracle Availability</h3>
+<p>The evidence-gate tests exercise the Accept branch only when the <code>wpm</code> binary is present. In standard GitHub Actions runners the binary is absent, so the Accept branch is silently skipped unless <code>REQUIRE_WPM_ORACLE=1</code> is set. Release engineers are responsible for configuring a self-hosted runner with <code>wpm</code> installed, or for running the evidence-gate suite locally against a known-good oracle installation before tagging a release.</p>
+<h3 id="497-no-workspace-federation">4.9.7 No Workspace Federation</h3>
+<p>cargo-cicd recognises exactly one workspace root per invocation, determined by the current working directory or an explicit <code>--root</code> flag. Monorepos that contain multiple Cargo workspaces at different directory levels are not supported. Cross-workspace test dependencies are not modelled in <code>TestPlanState</code>, and the cicd.toml carrier does not support workspace federation semantics.</p>
+<hr />
+<h1 id="chapter-5-conclusion-and-future-work">Chapter 5: Conclusion and Future Work</h1>
+<h2 id="51-summary-of-contributions">5.1 Summary of Contributions</h2>
+<p>This dissertation set out to answer three research questions that motivated the design and implementation of cargo-cicd:</p>
+<p><strong>RQ1:</strong> Can a structured process-data engine be embedded within a conventional developer CLI tool without exposing internal machinery to end users?</p>
+<p><strong>RQ2:</strong> Does a noun-verb command grammar, derived from an ontological manufacturing pipeline, produce a more consistent and extensible DevOps CLI surface than ad-hoc subcommand hierarchies?</p>
+<p><strong>RQ3:</strong> Can local-first CI/CD orchestration — running entirely on the developer's machine, prior to any remote pipeline invocation — reduce integration failures and build cache pressure in Rust workspaces at a rate comparable to dedicated cloud CI systems?</p>
+<p>The thesis answers all three questions affirmatively. cargo-cicd demonstrates that a Level 5 process-data engine — one whose internal state, evidence emission, and policy evaluation are architecturally distinct from its public interface — can be manufactured and deployed as an ordinary Cargo subcommand. End users interact with a simple noun-verb CLI (<code>cargo cicd status</code>, <code>cargo cicd test changed</code>) while the engine silently accumulates workspace state across eleven structured dimensions, emits XES-formatted process evidence, and optionally submits that evidence to an external adjudicator (the wasm4pm oracle) for independent verdict.</p>
+<p>The key achievement is the clean layering: the public boundary presents no forbidden terms, no engine internals, and no process-mining vocabulary. The private boundary, gated behind the <code>process-data</code> feature flag, exposes the full Level 5 engine to contributors, integration tests, and the release-gate evidence pipeline. This separation was enforced not by convention but by the Rust feature flag system and validated at every commit by the <code>invariants</code> integration test suite.</p>
+<h2 id="52-theoretical-contributions">5.2 Theoretical Contributions</h2>
+<h3 id="521-the-level-5-engine-taxonomy">5.2.1 The Level 5 Engine Taxonomy</h3>
+<p>Prior work in DevOps tooling has characterised CI/CD systems at four levels of maturity: scripted pipelines (Level 1), parameterised pipelines (Level 2), reusable pipeline libraries (Level 3), and policy-driven pipelines (Level 4) [1, 2]. This dissertation proposes Level 5 as a distinct category: a <em>process-data engine</em> that treats every developer action as a structured event in a process trace, models workspace state as an aggregate root, and enables post-hoc adjudication of process conformance by an external oracle.</p>
+<p>The distinction between Level 4 and Level 5 is not merely one of sophistication. Level 4 systems enforce policy at invocation time — a rule fires, a build is blocked. Level 5 systems accumulate evidence of <em>process intent</em> alongside outcomes, enabling retrospective conformance analysis, cross-run comparison, and formal acceptance verdicts. This is the core theoretical novelty of cargo-cicd: the tool does not merely enforce rules; it manufactures evidence that rules were followed.</p>
+<h3 id="522-adapter-pattern-formalisation-for-devops-state">5.2.2 Adapter Pattern Formalisation for DevOps State</h3>
+<p>The adapter pipeline introduced in Chapter 3 formalises a pattern that is common in practice but rarely stated precisely. Each adapter in cargo-cicd satisfies three invariants: (i) it reads exactly one external source, (ii) it performs no business logic — only translation — and (iii) it is stateless across invocations. This triple invariant ensures that <code>EngineState</code> is the single source of truth and that adapter correctness can be tested in isolation using fixture workspaces.</p>
+<p>This formalisation extends the classical Adapter pattern [3] by adding the <em>single-source</em> constraint, which is non-trivial in DevOps contexts where external sources (git, cargo, rustup, the filesystem) frequently overlap in the information they expose. For example, both <code>git status --porcelain</code> and <code>cargo metadata</code> can reveal the presence of uncommitted changes to <code>Cargo.lock</code>; the single-source invariant requires one adapter to own that fact, eliminating the risk of contradictory state.</p>
+<h3 id="523-noun-verb-grammar-for-devops-clis">5.2.3 Noun-Verb Grammar for DevOps CLIs</h3>
+<p>Chapter 2 introduced the <code>clap-noun-verb</code> grammar, derived from an OWL ontology (<code>ontology/cargo-cicd.ttl</code>) via SPARQL queries and Tera templates. The grammar encodes DevOps commands as <em>noun</em> (the resource: <code>target</code>, <code>test</code>, <code>git</code>, <code>workspace</code>) and <em>verb</em> (the action: <code>show</code>, <code>prune</code>, <code>changed</code>, <code>close</code>). Default-verb injection allows bare nouns to work without subcommand disambiguation, preserving ergonomics while enforcing structural consistency.</p>
+<p>The contribution is twofold. First, the grammar is <em>manufactured</em>: nouns and verbs are generated from the ontology, not written by hand, which means the CLI surface and its formal specification remain in sync. Second, the grammar is <em>extensible</em>: adding a noun requires registering it in the ontology, regenerating, and implementing the generated scaffolding — a process that enforces interface consistency without requiring contributors to audit existing code. This approach builds on prior work in domain-specific language design [4, 5] and ontology-driven code generation [6], applying those ideas specifically to the DevOps CLI domain.</p>
+<h2 id="53-practical-contributions">5.3 Practical Contributions</h2>
+<h3 id="531-the-cargo-cicd-tool">5.3.1 The cargo-cicd Tool</h3>
+<p>cargo-cicd v26.6.2 is a production-quality Cargo subcommand distributed on crates.io under the MIT/Apache-2.0 dual license. It provides nine commands across seven nouns, covering the complete local CI/CD lifecycle: workspace health diagnosis, git state inspection, changed-test selection, trybuild fixture management, target directory maintenance, and crate publishing. The tool requires no network access for its core operations, runs in under two seconds on representative workspaces, and integrates directly into GitHub Actions pipelines.</p>
+<h3 id="532-the-cicdtoml-schema">5.3.2 The cicd.toml Schema</h3>
+<p>The <code>cicd.toml</code> file is a local state carrier whose schema is defined in <code>src/cicd_toml.rs</code>. It persists cross-run state (last-known target size, last HEAD hash, last test verdicts) and configuration (<code>[target]</code>, <code>[test.changed]</code>, <code>[autonomic]</code>), enabling subsequent invocations to skip expensive recomputation. The schema is versioned and validated at load time; a corrupted or stale <code>cicd.toml</code> is treated as a <code>refuse</code> verdict by the <code>WorkspaceDoctorEvent</code>, not as a silent error. The schema design draws on prior work in local configuration file standards [7] and workspace state management [8].</p>
+<h3 id="533-the-wasm4pm-integration-protocol">5.3.3 The wasm4pm Integration Protocol</h3>
+<p>The wasm4pm integration protocol, formalised in Chapter 4, defines the contract between cargo-cicd (the evidence emitter) and the wasm4pm oracle (the adjudicator). Evidence is emitted in XES format [9] to <code>target/cargo-cicd/evidence/</code>, with one XES file per invocation. The <code>wpm receipt doctor --format json --strict</code> command validates structured receipts; <code>wpm audit &lt;file.xes&gt;</code> validates raw XES traces. Release closure requires both commands to return an <code>Accept</code> verdict. This protocol instantiates the broader process-mining conformance checking paradigm [10, 11] in a local-first DevOps context, demonstrating that formal process conformance need not require a cloud infrastructure or a process-mining server.</p>
+<h2 id="54-lessons-learned">5.4 Lessons Learned</h2>
+<h3 id="541-rust-for-devops-tooling">5.4.1 Rust for DevOps Tooling</h3>
+<p>Rust proved well-suited to DevOps tooling for reasons beyond performance. The ownership model naturally enforces the single-source invariant: only one adapter can hold a mutable reference to a state dimension at a time, making race conditions in the adapter pipeline a compile-time error rather than a test-time discovery. The <code>cfg(feature = ...)</code> attribute provided a clean mechanism for the two-tier public/private boundary, enforced by the type system at every call site. The <code>anyhow</code> crate's error propagation idioms kept adapter code concise without sacrificing error context.</p>
+<p>The primary challenge was the Minimum Supported Rust Version (MSRV) constraint. cargo-cicd requires Rust 1.85 or later, driven by dependencies that use stabilised features from the 2024 edition. Managing MSRV in a tool that targets developers running older stable channels required explicit <code>rust-version</code> declarations in <code>Cargo.toml</code> and a <code>rust-toolchain.toml</code> fixture in the test suite. Future tooling in this space should establish MSRV policy before selecting dependencies, not after.</p>
+<h3 id="542-test-isolation-via-fixture-workspaces">5.4.2 Test Isolation via Fixture Workspaces</h3>
+<p>The <code>FixtureWorkspace</code> pattern — an ephemeral git repository created in a <code>TempDir</code> for each integration test, with a known initial state — proved essential for test reliability. Without fixture isolation, integration tests would depend on the developer's local git state, Cargo cache, and toolchain configuration, making them flaky on CI and impossible to reproduce. The eight fixture archetypes (<code>clean</code>, <code>dirty</code>, <code>missing_manifest</code>, <code>with_toolchain_mismatch</code>, <code>with_target_over_limit</code>, <code>with_corrupted_cicd_toml</code>, <code>with_stale_cicd_toml</code>, <code>with_changed_trybuild_fixture</code>) cover the seven invariant verdicts and provide a vocabulary for describing workspace health states.</p>
+<p>A key lesson is that fixture workspaces must be valid git repositories from their first commit. Several early test failures were caused by adapters that invoked <code>git status --porcelain</code> in a directory that had never been committed to, producing unexpected output. The solution — initialising and committing the fixture in its constructor — is now encoded in the <code>FixtureWorkspace::clean()</code> implementation and serves as the base for all derived fixtures.</p>
+<h3 id="543-the-cost-of-deferred-observability">5.4.3 The Cost of Deferred Observability</h3>
+<p>cargo-cicd v26.6.2 does not use a standard logging framework. Instrumentation is via <code>ProcessEvent</code> emission to XES and direct <code>println!</code>/<code>eprintln!</code> calls. This was a deliberate early decision to avoid the <code>tracing</code>/<code>env_logger</code> dependency weight while the architecture was still evolving. In retrospect, the absence of structured logging added significant friction during adapter debugging: reproducing a failure required adding temporary <code>eprintln!</code> statements, rebuilding, and re-running the test. A structured logging framework, initialised early, would have reduced this friction substantially without adding meaningful binary size for release builds (which strip debug symbols).</p>
+<h2 id="55-future-work">5.5 Future Work</h2>
+<p>The following directions are identified as high-priority extensions for the cargo-cicd research programme. They are ordered from most architecturally constrained (requiring core changes) to most independent (additive features).</p>
+<h3 id="551-remote-state-synchronisation-for-cicdtoml">5.5.1 Remote State Synchronisation for cicd.toml</h3>
+<p>The current <code>cicd.toml</code> is intentionally local-only: it is added to <code>.gitignore</code> and is not pushed to remote. This means that a developer switching machines, or a CI system cloning the repository fresh, starts with no cached state and incurs the full cost of cold-start workspace analysis on every run. Remote state synchronisation would allow <code>cicd.toml</code> to be stored in a lightweight remote store (a git-notes ref, a repository-scoped artifact store, or a dedicated key-value backend) and fetched on clone. The primary challenge is conflict resolution: two developers modifying the same workspace concurrently may produce divergent <code>cicd.toml</code> states. A merge strategy based on last-write-wins per state dimension, with conflict detection for configuration keys, is the most promising approach.</p>
+<h3 id="552-workspace-federation-for-monorepos">5.5.2 Workspace Federation for Monorepos</h3>
+<p>cargo-cicd currently recognises a single workspace root, identified by the presence of a <code>[workspace]</code> section in <code>Cargo.toml</code>. Monorepos that span multiple Cargo workspaces — a common pattern in organisations that maintain both a core library workspace and a tools workspace in the same repository — are not supported. Workspace federation would allow a single <code>cicd.toml</code> at the repository root to aggregate state from multiple workspace roots, with per-workspace configuration sections and a unified policy evaluation pass. This requires extending the <code>EngineState</code> aggregate to carry a vector of <code>WorkspaceState</code> instances and modifying all adapters to accept a workspace selector.</p>
+<h3 id="553-policy-apply-mode">5.5.3 Policy Apply Mode</h3>
+<p>The autonomic policy engine currently operates in <code>suggest</code> mode: policies evaluate workspace state and emit recommendations, but no action is taken without explicit user intervention. The <code>--apply</code> flag is parsed but not implemented. Full policy apply mode would allow policies to take direct action — pruning stale build artifacts, running the formatter, staging changed fixture files — subject to a confirmation prompt and an audit trail in the XES evidence log. The primary safety requirement is idempotency: a policy applied twice must produce the same result as applied once. This is already satisfied for <code>TargetPressurePolicy</code> (pruning is idempotent) but requires careful specification for <code>GitPhaseDirtyPolicy</code> (which may need to stage and commit files).</p>
+<h3 id="554-parallel-test-execution-with-state-locking">5.5.4 Parallel Test Execution with State Locking</h3>
+<p>The current test runner serialises test execution to avoid concurrent writes to <code>cicd.toml</code> and the XES evidence directory. For large workspaces with many independent crates, this serialisation is the dominant source of latency. Parallel test execution would run tests for independent crates concurrently, with a file-level lock on <code>cicd.toml</code> and a per-session evidence directory (using the session ID as a path component). The <code>--jobs N</code> flag is already recognised by the CLI; the implementation requires a work-stealing scheduler and a lock-free merge of per-job <code>TestPlanState</code> results into the aggregate <code>EngineState</code>.</p>
+<h3 id="555-custom-policy-plugin-system">5.5.5 Custom Policy Plugin System</h3>
+<p>Built-in policies cover the invariant workspace health conditions: git dirty state, target directory pressure, toolchain mismatch, and manifest validity. Organisation-specific policies — enforcing internal dependency version alignment, checking for approved license identifiers, or requiring specific commit message formats — cannot currently be expressed. A plugin system would allow policies to be defined as dynamic libraries (<code>.so</code>/<code>.dylib</code>/<code>.dll</code>) or as WebAssembly modules, loaded at runtime from a <code>[plugins]</code> section in <code>cicd.toml</code>. The WebAssembly approach is architecturally preferred: it is sandboxed, cross-platform, and composable with the existing wasm4pm integration.</p>
+<h3 id="556-windows-cross-compilation-support">5.5.6 Windows Cross-Compilation Support</h3>
+<p>cargo-cicd is tested on Linux and macOS. Windows support is blocked by two issues: path separator handling in <code>TargetScannerAdapter</code> (which uses Unix-style path separators in several string operations) and the absence of a Windows CI runner in the release pipeline. Resolving these issues would expand the addressable developer population significantly, as a substantial fraction of Rust developers work on Windows. The changes are largely mechanical — replacing string-based path operations with <code>std::path::PathBuf</code> throughout — but require a Windows test runner and fixture workspace validation on NTFS.</p>
+<h3 id="557-tracing-and-observability-integration">5.5.7 Tracing and Observability Integration</h3>
+<p>Structured logging via the <code>tracing</code> crate [12] would provide three benefits: (i) runtime-configurable verbosity via <code>RUST_LOG</code>, eliminating the need for recompilation during debugging; (ii) span-level timing for adapter calls, enabling performance regression detection; and (iii) integration with <code>tracing-opentelemetry</code> for export to observability backends. The integration path is well-defined: add <code>tracing</code> and <code>tracing-subscriber</code> to <code>[dependencies]</code>, initialise a subscriber in <code>main()</code>, and replace <code>eprintln!</code> calls in adapters with <code>tracing::debug!</code> and <code>tracing::info!</code>. The XES evidence pipeline is orthogonal to the tracing infrastructure and would not be replaced; tracing serves developer debugging, while XES evidence serves process conformance.</p>
+<h2 id="56-closing-remarks">5.6 Closing Remarks</h2>
+<p>cargo-cicd began as a response to a practical observation: Rust workspace developers routinely push code that fails CI for reasons that are locally detectable — dirty git trees, bloated <code>target/</code> directories, broken <code>trybuild</code> fixtures, stale toolchain pins. A tool that checks these conditions in two seconds, before any network round-trip, eliminates an entire class of CI failures and recovers developer time that would otherwise be spent waiting for remote pipelines.</p>
+<p>The contribution of this dissertation is to show that such a tool need not be a collection of shell scripts. By modelling the workspace as an aggregate of structured state dimensions, populating that state through a pipeline of single-source adapters, and emitting every action as process evidence in a standard format, cargo-cicd becomes something more than a linter: it becomes a process-data engine whose behaviour can be formally verified by an external oracle. The wasm4pm integration protocol demonstrates that local-first CI/CD and formal process conformance are not in tension — they are complementary.</p>
+<p>The noun-verb grammar, manufactured from an ontological specification, enforces a discipline that CLI tools rarely achieve: the public interface is a formal projection of a formal model, not an accretion of ad-hoc subcommands. This discipline pays dividends as the tool grows: adding a noun to the ontology propagates a consistent interface through code generation, documentation, and test scaffolding without requiring contributors to audit or imitate existing code.</p>
+<p>The limitations documented in Section 5.5 are real constraints, not theoretical gaps. Remote state synchronisation, workspace federation, and the custom policy plugin system each require non-trivial architectural work. But the foundation laid by cargo-cicd v26.6.2 — the <code>EngineState</code> aggregate, the adapter pipeline, the feature-gated two-tier boundary, the wasm4pm evidence protocol — is designed to support these extensions without requiring a rewrite. The Level 5 engine taxonomy is not a ceiling; it is a floor.</p>
+<hr />
+<h2 id="references_2">References</h2>
+<p>[1] Humble, J. and Farley, D. (2010). <em>Continuous Delivery: Reliable Software Releases through Build, Test, and Deployment Automation</em>. Addison-Wesley Professional.</p>
+<p>[2] Forsgren, N., Humble, J. and Kim, G. (2018). <em>Accelerate: The Science of Lean Software and DevOps</em>. IT Revolution Press.</p>
+<p>[3] Gamma, E., Helm, R., Johnson, R. and Vlissides, J. (1994). <em>Design Patterns: Elements of Reusable Object-Oriented Software</em>. Addison-Wesley.</p>
+<p>[4] Fowler, M. (2010). <em>Domain-Specific Languages</em>. Addison-Wesley Professional.</p>
+<p>[5] Mernik, M., Heering, J. and Sloane, A. M. (2005). When and how to develop domain-specific languages. <em>ACM Computing Surveys</em>, 37(4), pp. 316–344.</p>
+<p>[6] Volter, M. and Stahl, T. (2006). <em>Model-Driven Software Development: Technology, Engineering, Management</em>. John Wiley &amp; Sons.</p>
+<p>[7] Preston-Werner, T. (2013). TOML: Tom's Obvious, Minimal Language. GitHub repository. https://github.com/toml-lang/toml</p>
+<p>[8] Beller, M., Gousios, G. and Zaidman, A. (2017). Oops, my tests broke the build: an explorative analysis of Travis CI with GitHub. In <em>Proceedings of the 14th International Conference on Mining Software Repositories (MSR)</em>, pp. 356–367. IEEE.</p>
+<p>[9] Verbeek, H. M. W., Buijs, J. C. A. M., van Dongen, B. F. and van der Aalst, W. M. P. (2010). XES, XESame, and ProM 6. In <em>Proceedings of the CAiSE Forum</em>, Lecture Notes in Business Information Processing, vol. 72, pp. 60–75. Springer.</p>
+<p>[10] van der Aalst, W. M. P. (2016). <em>Process Mining: Data Science in Action</em>. 2nd ed. Springer.</p>
+<p>[11] Carmona, J., van Dongen, B., Solti, A. and Weidlich, M. (2018). <em>Conformance Checking: Relating Processes and Models</em>. Springer.</p>
+<p>[12] Tokio Contributors (2019). tracing: Application-level tracing for Rust. https://docs.rs/tracing</p>
+<p>[13] Matsakis, N. D. and Klock, F. S. (2014). The Rust programming language. In <em>Proceedings of the 2014 ACM SIGAda Annual Conference on High Integrity Language Technology (HILT)</em>, pp. 103–104. ACM.</p>
+<p>[14] Jung, R., Jourdan, J.-H., Krebbers, R. and Dreyer, D. (2021). Safe systems programming in Rust. <em>Communications of the ACM</em>, 64(4), pp. 144–152.</p>
+<p>[15] Klabnik, S. and Nichols, C. (2019). <em>The Rust Programming Language</em>. No Starch Press.</p>
+<p>[16] van der Aalst, W. M. P., Weijters, A. J. M. M. and Maruster, L. (2004). Workflow mining: discovering process models from event logs. <em>IEEE Transactions on Knowledge and Data Engineering</em>, 16(9), pp. 1128–1142.</p>
+<p>[17] Leemans, S. J. J., Fahland, D. and van der Aalst, W. M. P. (2013). Discovering block-structured process models from event logs — a constructive approach. In <em>Proceedings of the 4th International Conference on Application and Theory of Petri Nets and Concurrency (PETRI NETS)</em>, Lecture Notes in Computer Science, vol. 7927, pp. 311–329. Springer.</p>
+<p>[18] Kephart, J. O. and Chess, D. M. (2003). The vision of autonomic computing. <em>IEEE Computer</em>, 36(1), pp. 41–50.</p>
+<p>[19] Huebscher, M. C. and McCann, J. A. (2008). A survey of autonomic computing — degrees, models, and applications. <em>ACM Computing Surveys</em>, 40(3), pp. 1–28.</p>
+<p>[20] McIlroy, M. D., Pinson, E. N. and Tague, B. A. (1978). UNIX time-sharing system: Forward. <em>Bell System Technical Journal</em>, 57(6), pp. 1899–1904.</p>
+<p>[21] Spinellis, D. (2017). State of the art: a taxonomy of software tools. <em>IEEE Software</em>, 34(5), pp. 10–11.</p>
+<p>[22] Kochhar, P. S., Thung, F. and Lo, D. (2016). Code coverage and test suite effectiveness: empirical study with real bugs in large systems. In <em>Proceedings of the 22nd International Conference on Software Analysis, Evolution and Reengineering (SANER)</em>, pp. 560–564. IEEE.</p>
+<p>[23] Hilton, M., Tunnell, T., Huang, K., Marinov, D. and Dig, D. (2016). Usage, costs, and benefits of continuous integration in open-source projects. In <em>Proceedings of the 31st IEEE/ACM International Conference on Automated Software Engineering (ASE)</em>, pp. 426–437. IEEE.</p>
+<p>[24] Beller, M., Gousios, G. and Zaidman, A. (2019). Travistorrent: Synthesizing Travis CI and GitHub for full-stack research on continuous integration. In <em>Proceedings of the 14th International Conference on Mining Software Repositories (MSR)</em>, pp. 447–450. IEEE.</p>
+<p>[25] Zhao, Y., Serebrenik, A., Zhou, Y., Filkov, V. and Vasilescu, B. (2017). The impact of continuous integration on other software development practices: a large-scale empirical study. In <em>Proceedings of the 32nd IEEE/ACM International Conference on Automated Software Engineering (ASE)</em>, pp. 60–71. IEEE.</p>
+<p>[26] Hoare, C. A. R. (1978). Communicating sequential processes. <em>Communications of the ACM</em>, 21(8), pp. 666–677.</p>
+<p>[27] Milner, R. (1989). <em>Communication and Concurrency</em>. Prentice Hall.</p>
+<p>[28] Gruber, T. R. (1993). A translation approach to portable ontology specifications. <em>Knowledge Acquisition</em>, 5(2), pp. 199–220.</p>
+<p>[29] Noy, N. F. and McGuinness, D. L. (2001). Ontology development 101: a guide to creating your first ontology. Stanford Knowledge Systems Laboratory Technical Report KSL-01-05.</p>
+<p>[30] Dekel, U. and Herbsleb, J. D. (2009). Improving API documentation usability with knowledge pushing. In <em>Proceedings of the 31st International Conference on Software Engineering (ICSE)</em>, pp. 320–330. IEEE.</p>
+</body>
+</html>

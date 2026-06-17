@@ -126,10 +126,7 @@ fn render_git_panel(data: &DashboardData, width: usize) -> String {
     let branch = if data.branch.is_empty() {
         theme::paint("(detached)", Role::Muted)
     } else {
-        Style::new()
-            .fg(Color::Magenta)
-            .bold()
-            .paint(&data.branch)
+        Style::new().fg(Color::Magenta).bold().paint(&data.branch)
     };
 
     // Overall cleanliness drives the headline badge.
@@ -144,11 +141,7 @@ fn render_git_panel(data: &DashboardData, width: usize) -> String {
         .title("Git")
         .box_style(BoxStyle::Rounded)
         .width(width)
-        .push(format!(
-            "{} {}",
-            symbols::chevron(),
-            branch
-        ))
+        .push(format!("{} {}", symbols::chevron(), branch))
         .push(headline);
 
     // Per-metric counts: a colored value only when non-zero, otherwise dim zero.
@@ -181,9 +174,15 @@ fn count_line(label: &str, count: usize, _width: usize, warn_when_set: bool) -> 
     let value = if count == 0 {
         theme::paint("0", Role::Muted)
     } else if warn_when_set {
-        Style::new().fg(Color::Yellow).bold().paint(count.to_string())
+        Style::new()
+            .fg(Color::Yellow)
+            .bold()
+            .paint(count.to_string())
     } else {
-        Style::new().fg(Color::Green).bold().paint(count.to_string())
+        Style::new()
+            .fg(Color::Green)
+            .bold()
+            .paint(count.to_string())
     };
     format!("{}  {}", text::pad(label, 9, Align::Left), value)
 }
@@ -349,7 +348,10 @@ mod tests {
             history: vec![1.0, 2.0, 1.5, 3.0, 3.4],
             policies: vec![
                 ("OK".to_string(), "workspace is clean".to_string()),
-                ("WARN:dry_run".to_string(), "uncommitted changes present".to_string()),
+                (
+                    "WARN:dry_run".to_string(),
+                    "uncommitted changes present".to_string(),
+                ),
                 ("ACCEPTED".to_string(), "evidence verified".to_string()),
             ],
         }

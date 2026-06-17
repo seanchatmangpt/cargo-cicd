@@ -1,0 +1,90 @@
+{
+  "description": "Comprehensive permissions reference with all categories",
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cargo *",
+        "cargo-make *",
+        "cargo cicd *",
+        "rustup *",
+        "git status",
+        "git diff",
+        "git log",
+        "git branch",
+        "cargo-fmt *",
+        "cargo-clippy *"
+      ],
+      "blockingPatterns": [
+        "rm -rf /",
+        "git push --force",
+        "git reset --hard",
+        "cargo clean",
+        "sudo *"
+      ]
+    },
+    "files": {
+      "read": [
+        ".",
+        "Cargo.toml",
+        "Cargo.lock",
+        "CLAUDE.md",
+        "README.md",
+        "cicd.toml",
+        "src/**/*.rs",
+        "tests/**/*.rs",
+        "crates/**/*.rs",
+        "docs/**/*.md",
+        ".claude/settings.json",
+        "ggen.toml",
+        "ontology/**/*.ttl"
+      ],
+      "write": [
+        "src/**/*.rs",
+        "tests/**/*.rs",
+        "crates/**/*.rs",
+        "Cargo.toml",
+        "CLAUDE.md",
+        "docs/**/*.md"
+      ],
+      "blocked": [
+        ".git/**",
+        ".github/**",
+        "target/**",
+        "build/**",
+        ".env",
+        ".env.local",
+        ".env.*.local",
+        "**/*.lock",
+        "**/*.bak",
+        "receipts/**",
+        ".ggen/**"
+      ]
+    },
+    "mcp": {
+      "enabled": [
+        "github",
+        "git"
+      ],
+      "disabled": [
+        "gmail",
+        "slack",
+        "calendar"
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_INCREMENTAL": "1",
+    "CARGO_NET_RETRY": "3",
+    "RUST_LOG": "warn"
+  },
+  "ignorePatterns": [
+    "target/",
+    ".git/",
+    "node_modules/",
+    ".DS_Store",
+    "**/*.swp",
+    "**/*.swo",
+    "*~"
+  ]
+}

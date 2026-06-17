@@ -1,0 +1,263 @@
+name: Weekly Security Audit
+
+on:
+  schedule:
+    # Every Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
+  workflow_dispatch:   # allow manual trigger
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Vulnerability Audit ─────────────────────────────────────────────────────
+  cargo-audit:
+    name: cargo audit (vulnerability scan)
+    runs-on: ubuntu-latest
+    outputs:
+      audit_failed: ${{ steps.audit.outputs.failed }}
+      audit_report: ${{ steps.audit.outputs.report }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        id: audit
+        run: |
+          set +e
+          cargo audit --color never 2>&1 | tee audit-report.txt
+          EXIT_CODE=$?
+          set -e
+
+          REPORT=$(cat audit-report.txt)
+
+          # Write multiline output safely
+          {
+            echo "report<<AUDIT_EOF"
+            echo "$REPORT"
+            echo "AUDIT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::cargo audit found vulnerabilities — will open/update issue"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            echo "cargo audit passed — no known vulnerabilities."
+          fi
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-audit-report
+          path: audit-report.txt
+          retention-days: 90
+
+  # ── Outdated Dependency Scan ────────────────────────────────────────────────
+  cargo-outdated:
+    name: cargo outdated (stale dependencies)
+    runs-on: ubuntu-latest
+    outputs:
+      outdated_found: ${{ steps.outdated.outputs.found }}
+      outdated_report: ${{ steps.outdated.outputs.report }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-outdated
+        run: cargo install cargo-outdated --locked
+
+      - name: Run cargo outdated
+        id: outdated
+        run: |
+          set +e
+          cargo outdated --workspace --color never 2>&1 | tee outdated-report.txt
+          set -e
+
+          REPORT=$(cat outdated-report.txt)
+
+          {
+            echo "report<<OUTDATED_EOF"
+            echo "$REPORT"
+            echo "OUTDATED_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Consider "outdated" if there is at least one row beyond the header
+          LINE_COUNT=$(grep -c '^\w' outdated-report.txt 2>/dev/null || echo "0")
+          if [ "$LINE_COUNT" -gt 1 ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Outdated dependencies found."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No outdated dependencies found."
+          fi
+
+      - name: Upload outdated report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-outdated-report
+          path: outdated-report.txt
+          retention-days: 90
+
+  # ── MSRV Drift Check ────────────────────────────────────────────────────────
+  msrv-check:
+    name: MSRV 1.85 still compiles
+    runs-on: ubuntu-latest
+    outputs:
+      msrv_failed: ${{ steps.msrv.outputs.failed }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.85 (MSRV)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85"
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv-1.85
+
+      - name: Build on MSRV
+        id: msrv
+        run: |
+          set +e
+          cargo build --workspace 2>&1 | tee msrv-report.txt
+          EXIT_CODE=$?
+          set -e
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "::error::MSRV (1.85) build failed — dependencies may have drifted"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            echo "MSRV build passed."
+          fi
+
+      - name: Upload MSRV report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msrv-report
+          path: msrv-report.txt
+          retention-days: 90
+
+  # ── Open Issue on Findings ──────────────────────────────────────────────────
+  open-issue:
+    name: Open/update GitHub issue if problems found
+    runs-on: ubuntu-latest
+    needs: [cargo-audit, cargo-outdated, msrv-check]
+    permissions:
+      issues: write
+    # Only run when at least one check found something actionable
+    if: |
+      needs.cargo-audit.outputs.audit_failed == 'true' ||
+      needs.cargo-outdated.outputs.outdated_found == 'true' ||
+      needs.msrv-check.outputs.msrv_failed == 'true'
+
+    steps:
+      - name: Create or update tracking issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const auditFailed   = '${{ needs.cargo-audit.outputs.audit_failed }}'   === 'true';
+            const outdatedFound = '${{ needs.cargo-outdated.outputs.outdated_found }}' === 'true';
+            const msrvFailed    = '${{ needs.msrv-check.outputs.msrv_failed }}'    === 'true';
+
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const today  = new Date().toISOString().slice(0, 10);
+
+            let body = `## Weekly Security & Dependency Audit — ${today}\n\n`;
+            body += `Workflow run: ${runUrl}\n\n`;
+
+            if (auditFailed) {
+              body += `### Vulnerabilities Found (cargo audit)\n\n`;
+              body += `\`\`\`\n${{ needs.cargo-audit.outputs.audit_report }}\n\`\`\`\n\n`;
+            }
+
+            if (outdatedFound) {
+              body += `### Outdated Dependencies (cargo outdated)\n\n`;
+              body += `\`\`\`\n${{ needs.cargo-outdated.outputs.outdated_report }}\n\`\`\`\n\n`;
+            }
+
+            if (msrvFailed) {
+              body += `### MSRV (1.85) Build Failure\n\n`;
+              body += `The crate no longer compiles on Rust 1.85. Check for dependency version drift.\n\n`;
+            }
+
+            body += `---\n*This issue is auto-created by the weekly audit workflow. Close it once all items are resolved.*\n`;
+
+            const issueTitle = `[Weekly Audit] Dependency / security findings — ${today}`;
+
+            // Search for an open issue with our audit label to avoid duplicates
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              state: 'open',
+              labels: 'weekly-audit',
+              per_page: 1,
+            });
+
+            if (existing.data.length > 0) {
+              // Update existing open issue
+              const issue = existing.data[0];
+              await github.rest.issues.update({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: issue.number,
+                title:        issueTitle,
+                body:         body,
+              });
+              console.log(`Updated existing issue #${issue.number}`);
+            } else {
+              // Ensure the label exists
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  name:  'weekly-audit',
+                });
+              } catch (e) {
+                if (e.status === 404) {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    name:  'weekly-audit',
+                    color: 'e11d48',
+                    description: 'Auto-created by weekly audit workflow',
+                  });
+                }
+              }
+
+              const created = await github.rest.issues.create({
+                owner:  context.repo.owner,
+                repo:   context.repo.repo,
+                title:  issueTitle,
+                body:   body,
+                labels: ['weekly-audit'],
+              });
+              console.log(`Created issue #${created.data.number}: ${created.data.html_url}`);
+            }

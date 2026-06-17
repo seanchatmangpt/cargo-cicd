@@ -1,8 +1,8 @@
 use crate::adapters::GitStatusAdapter;
 use crate::evidence::ProcessEvent;
 use crate::ui::badge::{self, Verdict};
-use crate::ui::theme::{self, Role};
 use crate::ui::panel;
+use crate::ui::theme::{self, Role};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct GitNoun;
@@ -156,7 +156,10 @@ impl VerbCommand for GitCloseVerb {
             "{}",
             panel::kv(&[
                 ("dirty files", status.dirty_files.len().to_string().as_str()),
-                ("untracked", status.untracked_files.len().to_string().as_str()),
+                (
+                    "untracked",
+                    status.untracked_files.len().to_string().as_str()
+                ),
             ])
         );
         println!();

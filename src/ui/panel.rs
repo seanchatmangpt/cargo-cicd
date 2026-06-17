@@ -259,7 +259,7 @@ pub fn banner(title: &str, subtitle: &str) -> String {
         format!(
             "{}{}{}",
             border.paint(corner_l),
-            border.paint(&bx.h.repeat(inner + 2)),
+            border.paint(bx.h.repeat(inner + 2)),
             border.paint(corner_r),
         )
     };
@@ -268,14 +268,7 @@ pub fn banner(title: &str, subtitle: &str) -> String {
 
     // A body row with one space of padding either side of `content` (already
     // padded to `inner`), framed by vertical borders.
-    let row = |content: &str| {
-        format!(
-            "{} {} {}",
-            border.paint(bx.v),
-            content,
-            border.paint(bx.v),
-        )
-    };
+    let row = |content: &str| format!("{} {} {}", border.paint(bx.v), content, border.paint(bx.v),);
     let blank = row(&" ".repeat(inner));
 
     // Center the *plain* title to compute even padding, then paint the centered
@@ -447,7 +440,10 @@ mod tests {
             .push("b")
             .render();
         let widths: Vec<usize> = out.lines().map(text::display_width).collect();
-        assert!(widths.windows(2).all(|w| w[0] == w[1]), "ragged box:\n{out}");
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "ragged box:\n{out}"
+        );
         caps::set_color_override(None);
         caps::set_unicode_override(None);
     }
@@ -467,7 +463,11 @@ mod tests {
         caps::set_unicode_override(Some(true));
         caps::set_color_override(Some(false));
         let out = divider("section", 30);
-        assert_eq!(text::display_width(&out), 30, "divider not full width: {out:?}");
+        assert_eq!(
+            text::display_width(&out),
+            30,
+            "divider not full width: {out:?}"
+        );
         assert!(out.contains("section"));
         caps::set_color_override(None);
         caps::set_unicode_override(None);
@@ -500,7 +500,10 @@ mod tests {
         // Value columns still align under right-aligned keys.
         assert_eq!(first.find('1').unwrap(), second.find('2').unwrap());
         // Right alignment pushes the short key away from the line start.
-        assert!(first.starts_with(' '), "short key not right-aligned: {first:?}");
+        assert!(
+            first.starts_with(' '),
+            "short key not right-aligned: {first:?}"
+        );
         caps::set_color_override(None);
     }
 }

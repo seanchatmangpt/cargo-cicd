@@ -229,7 +229,11 @@ mod tests {
         assert!(out.contains('a'), "missing parent node in:\n{out}");
         assert!(out.contains('b'));
         assert!(out.contains('c'));
-        assert_eq!(out.matches("a").count(), 1, "prefix `a` should be merged:\n{out}");
+        assert_eq!(
+            out.matches("a").count(),
+            1,
+            "prefix `a` should be merged:\n{out}"
+        );
         // `b` then `c` (sorted): tee before corner.
         let bpos = out.find('b').unwrap();
         let cpos = out.find('c').unwrap();
@@ -246,8 +250,14 @@ mod tests {
         let tree = Tree::new("root").child(Tree::leaf("item").note("ok"));
         let out = tree.render();
         // The note text appears, after the label, and is ANSI-styled (dim).
-        assert!(strip_ansi(&out).contains("item   ok"), "note layout wrong:\n{out}");
-        assert!(out.contains("\u{1b}["), "note should be styled when color is on");
+        assert!(
+            strip_ansi(&out).contains("item   ok"),
+            "note layout wrong:\n{out}"
+        );
+        assert!(
+            out.contains("\u{1b}["),
+            "note should be styled when color is on"
+        );
 
         set_unicode_override(None);
         crate::ui::caps::set_color_override(None);
@@ -262,7 +272,10 @@ mod tests {
             .child(Tree::leaf("two"))
             .render();
         // ASCII connectors only — no box-drawing glyphs.
-        assert!(out.contains("+-- ") || out.contains("\\-- "), "expected ASCII tee/corner:\n{out}");
+        assert!(
+            out.contains("+-- ") || out.contains("\\-- "),
+            "expected ASCII tee/corner:\n{out}"
+        );
         assert!(!out.contains('\u{251c}'));
         assert!(!out.contains('\u{2514}'));
 
@@ -282,7 +295,10 @@ mod tests {
             .child(Tree::leaf("b"))
             .render();
         // Under non-last `a`, the deep child line carries a vertical lane.
-        assert!(out.contains('\u{2502}'), "expected vertical continuation lane:\n{out}");
+        assert!(
+            out.contains('\u{2502}'),
+            "expected vertical continuation lane:\n{out}"
+        );
         assert!(out.contains("deep"));
 
         set_unicode_override(None);

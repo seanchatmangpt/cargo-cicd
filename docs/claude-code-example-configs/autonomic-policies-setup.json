@@ -1,0 +1,87 @@
+{
+  "description": "Configuration for autonomic policy development and testing",
+  "hooks": {
+    "SessionStart": {
+      "description": "Setup for autonomic policy work",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --features autonomic --test autonomic_policies"],
+          "description": "Run autonomic policy test suite"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo cicd status"],
+          "description": "Show workspace status (includes policy verdicts)"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo cicd workspace doctor"],
+          "description": "Workspace health check with autonomic suggestions"
+        }
+      ]
+    },
+    "on-file-change": {
+      "description": "Re-test policies when source changes",
+      "filePatterns": [
+        "crates/cargo-cicd/src/autonomic/**/*.rs",
+        "crates/cargo-cicd/src/policies/**/*.rs",
+        "crates/cargo-cicd/tests/autonomic_policies.rs"
+      ],
+      "debounceMs": 2000,
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --features autonomic --lib autonomic::"],
+          "description": "Test autonomic module on change"
+        }
+      ]
+    },
+    "pre-push": {
+      "description": "Validate policy changes before push",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --features autonomic"],
+          "description": "Full test with autonomic enabled"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo test --test autonomic_policies"],
+          "description": "Dedicated autonomic policy tests"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cargo test --features autonomic",
+        "cargo test --test autonomic_policies",
+        "cargo test --lib autonomic::",
+        "cargo cicd status",
+        "cargo cicd workspace doctor",
+        "cargo cicd target show",
+        "cargo cicd test changed"
+      ]
+    },
+    "files": {
+      "read": [
+        "crates/cargo-cicd/src/autonomic/**/*.rs",
+        "crates/cargo-cicd/src/policies/**/*.rs",
+        "crates/cargo-cicd/tests/autonomic_policies.rs",
+        "cicd.toml"
+      ],
+      "write": [
+        "crates/cargo-cicd/src/autonomic/**/*.rs",
+        "crates/cargo-cicd/src/policies/**/*.rs",
+        "crates/cargo-cicd/tests/autonomic_policies.rs"
+      ]
+    }
+  },
+  "env": {
+    "CARGO_FEATURE_AUTONOMIC": "1",
+    "CARGO_FEATURE_PROCESS_DATA": "1",
+    "RUST_BACKTRACE": "1"
+  }
+}

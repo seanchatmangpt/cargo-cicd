@@ -154,7 +154,11 @@ mod tests {
     fn plain_mode_is_passthrough() {
         let _g = CapsGuard::acquire(false, true);
         for r in all_roles() {
-            assert_eq!(paint("text", r), "text", "role {r:?} must not color off-TTY");
+            assert_eq!(
+                paint("text", r),
+                "text",
+                "role {r:?} must not color off-TTY"
+            );
         }
     }
 

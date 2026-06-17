@@ -26,8 +26,8 @@ use crate::ui::progress;
 use crate::ui::style::{Color, Style};
 use crate::ui::symbols::{self, BoxStyle};
 use crate::ui::table::Table;
-use crate::ui::theme::{self, Role};
 use crate::ui::text::Align;
+use crate::ui::theme::{self, Role};
 use crate::ui::tree::Tree;
 
 pub struct UiNoun;
@@ -241,7 +241,9 @@ fn render_demo() -> String {
     push_section(&mut out, "Charts", w);
     let bw = w.saturating_sub(20).max(12);
 
-    let series = [3.0, 5.0, 4.0, 8.0, 6.0, 9.0, 7.0, 11.0, 10.0, 13.0, 12.0, 15.0];
+    let series = [
+        3.0, 5.0, 4.0, 8.0, 6.0, 9.0, 7.0, 11.0, 10.0, 13.0, 12.0, 15.0,
+    ];
     out.push_str(&format!(
         "  {} {}\n",
         theme::paint("sparkline", Role::Label),
@@ -329,7 +331,10 @@ fn render_demo() -> String {
     out.push_str(&format!(
         "  {} {}\n",
         theme::paint("docs", Role::Label),
-        layout::hyperlink("crates.io/crates/cargo-cicd", "https://crates.io/crates/cargo-cicd"),
+        layout::hyperlink(
+            "crates.io/crates/cargo-cicd",
+            "https://crates.io/crates/cargo-cicd"
+        ),
     ));
     out.push('\n');
 
@@ -537,7 +542,10 @@ mod tests {
     fn demo_is_vivid_when_color_forced() {
         let _g = CapsGuard::acquire(Some(true), None);
         let out = render_demo();
-        assert!(out.contains('\u{1b}'), "expected ANSI escapes when color is on");
+        assert!(
+            out.contains('\u{1b}'),
+            "expected ANSI escapes when color is on"
+        );
     }
 
     #[test]
@@ -559,6 +567,8 @@ mod tests {
 
         // A dirty tree surfaces a SUGGEST verdict for the git-phase policy.
         let dirty = collect_policies("nightly", 1.0, 20.0, 3);
-        assert!(dirty.iter().any(|(v, n)| v == "SUGGEST" && n == "git_phase_dirty"));
+        assert!(dirty
+            .iter()
+            .any(|(v, n)| v == "SUGGEST" && n == "git_phase_dirty"));
     }
 }

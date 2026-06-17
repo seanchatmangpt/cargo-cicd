@@ -77,28 +77,18 @@ impl Diagnostic {
             .map(|c| format!("[{c}]"))
             .unwrap_or_default();
         let head_label = format!("{}{}", sev.label(), code);
-        let mut out = format!(
-            "{}: {}",
-            sev.header_style().paint(&head_label),
-            self.title
-        );
+        let mut out = format!("{}: {}", sev.header_style().paint(&head_label), self.title);
 
         // A 3-space hang aligns continuation gutters under the header text.
         let bar = gutter_style().paint(gutter_bar());
         let eq = gutter_style().paint("=");
 
         for n in &self.notes {
-            let marker = Style::new()
-                .fg(Severity::Note.color())
-                .bold()
-                .paint("note");
+            let marker = Style::new().fg(Severity::Note.color()).bold().paint("note");
             out.push_str(&format!("\n   {bar} {marker}: {n}"));
         }
         for h in &self.helps {
-            let marker = Style::new()
-                .fg(Severity::Help.color())
-                .bold()
-                .paint("help");
+            let marker = Style::new().fg(Severity::Help.color()).bold().paint("help");
             out.push_str(&format!("\n   {eq} {marker}: {h}"));
         }
         out
@@ -145,7 +135,7 @@ impl Diagnostic {
 /// `label:` prefix, then the message.
 pub fn line(sev: Severity, msg: &str) -> String {
     let glyph = Style::new().fg(sev.color()).paint(sev.glyph());
-    let label = sev.header_style().paint(&format!("{}:", sev.label()));
+    let label = sev.header_style().paint(format!("{}:", sev.label()));
     format!("{glyph} {label} {msg}")
 }
 

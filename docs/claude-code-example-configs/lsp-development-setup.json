@@ -1,0 +1,83 @@
+{
+  "description": "Configuration for cargo-cicd-lsp development and testing",
+  "hooks": {
+    "SessionStart": {
+      "description": "Setup LSP development environment",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cd crates/cargo-cicd-lsp && cargo build"],
+          "description": "Build LSP server"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cd crates/cargo-cicd-lsp && cargo test"],
+          "description": "Run LSP tests (diagnostics, protocol, lifecycle)"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cargo cicd lsp doctor"],
+          "description": "Verify standalone LSP operation"
+        }
+      ]
+    },
+    "on-file-change": {
+      "description": "Rebuild and test LSP on source changes",
+      "filePatterns": [
+        "crates/cargo-cicd-lsp/src/**/*.rs",
+        "crates/cargo-cicd-lsp/tests/**/*.rs"
+      ],
+      "debounceMs": 2000,
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cd crates/cargo-cicd-lsp && cargo check"],
+          "description": "Quick type-check on change"
+        }
+      ]
+    },
+    "before-commit": {
+      "description": "Lint LSP code",
+      "commands": [
+        {
+          "command": "bash",
+          "args": ["-c", "cd crates/cargo-cicd-lsp && cargo fmt -- --check"],
+          "description": "Check LSP formatting"
+        },
+        {
+          "command": "bash",
+          "args": ["-c", "cd crates/cargo-cicd-lsp && cargo clippy -- -D warnings"],
+          "description": "LSP linter check"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "bash": {
+      "allowlist": [
+        "cd crates/cargo-cicd-lsp && cargo build",
+        "cd crates/cargo-cicd-lsp && cargo test",
+        "cd crates/cargo-cicd-lsp && cargo check",
+        "cd crates/cargo-cicd-lsp && cargo fmt",
+        "cd crates/cargo-cicd-lsp && cargo clippy",
+        "cargo cicd lsp doctor"
+      ]
+    },
+    "files": {
+      "read": [
+        "crates/cargo-cicd-lsp/**/*.rs",
+        "crates/cargo-cicd-lsp/Cargo.toml",
+        "docs/lsp/**/*.md"
+      ],
+      "write": [
+        "crates/cargo-cicd-lsp/src/**/*.rs",
+        "crates/cargo-cicd-lsp/tests/**/*.rs",
+        "crates/cargo-cicd-lsp/Cargo.toml"
+      ]
+    }
+  },
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "RUST_LOG": "debug"
+  }
+}

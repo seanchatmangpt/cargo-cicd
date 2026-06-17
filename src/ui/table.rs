@@ -81,7 +81,8 @@ impl Table {
     }
 
     pub fn row(mut self, cells: &[&str]) -> Self {
-        self.rows.push(cells.iter().map(|s| s.to_string()).collect());
+        self.rows
+            .push(cells.iter().map(|s| s.to_string()).collect());
         self
     }
 
@@ -364,7 +365,10 @@ mod tests {
             .row(&["alpha", "1"])
             .render();
         // The header band must carry SGR escapes (bright cyan / bold).
-        assert!(out.contains('\u{1b}'), "expected ANSI escapes in colored output");
+        assert!(
+            out.contains('\u{1b}'),
+            "expected ANSI escapes in colored output"
+        );
         let first_content = out.lines().nth(1).unwrap_or("");
         assert!(
             first_content.contains("\u{1b}["),
@@ -383,18 +387,33 @@ mod tests {
             .render();
 
         // No ANSI escapes leak into plain output.
-        assert!(!out.contains('\u{1b}'), "plain output must be escape-free: {out:?}");
+        assert!(
+            !out.contains('\u{1b}'),
+            "plain output must be escape-free: {out:?}"
+        );
 
         // Real box-drawing glyphs appear (corners + light horizontal/vertical).
         assert!(out.contains('\u{250c}'), "missing top-left corner: {out:?}");
-        assert!(out.contains('\u{2518}'), "missing bottom-right corner: {out:?}");
+        assert!(
+            out.contains('\u{2518}'),
+            "missing bottom-right corner: {out:?}"
+        );
         assert!(out.contains('\u{2500}'), "missing horizontal rule: {out:?}");
-        assert!(out.contains('\u{2502}'), "missing vertical separator: {out:?}");
-        assert!(out.contains('\u{252c}'), "missing top tee connector: {out:?}");
+        assert!(
+            out.contains('\u{2502}'),
+            "missing vertical separator: {out:?}"
+        );
+        assert!(
+            out.contains('\u{252c}'),
+            "missing top tee connector: {out:?}"
+        );
 
         // Every line has identical display width → columns are aligned.
         let widths: Vec<usize> = out.lines().map(display_width).collect();
-        assert!(widths.windows(2).all(|w| w[0] == w[1]), "uneven line widths: {widths:?}");
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "uneven line widths: {widths:?}"
+        );
 
         // Right-aligned numeric column: the narrow "2" is space-padded so it
         // sits flush-right under the wider "10" (no immediate vertical bar).
@@ -411,19 +430,38 @@ mod tests {
     #[test]
     fn borderless_has_underline_rule_no_box() {
         let _g = CapsGuard::acquire(false, true);
-        let out = simple(&["Key", "Value"], vec![vec!["a".into(), "longvalue".into()]]);
+        let out = simple(
+            &["Key", "Value"],
+            vec![vec!["a".into(), "longvalue".into()]],
+        );
 
         // Underline rule present, but no box corners.
-        assert!(out.contains('\u{2500}'), "borderless should still draw an underline: {out:?}");
-        assert!(!out.contains('\u{250c}'), "borderless must not draw a top-left corner: {out:?}");
-        assert!(!out.contains('\u{2502}'), "borderless must not draw vertical bars: {out:?}");
+        assert!(
+            out.contains('\u{2500}'),
+            "borderless should still draw an underline: {out:?}"
+        );
+        assert!(
+            !out.contains('\u{250c}'),
+            "borderless must not draw a top-left corner: {out:?}"
+        );
+        assert!(
+            !out.contains('\u{2502}'),
+            "borderless must not draw vertical bars: {out:?}"
+        );
 
         // Header + rule + one data row.
-        assert_eq!(out.lines().count(), 3, "expected header, rule, one row: {out:?}");
+        assert_eq!(
+            out.lines().count(),
+            3,
+            "expected header, rule, one row: {out:?}"
+        );
 
         // Columns still line up.
         let widths: Vec<usize> = out.lines().map(display_width).collect();
-        assert!(widths.windows(2).all(|w| w[0] == w[1]), "uneven widths: {widths:?}");
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "uneven widths: {widths:?}"
+        );
     }
 
     #[test]
@@ -435,10 +473,16 @@ mod tests {
             .row(&["a/very/long/path"])
             .render();
         // The long cell was cut and carries the ellipsis glyph.
-        assert!(out.contains('\u{2026}'), "expected ellipsis after truncation: {out:?}");
+        assert!(
+            out.contains('\u{2026}'),
+            "expected ellipsis after truncation: {out:?}"
+        );
         // No content line exceeds the cap + borders/padding.
         for line in out.lines() {
-            assert!(display_width(line) <= 6 + 2 * CELL_PAD + 2, "line too wide: {line:?}");
+            assert!(
+                display_width(line) <= 6 + 2 * CELL_PAD + 2,
+                "line too wide: {line:?}"
+            );
         }
     }
 
@@ -448,14 +492,24 @@ mod tests {
         let out = Table::new()
             .headers(&["X"])
             .zebra(true)
-            .rows(vec![vec!["one".into()], vec!["two".into()], vec!["three".into()]])
+            .rows(vec![
+                vec!["one".into()],
+                vec!["two".into()],
+                vec!["three".into()],
+            ])
             .render();
         // The dim SGR parameter (2) should appear for the striped row.
-        assert!(out.contains("\u{1b}[2"), "expected a dim escape for zebra row: {out:?}");
+        assert!(
+            out.contains("\u{1b}[2"),
+            "expected a dim escape for zebra row: {out:?}"
+        );
         // Stripping ANSI must not change column alignment.
         let plain = strip_ansi(&out);
         let widths: Vec<usize> = plain.lines().map(display_width).collect();
-        assert!(widths.windows(2).all(|w| w[0] == w[1]), "uneven widths under zebra: {widths:?}");
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "uneven widths under zebra: {widths:?}"
+        );
     }
 
     #[test]
@@ -465,6 +519,9 @@ mod tests {
         assert!(out.contains('+'), "ASCII box should use '+': {out:?}");
         assert!(out.contains('-'), "ASCII box should use '-': {out:?}");
         assert!(out.contains('|'), "ASCII box should use '|': {out:?}");
-        assert!(!out.contains('\u{250c}'), "no unicode corners in ASCII mode: {out:?}");
+        assert!(
+            !out.contains('\u{250c}'),
+            "no unicode corners in ASCII mode: {out:?}"
+        );
     }
 }
