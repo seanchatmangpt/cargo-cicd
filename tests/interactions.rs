@@ -371,7 +371,9 @@ fn pipeline_validate_produces_pass_or_warn_lines() {
     );
 }
 
-/// lsp analyzer: close_readiness can be explained via CLI
+/// lsp analyzer: close_readiness can be explained via CLI.
+/// The `lsp` noun is feature-gated, so this only applies with `--features lsp`.
+#[cfg(feature = "lsp")]
 #[test]
 fn lsp_analyzer_close_readiness_explainable() {
     let output = Command::cargo_bin("cargo-cicd")

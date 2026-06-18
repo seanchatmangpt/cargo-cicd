@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use std::time::Instant;
 use crate::evidence::ProcessEvent;
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 pub fn init_evidence(noun_verb: &str) -> (PathBuf, String, ProcessEvent, Instant) {
     let evidence_dir = crate::evidence::evidence_dir();
@@ -16,7 +16,7 @@ pub fn finish_evidence(
     case_id: String,
     verdict: &str,
     noun_verb: &str,
-    evidence_dir: &PathBuf,
+    evidence_dir: &Path,
 ) {
     let mut complete_evt = ProcessEvent::completed(noun_verb, t0, verdict);
     complete_evt.case_id = Some(case_id);

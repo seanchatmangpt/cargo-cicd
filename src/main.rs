@@ -88,6 +88,9 @@ fn main() -> Result<()> {
         }
     }
 
+    // `mut` is required when any noun-adding feature (lsp, autoarch, affidavit,
+    // advanced) is enabled; allow it to be unused on the default feature set.
+    #[allow(unused_mut)]
     let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::pipeline::PipelineNoun::new())

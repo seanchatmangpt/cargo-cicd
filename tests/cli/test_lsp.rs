@@ -10,6 +10,8 @@ fn lsp_doctor_runs() {
         .code(predicate::in_iter(vec![0i32, 1]));
 }
 
+// Strict success path requires the (feature-gated) `lsp` noun to be registered.
+#[cfg(feature = "lsp")]
 #[test]
 fn lsp_explain_known_code() {
     Command::cargo_bin("cargo-cicd")
@@ -47,7 +49,11 @@ fn lsp_help_output_has_no_forbidden_terms() {
         "AGI",
         "Truex",
     ] {
-        assert!(!text.contains(term), "forbidden term '{}' in lsp --help", term);
+        assert!(
+            !text.contains(term),
+            "forbidden term '{}' in lsp --help",
+            term
+        );
     }
 }
 
@@ -66,8 +72,19 @@ fn lsp_check_runs_and_emits_verdict() {
         || text.contains("FAIL")
         || text.contains("no admissibility violations");
     assert!(has_verdict, "lsp check missing verdict in output: {}", text);
-    for term in &["ALIVE", "Nehemiah", "CONSTRUCT8", "Instinct8", "Cargo Court", "AGI"] {
-        assert!(!text.contains(term), "forbidden term '{}' in lsp check output", term);
+    for term in &[
+        "ALIVE",
+        "Nehemiah",
+        "CONSTRUCT8",
+        "Instinct8",
+        "Cargo Court",
+        "AGI",
+    ] {
+        assert!(
+            !text.contains(term),
+            "forbidden term '{}' in lsp check output",
+            term
+        );
     }
 }
 

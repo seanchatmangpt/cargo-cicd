@@ -1,8 +1,13 @@
-/// Proof Tests — `cargo cicd lsp explain` catalog coverage
-///
-/// Verifies that the static CICD diagnostic code catalog is wired to the CLI:
-/// each known code returns a structured explanation on stdout with exit 0;
-/// unknown codes emit an error message on stderr and exit non-zero.
+//! Proof Tests — `cargo cicd lsp explain` catalog coverage
+//!
+//! Verifies that the static CICD diagnostic code catalog is wired to the CLI:
+//! each known code returns a structured explanation on stdout with exit 0;
+//! unknown codes emit an error message on stderr and exit non-zero.
+//!
+//! The `lsp` noun is feature-gated, so the whole suite is gated behind the
+//! `lsp` feature. Run it with `cargo test --features lsp --test lsp_explain`.
+#![cfg(feature = "lsp")]
+
 use assert_cmd::Command;
 
 // ── CICD-GIT-001 ─────────────────────────────────────────────────────────────

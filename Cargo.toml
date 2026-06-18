@@ -237,7 +237,6 @@ assert_cmd = { workspace = true }
 tempfile = { workspace = true }
 predicates = { workspace = true }
 toml = { workspace = true }
-chicago-tdd-tools = { path = "/tmp/chicago-tdd-tools" }
 
 [patch.crates-io]
 wasm4pm-compat = { git = "https://github.com/seanchatmangpt/wasm4pm-compat" }

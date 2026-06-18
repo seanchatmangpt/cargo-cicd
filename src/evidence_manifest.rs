@@ -211,7 +211,7 @@ pub fn compute_trustworthiness(manifest: &EvidenceManifest) -> f32 {
     score += standards_count as f32 * 0.1;
 
     // Clamp to [0.0, 1.0] to guard against future factor additions.
-    score.min(1.0_f32).max(0.0_f32)
+    score.clamp(0.0_f32, 1.0_f32)
 }
 
 // ─── Manifest builder ────────────────────────────────────────────────────────
@@ -525,7 +525,10 @@ mod tests {
     fn to_toml_block_contains_section_header() {
         let m = complete_manifest();
         let block = m.to_toml_block();
-        assert!(block.contains("[evidence]"), "must contain [evidence] header");
+        assert!(
+            block.contains("[evidence]"),
+            "must contain [evidence] header"
+        );
     }
 
     #[test]
@@ -570,7 +573,10 @@ mod tests {
             standards_satisfied: Vec::new(),
         };
         let block = m.to_toml_block();
-        assert!(!block.contains("archive_url"), "None fields must be omitted");
+        assert!(
+            !block.contains("archive_url"),
+            "None fields must be omitted"
+        );
         assert!(!block.contains("oracle_key"), "None fields must be omitted");
     }
 
@@ -578,7 +584,11 @@ mod tests {
     fn validate_complete_manifest_is_valid() {
         let m = complete_manifest();
         let (valid, issues) = m.validate();
-        assert!(valid, "complete manifest should be valid; issues: {:?}", issues);
+        assert!(
+            valid,
+            "complete manifest should be valid; issues: {:?}",
+            issues
+        );
         assert!(issues.is_empty());
     }
 
@@ -677,11 +687,7 @@ mod tests {
     fn from_cargo_toml_returns_none_for_absent_section() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("Cargo.toml");
-        std::fs::write(
-            &path,
-            b"[package]\nname = \"foo\"\nversion = \"0.1.0\"\n",
-        )
-        .unwrap();
+        std::fs::write(&path, b"[package]\nname = \"foo\"\nversion = \"0.1.0\"\n").unwrap();
         let result = EvidenceManifest::from_cargo_toml(&path);
         assert!(
             result.is_none(),
@@ -770,7 +776,10 @@ timestamp = "2026-06-17T00:00:00.000Z"
         let table = format_evidence_status_table(&deps);
         assert!(table.contains("Crate"), "table must have Crate header");
         assert!(table.contains("Version"), "table must have Version header");
-        assert!(table.contains("Evidence"), "table must have Evidence header");
+        assert!(
+            table.contains("Evidence"),
+            "table must have Evidence header"
+        );
         assert!(table.contains("VERIFIED"), "should show VERIFIED badge");
         assert!(table.contains("UNVERIFIED"), "should show UNVERIFIED badge");
     }

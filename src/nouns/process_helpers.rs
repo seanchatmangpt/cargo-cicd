@@ -25,9 +25,9 @@ pub fn run_git(args: &[&str]) -> Result<std::process::Output, NounVerbError> {
 }
 
 pub fn aggregate_verdict(verdicts: &[&str]) -> &'static str {
-    if verdicts.iter().any(|v| *v == "FAIL") {
+    if verdicts.contains(&"FAIL") {
         "FAIL"
-    } else if verdicts.iter().any(|v| *v == "WARN") {
+    } else if verdicts.contains(&"WARN") {
         "WARN"
     } else {
         "PASS"

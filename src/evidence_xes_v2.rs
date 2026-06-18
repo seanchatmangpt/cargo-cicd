@@ -96,7 +96,7 @@ fn detect_workspace_id() -> String {
         .map(|url| {
             // Extract the last component, strip ".git" suffix.
             url.split('/')
-                .last()
+                .next_back()
                 .unwrap_or("workspace")
                 .trim_end_matches(".git")
                 .to_string()
@@ -230,21 +230,57 @@ pub fn to_xes_v2(
     ));
 
     // Workspace context in trace-level attributes (4-space indent inside <trace>).
-    xml.push_str(&string_attr("    ", "cargo_cicd:workspace_id", &workspace_meta.workspace_id));
-    xml.push_str(&string_attr("    ", "cargo_cicd:workspace_root", &workspace_meta.workspace_root));
-    xml.push_str(&string_attr("    ", "cargo_cicd:git_branch", &workspace_meta.git_branch));
-    xml.push_str(&string_attr("    ", "cargo_cicd:git_commit_sha", &workspace_meta.git_commit_sha));
-    xml.push_str(&string_attr("    ", "cargo_cicd:toolchain_version", &workspace_meta.toolchain_version));
-    xml.push_str(&string_attr("    ", "cargo_cicd:cargo_version", &workspace_meta.cargo_version));
-    xml.push_str(&string_attr("    ", "cargo_cicd:os_version", &workspace_meta.os_version));
-    xml.push_str(&string_attr("    ", "cargo_cicd:session_id", &workspace_meta.session_id));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:workspace_id",
+        &workspace_meta.workspace_id,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:workspace_root",
+        &workspace_meta.workspace_root,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:git_branch",
+        &workspace_meta.git_branch,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:git_commit_sha",
+        &workspace_meta.git_commit_sha,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:toolchain_version",
+        &workspace_meta.toolchain_version,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:cargo_version",
+        &workspace_meta.cargo_version,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:os_version",
+        &workspace_meta.os_version,
+    ));
+    xml.push_str(&string_attr(
+        "    ",
+        "cargo_cicd:session_id",
+        &workspace_meta.session_id,
+    ));
 
     // Events (6-space indent inside <event>).
     for event in events {
         xml.push_str("    <event>\n");
 
         // Required: event_id.
-        xml.push_str(&string_attr("      ", "cargo_cicd:event_id", &event.event_id));
+        xml.push_str(&string_attr(
+            "      ",
+            "cargo_cicd:event_id",
+            &event.event_id,
+        ));
 
         // Required: concept:name as "{noun}:{verb}" normalised form.
         let event_name = command_to_event_name(&event.command);
@@ -376,7 +412,11 @@ mod tests {
             repo_path: "/repo".to_string(),
             command: "status show".to_string(),
             verdict_claimed: "PASS".to_string(),
-            duration_ms: if lifecycle == "complete" { Some(42) } else { None },
+            duration_ms: if lifecycle == "complete" {
+                Some(42)
+            } else {
+                None
+            },
             verdict_adjudicated: None,
             adjudicated_at: None,
             oracle_command: None,
