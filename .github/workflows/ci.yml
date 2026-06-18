@@ -12,6 +12,11 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+# Cancel superseded runs on the same ref so pushes don't pile up runners.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── Format (instant, runs in parallel) ──────────────────────────────────────
   fmt:
@@ -19,7 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      # Pin rustfmt for reproducible formatting: a new stable rustfmt release
+      # should never spontaneously turn this gate red. Bump deliberately.
+      - uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: rustfmt
       - run: cargo fmt --check
@@ -48,6 +55,12 @@ jobs:
 
       - name: Tests (autonomic)
         run: cargo test --features autonomic
+
+      - name: Tests (lsp)
+        run: cargo test --features lsp
+
+      - name: Tests (affidavit)
+        run: cargo test --features affidavit
 
       - name: Feature projection
         run: cargo test --features process-data --test feature_projection
