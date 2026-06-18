@@ -71,6 +71,10 @@ contrib = ["process-data"]
 wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
 anti-llm-cheat = ["dep:lsp-max-anti-cheat"]
 lsp = []
+# Cryptographic provenance receipts via the affidavit `affi` CLI (shell-out
+# oracle, mirroring wasm4pm). affidavit itself is a nightly-only crate, so it is
+# integrated as an external binary — never linked — to keep this build on stable.
+affidavit = ["process-data"]
 advanced = [
   "process-data",
   "dep:ignore",
@@ -223,6 +227,10 @@ path = "tests/certification_policies.rs"
 [[test]]
 name = "evidence_manifest"
 path = "tests/evidence_manifest.rs"
+
+[[test]]
+name = "affidavit_integration"
+path = "tests/affidavit_integration.rs"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

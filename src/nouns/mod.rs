@@ -31,3 +31,5 @@ pub mod workspace;
 pub mod autoarch;
 #[cfg(feature = "advanced")]
 pub mod analyze;
+#[cfg(feature = "affidavit")]
+pub mod affidavit;

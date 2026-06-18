@@ -36,6 +36,8 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
             "publish" => Some("run"),
             "workspace" => Some("doctor"),
             "evidence" => Some("doctor"),
+            #[cfg(feature = "affidavit")]
+            "affidavit" => Some("verify"),
             _ => None,
         };
         if let Some(verb) = default_verb {
@@ -106,6 +108,11 @@ fn main() -> Result<()> {
     #[cfg(feature = "autoarch")]
     {
         cli = cli.noun(nouns::autoarch::AutoArchNoun::new());
+    }
+
+    #[cfg(feature = "affidavit")]
+    {
+        cli = cli.noun(nouns::affidavit::AffidavitNoun::new());
     }
 
     #[cfg(feature = "advanced")]

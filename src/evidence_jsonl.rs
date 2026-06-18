@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn jsonl_line_is_valid_json_object() {
         let line = event_to_jsonl_line(&sample_event());
-        assert!(line.starts_with('{'), "JSONL line must start with '{'");
-        assert!(line.ends_with('}'), "JSONL line must end with '}'");
+        assert!(line.starts_with('{'), "JSONL line must start with '{{'");
+        assert!(line.ends_with('}'), "JSONL line must end with '}}'");
     }
 }

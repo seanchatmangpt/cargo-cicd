@@ -88,17 +88,12 @@ pub fn validate_receipt_file(receipt_path: &Path, expected_hash: &str) -> Receip
 /// algorithm used in `evidence::simple_hex_hash`). It produces a 64-character
 /// hex string that is stable and consistent, but is **not** a true SHA-256 hash.
 ///
-/// To replace with real SHA-256:
-/// 1. Add `sha2 = "0.10"` to `[dependencies]` in `Cargo.toml`.
-/// 2. Replace the body of this function with:
-///    ```no_run,ignore
-///    use sha2::{Sha256, Digest};
-///    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-///    Ok(format!("{:x}", Sha256::digest(&bytes)))
-///    ```
+/// For a real cryptographic digest, run the receipt through the affidavit
+/// provenance engine (`cargo cicd affidavit verify`), which BLAKE3-content-
+/// addresses the receipt out-of-process via the `affi` CLI.
 pub fn sha256_file_hex(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    // STUB: FNV-1a fan-out hash. Replace with sha2::Sha256 for real SHA-256.
+    // STUB: FNV-1a fan-out hash. Real BLAKE3 is provided by the affi oracle.
     Ok(fnv1a_fan_out_hex(&bytes))
 }
 
