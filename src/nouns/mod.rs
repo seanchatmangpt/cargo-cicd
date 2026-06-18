@@ -27,9 +27,9 @@ pub mod ui;
 pub mod workspace;
 
 // Feature-gated nouns
-#[cfg(feature = "autoarch")]
-pub mod autoarch;
-#[cfg(feature = "advanced")]
-pub mod analyze;
 #[cfg(feature = "affidavit")]
 pub mod affidavit;
+#[cfg(feature = "advanced")]
+pub mod analyze;
+#[cfg(feature = "autoarch")]
+pub mod autoarch;

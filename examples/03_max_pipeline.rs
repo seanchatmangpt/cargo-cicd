@@ -77,7 +77,11 @@ fn run_maximalist_pipeline() {
 
     // ── 5. Cache ─────────────────────────────────────────────────────────────
     let cache = EngineCache::new(256, Duration::from_secs(300));
-    cache.put_labeled("workspace_digest", digest.to_string().into_bytes(), "fingerprint");
+    cache.put_labeled(
+        "workspace_digest",
+        digest.to_string().into_bytes(),
+        "fingerprint",
+    );
     let hit = cache.get("workspace_digest").map(|e| e.len()).unwrap_or(0);
     println!("[4/10] cache: {hit} bytes cached");
 
@@ -100,11 +104,7 @@ fn run_maximalist_pipeline() {
     // ── 8. Pattern scanner ────────────────────────────────────────────────────
     let scanner = MultiPatternScanner::new(&["TODO", "FIXME", "HACK", "XXX"])
         .expect("valid governance patterns");
-    let matches = scanner.scan(concat!(
-        "TODO: update this\n",
-        "FIXME: broken\n",
-        "OK line",
-    ));
+    let matches = scanner.scan(concat!("TODO: update this\n", "FIXME: broken\n", "OK line",));
     println!("[7/10] pattern: {} governance matches", matches.len());
 
     // ── 9. Diagnostics (miette) ───────────────────────────────────────────────
@@ -118,14 +118,17 @@ fn run_maximalist_pipeline() {
     );
     let rendered = render(&diag);
     let severity = severity_of(&diag);
-    println!("[8/10] diagnostics: {severity:?} — {} chars", rendered.len());
+    println!(
+        "[8/10] diagnostics: {severity:?} — {} chars",
+        rendered.len()
+    );
 
     // ── 10. Histogram ─────────────────────────────────────────────────────────
     let mut latencies = StageLatencies::new("workspace_scan");
     latencies.record(45_000); // 45 ms in microseconds
     latencies.record(12_000); // 12 ms
-    latencies.record(1_000);  // 1 ms
-    latencies.record(8_000);  // 8 ms
+    latencies.record(1_000); // 1 ms
+    latencies.record(8_000); // 8 ms
     let p99_us = latencies.p99();
     println!("[9/10] histogram: workspace_scan p99 = {}µs", p99_us);
 
@@ -139,9 +142,21 @@ fn run_maximalist_pipeline() {
         git_phase: state.git_phase.branch.clone(),
         schema_version: EngineSnapshot::current_schema_version(),
         stages: vec![
-            StageRecord { name: "scan".into(), ok: true, elapsed_ms: 45 },
-            StageRecord { name: "fingerprint".into(), ok: true, elapsed_ms: 12 },
-            StageRecord { name: "dep_graph".into(), ok: true, elapsed_ms: 8 },
+            StageRecord {
+                name: "scan".into(),
+                ok: true,
+                elapsed_ms: 45,
+            },
+            StageRecord {
+                name: "fingerprint".into(),
+                ok: true,
+                elapsed_ms: 12,
+            },
+            StageRecord {
+                name: "dep_graph".into(),
+                ok: true,
+                elapsed_ms: 8,
+            },
         ],
     };
     let encoded = encode(&snapshot).expect("snapshot encodes");
@@ -165,7 +180,10 @@ fn run_maximalist_pipeline() {
     emit_ocel(&events, &out).expect("emit OCEL evidence");
 
     // ── Summary ───────────────────────────────────────────────────────────────
-    let total = timeline.total_span().map(|s| format!("{s}")).unwrap_or_else(|| "n/a".into());
+    let total = timeline
+        .total_span()
+        .map(|s| format!("{s}"))
+        .unwrap_or_else(|| "n/a".into());
     println!();
     println!("pipeline complete — all 10 advanced modules exercised");
     println!("  total span : {total}");

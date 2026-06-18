@@ -66,15 +66,21 @@ pub fn load_oracle_key_from_env() -> Option<OraclePublicKey> {
     let fingerprint = compute_fingerprint(&key_b64);
 
     // Algorithm and provider can be overridden by additional env vars.
-    let algorithm = std::env::var("CICD_ORACLE_KEY_ALGORITHM")
-        .unwrap_or_else(|_| "Ed25519".to_string());
-    let provider = std::env::var("CICD_ORACLE_KEY_PROVIDER")
-        .unwrap_or_else(|_| "wasm4pm".to_string());
+    let algorithm =
+        std::env::var("CICD_ORACLE_KEY_ALGORITHM").unwrap_or_else(|_| "Ed25519".to_string());
+    let provider =
+        std::env::var("CICD_ORACLE_KEY_PROVIDER").unwrap_or_else(|_| "wasm4pm".to_string());
     let valid_from = std::env::var("CICD_ORACLE_KEY_VALID_FROM")
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
-    let valid_until = std::env::var("CICD_ORACLE_KEY_VALID_UNTIL").ok().and_then(
-        |v| if v.trim().is_empty() { None } else { Some(v.trim().to_string()) },
-    );
+    let valid_until = std::env::var("CICD_ORACLE_KEY_VALID_UNTIL")
+        .ok()
+        .and_then(|v| {
+            if v.trim().is_empty() {
+                None
+            } else {
+                Some(v.trim().to_string())
+            }
+        });
 
     Some(OraclePublicKey {
         key_b64,
@@ -92,26 +98,11 @@ pub fn load_oracle_key_from_env() -> Option<OraclePublicKey> {
 /// `<string key="..." value="..."/>` elements inside a `<trace>` element.
 pub fn oracle_key_trace_attributes(key: &OraclePublicKey) -> Vec<(String, String)> {
     let mut attrs = vec![
-        (
-            "oracle:key_b64".to_string(),
-            key.key_b64.clone(),
-        ),
-        (
-            "oracle:algorithm".to_string(),
-            key.algorithm.clone(),
-        ),
-        (
-            "oracle:provider".to_string(),
-            key.provider.clone(),
-        ),
-        (
-            "oracle:valid_from".to_string(),
-            key.valid_from.clone(),
-        ),
-        (
-            "oracle:fingerprint".to_string(),
-            key.fingerprint.clone(),
-        ),
+        ("oracle:key_b64".to_string(), key.key_b64.clone()),
+        ("oracle:algorithm".to_string(), key.algorithm.clone()),
+        ("oracle:provider".to_string(), key.provider.clone()),
+        ("oracle:valid_from".to_string(), key.valid_from.clone()),
+        ("oracle:fingerprint".to_string(), key.fingerprint.clone()),
     ];
     if let Some(ref until) = key.valid_until {
         attrs.push(("oracle:valid_until".to_string(), until.clone()));
@@ -163,8 +154,7 @@ pub fn compute_fingerprint(key_b64: &str) -> String {
 ///
 /// Returns `None` on any invalid character. Does not support URL-safe base64.
 fn decode_base64(input: &str) -> Option<Vec<u8>> {
-    const ALPHABET: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     // Build decode table: maps byte → 6-bit value, 0xFF for invalid.
     let mut table = [0xFFu8; 256];
@@ -252,7 +242,10 @@ mod tests {
     #[test]
     fn compute_fingerprint_returns_non_empty_for_invalid_base64() {
         let fp = compute_fingerprint("not!valid!base64@@@");
-        assert!(!fp.is_empty(), "fingerprint must be non-empty even for invalid b64");
+        assert!(
+            !fp.is_empty(),
+            "fingerprint must be non-empty even for invalid b64"
+        );
     }
 
     #[test]

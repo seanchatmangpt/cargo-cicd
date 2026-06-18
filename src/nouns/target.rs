@@ -75,8 +75,19 @@ impl VerbCommand for TargetShowVerb {
         let _artifact_count = std::fs::read_dir(target_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        let ev_verdict = if verdict_str == "pass" { "PASS" } else { "WARN" };
-        finish_evidence(start_evt, t0, case_id, ev_verdict, "target:show", &evidence_dir);
+        let ev_verdict = if verdict_str == "pass" {
+            "PASS"
+        } else {
+            "WARN"
+        };
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            ev_verdict,
+            "target:show",
+            &evidence_dir,
+        );
         Ok(())
     }
 }
@@ -173,7 +184,14 @@ impl VerbCommand for TargetPruneVerb {
             "PASS"
         };
 
-        finish_evidence(start_evt, t0, case_id, verdict, "target:prune", &evidence_dir);
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            verdict,
+            "target:prune",
+            &evidence_dir,
+        );
         let _ = (would_free_gb, release_protected);
         Ok(())
     }

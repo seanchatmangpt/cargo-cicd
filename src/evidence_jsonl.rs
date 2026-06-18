@@ -46,14 +46,26 @@ pub fn event_to_jsonl_line(event: &ProcessEvent) -> String {
     let mut fields: Vec<String> = Vec::new();
 
     // Required fields — always present.
-    fields.push(format!("{}:{}", json_str("event_id"), json_str(&event.event_id)));
-    fields.push(format!("{}:{}", json_str("timestamp_iso"), json_str(&event.timestamp_iso)));
+    fields.push(format!(
+        "{}:{}",
+        json_str("event_id"),
+        json_str(&event.event_id)
+    ));
+    fields.push(format!(
+        "{}:{}",
+        json_str("timestamp_iso"),
+        json_str(&event.timestamp_iso)
+    ));
     fields.push(format!(
         "{}:{}",
         json_str("lifecycle_transition"),
         json_str(&event.lifecycle_transition)
     ));
-    fields.push(format!("{}:{}", json_str("command"), json_str(&event.command)));
+    fields.push(format!(
+        "{}:{}",
+        json_str("command"),
+        json_str(&event.command)
+    ));
     fields.push(format!(
         "{}:{}",
         json_str("verdict_claimed"),
@@ -64,8 +76,16 @@ pub fn event_to_jsonl_line(event: &ProcessEvent) -> String {
         json_str("workspace_id"),
         json_str(&event.workspace_id)
     ));
-    fields.push(format!("{}:{}", json_str("repo_path"), json_str(&event.repo_path)));
-    fields.push(format!("{}:{}", json_str("trace_class"), json_str(&event.trace_class)));
+    fields.push(format!(
+        "{}:{}",
+        json_str("repo_path"),
+        json_str(&event.repo_path)
+    ));
+    fields.push(format!(
+        "{}:{}",
+        json_str("trace_class"),
+        json_str(&event.trace_class)
+    ));
 
     // Optional fields — omitted when None.
     if let Some(ref case_id) = event.case_id {
@@ -75,13 +95,21 @@ pub fn event_to_jsonl_line(event: &ProcessEvent) -> String {
         fields.push(format!("{}:{}", json_str("duration_ms"), ms));
     }
     if let Some(ref v) = event.verdict_adjudicated {
-        fields.push(format!("{}:{}", json_str("verdict_adjudicated"), json_str(v)));
+        fields.push(format!(
+            "{}:{}",
+            json_str("verdict_adjudicated"),
+            json_str(v)
+        ));
     }
     if let Some(ref ts) = event.adjudicated_at {
         fields.push(format!("{}:{}", json_str("adjudicated_at"), json_str(ts)));
     }
     if let Some(ref oracle) = event.oracle_command {
-        fields.push(format!("{}:{}", json_str("oracle_command"), json_str(oracle)));
+        fields.push(format!(
+            "{}:{}",
+            json_str("oracle_command"),
+            json_str(oracle)
+        ));
     }
 
     format!("{{{}}}", fields.join(","))
@@ -141,21 +169,33 @@ mod tests {
     #[test]
     fn jsonl_line_contains_event_id() {
         let line = event_to_jsonl_line(&sample_event());
-        assert!(line.contains("event_id"), "JSONL line must contain event_id");
-        assert!(line.contains("evt-jsonl-001"), "event_id value must be present");
+        assert!(
+            line.contains("event_id"),
+            "JSONL line must contain event_id"
+        );
+        assert!(
+            line.contains("evt-jsonl-001"),
+            "event_id value must be present"
+        );
     }
 
     #[test]
     fn jsonl_line_contains_timestamp() {
         let line = event_to_jsonl_line(&sample_event());
         assert!(line.contains("timestamp_iso"), "must contain timestamp_iso");
-        assert!(line.contains("2026-06-17"), "timestamp value must be present");
+        assert!(
+            line.contains("2026-06-17"),
+            "timestamp value must be present"
+        );
     }
 
     #[test]
     fn jsonl_line_contains_verdict_claimed() {
         let line = event_to_jsonl_line(&sample_event());
-        assert!(line.contains("verdict_claimed"), "must contain verdict_claimed");
+        assert!(
+            line.contains("verdict_claimed"),
+            "must contain verdict_claimed"
+        );
         assert!(line.contains("PASS"), "verdict value must be present");
     }
 

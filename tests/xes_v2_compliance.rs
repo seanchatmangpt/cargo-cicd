@@ -23,7 +23,11 @@ fn make_event(lifecycle: &str, verdict: &str) -> ProcessEvent {
         repo_path: "/repo/test".to_string(),
         command: "status show".to_string(),
         verdict_claimed: verdict.to_string(),
-        duration_ms: if lifecycle == "complete" { Some(123) } else { None },
+        duration_ms: if lifecycle == "complete" {
+            Some(123)
+        } else {
+            None
+        },
         verdict_adjudicated: None,
         adjudicated_at: None,
         oracle_command: None,
@@ -179,7 +183,11 @@ fn write_xes_v2_creates_file() {
     let path = write_xes_v2_with_meta(&events, "test_case", dir.path(), &test_meta())
         .expect("write_xes_v2 must succeed");
 
-    assert!(path.exists(), "XES v2 file must exist at {}", path.display());
+    assert!(
+        path.exists(),
+        "XES v2 file must exist at {}",
+        path.display()
+    );
     let content = std::fs::read_to_string(&path).expect("must be able to read XES file");
     assert!(!content.is_empty(), "XES v2 file must not be empty");
 }
@@ -259,7 +267,10 @@ fn jsonl_output_contains_verdict_claimed() {
         line.contains("verdict_claimed"),
         "JSONL line must contain 'verdict_claimed'"
     );
-    assert!(line.contains("PASS"), "JSONL line must contain the verdict value");
+    assert!(
+        line.contains("PASS"),
+        "JSONL line must contain the verdict value"
+    );
 }
 
 /// Test 15: write_jsonl creates a file in the specified directory
@@ -279,8 +290,7 @@ fn write_jsonl_creates_file() {
 fn write_jsonl_file_name_follows_convention() {
     let dir = TempDir::new().unwrap();
     let events = vec![make_complete_event()];
-    let path =
-        write_jsonl(&events, "my_jsonl_case", dir.path()).expect("write_jsonl must succeed");
+    let path = write_jsonl(&events, "my_jsonl_case", dir.path()).expect("write_jsonl must succeed");
 
     let filename = path.file_name().unwrap().to_string_lossy();
     assert!(
@@ -299,10 +309,7 @@ fn write_jsonl_file_name_follows_convention() {
 #[test]
 fn write_jsonl_multiple_events_one_per_line() {
     let dir = TempDir::new().unwrap();
-    let events = vec![
-        make_start_event(),
-        make_complete_event(),
-    ];
+    let events = vec![make_start_event(), make_complete_event()];
     let path = write_jsonl(&events, "multi_case", dir.path()).expect("write_jsonl must succeed");
 
     let content = std::fs::read_to_string(&path).expect("must read JSONL file");
@@ -320,8 +327,8 @@ fn write_jsonl_multiple_events_one_per_line() {
 fn write_jsonl_each_line_is_valid_json() {
     let dir = TempDir::new().unwrap();
     let events = vec![make_start_event(), make_complete_event()];
-    let path = write_jsonl(&events, "json_lines_case", dir.path())
-        .expect("write_jsonl must succeed");
+    let path =
+        write_jsonl(&events, "json_lines_case", dir.path()).expect("write_jsonl must succeed");
 
     let content = std::fs::read_to_string(&path).expect("must read JSONL file");
     for (i, line) in content.lines().enumerate() {
@@ -349,8 +356,14 @@ fn xes_v2_output_is_well_formed_xml() {
         xml.starts_with("<?xml"),
         "XES output must start with XML declaration"
     );
-    assert!(xml.contains("<log "), "XES output must have an opening <log> tag");
-    assert!(xml.contains("</log>"), "XES output must have a closing </log> tag");
+    assert!(
+        xml.contains("<log "),
+        "XES output must have an opening <log> tag"
+    );
+    assert!(
+        xml.contains("</log>"),
+        "XES output must have a closing </log> tag"
+    );
     assert!(
         xml.contains("<trace>"),
         "XES output must have an opening <trace> tag"
@@ -379,8 +392,5 @@ fn xes_workspace_meta_from_env_does_not_panic() {
         !meta.workspace_id.is_empty(),
         "workspace_id must have a non-empty default"
     );
-    assert!(
-        !meta.session_id.is_empty(),
-        "session_id must be generated"
-    );
+    assert!(!meta.session_id.is_empty(), "session_id must be generated");
 }

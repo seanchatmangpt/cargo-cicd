@@ -146,7 +146,12 @@ pub fn parse_receipt_json(json_str: &str) -> Result<(String, String, String), St
 pub fn receipt_has_required_fields(json_str: &str) -> Vec<String> {
     let value: serde_json::Value = match serde_json::from_str(json_str) {
         Ok(v) => v,
-        Err(_) => return REQUIRED_RECEIPT_FIELDS.iter().map(|s| s.to_string()).collect(),
+        Err(_) => {
+            return REQUIRED_RECEIPT_FIELDS
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        }
     };
 
     REQUIRED_RECEIPT_FIELDS
@@ -206,21 +211,26 @@ mod tests {
 
     #[test]
     fn validate_receipt_file_not_found() {
-        let result =
-            validate_receipt_file(Path::new("/nonexistent/receipt.json"), "expected_hash");
+        let result = validate_receipt_file(Path::new("/nonexistent/receipt.json"), "expected_hash");
         assert_eq!(result, ReceiptValidationResult::NotFound);
     }
 
     #[test]
     fn validate_receipt_file_hash_mismatch() {
-        let (f, _real_hash) = write_temp_file(r#"{"verdict":"Accept","oracle_id":"wasm4pm","timestamp":"2026-01-01T00:00:00Z","case_id":"c1","trace_hash":"th1"}"#);
+        let (f, _real_hash) = write_temp_file(
+            r#"{"verdict":"Accept","oracle_id":"wasm4pm","timestamp":"2026-01-01T00:00:00Z","case_id":"c1","trace_hash":"th1"}"#,
+        );
         let result = validate_receipt_file(f.path(), "wrong_hash_value");
-        assert!(matches!(result, ReceiptValidationResult::HashMismatch { .. }));
+        assert!(matches!(
+            result,
+            ReceiptValidationResult::HashMismatch { .. }
+        ));
     }
 
     #[test]
     fn parse_receipt_json_valid() {
-        let json = r#"{"verdict":"Accept","oracle_id":"wasm4pm/v1","timestamp":"2026-06-17T00:00:00Z"}"#;
+        let json =
+            r#"{"verdict":"Accept","oracle_id":"wasm4pm/v1","timestamp":"2026-06-17T00:00:00Z"}"#;
         let (verdict, ts, oracle) = parse_receipt_json(json).unwrap();
         assert_eq!(verdict, "Accept");
         assert_eq!(ts, "2026-06-17T00:00:00Z");
@@ -237,7 +247,11 @@ mod tests {
     fn receipt_has_required_fields_all_present() {
         let json = r#"{"verdict":"Accept","oracle_id":"x","timestamp":"t","case_id":"c","trace_hash":"h"}"#;
         let missing = receipt_has_required_fields(json);
-        assert!(missing.is_empty(), "expected no missing fields, got: {:?}", missing);
+        assert!(
+            missing.is_empty(),
+            "expected no missing fields, got: {:?}",
+            missing
+        );
     }
 
     #[test]

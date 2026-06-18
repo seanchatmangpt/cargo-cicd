@@ -8,9 +8,7 @@
 //! - `LlmDetectionResult` correct line numbers in signals
 //! - Pattern detection for specific LLM-style markers
 
-use cargo_cicd::code_provenance::{
-    detect_llm_patterns, summarize_provenance, CodeProvenance,
-};
+use cargo_cicd::code_provenance::{detect_llm_patterns, summarize_provenance, CodeProvenance};
 
 // ── detect_llm_patterns tests ─────────────────────────────────────────────────
 
@@ -111,7 +109,11 @@ fn code_provenance_human_to_tag_roundtrips() {
     let p = CodeProvenance::Human;
     let tag = p.to_tag();
     let parsed = CodeProvenance::from_tag(tag);
-    assert_eq!(parsed, CodeProvenance::Human, "Human must roundtrip via to_tag/from_tag");
+    assert_eq!(
+        parsed,
+        CodeProvenance::Human,
+        "Human must roundtrip via to_tag/from_tag"
+    );
 }
 
 #[test]
@@ -119,7 +121,11 @@ fn code_provenance_unknown_to_tag_roundtrips() {
     let p = CodeProvenance::Unknown;
     let tag = p.to_tag();
     let parsed = CodeProvenance::from_tag(tag);
-    assert_eq!(parsed, CodeProvenance::Unknown, "Unknown must roundtrip via to_tag/from_tag");
+    assert_eq!(
+        parsed,
+        CodeProvenance::Unknown,
+        "Unknown must roundtrip via to_tag/from_tag"
+    );
 }
 
 #[test]
@@ -189,8 +195,14 @@ fn code_provenance_unknown_for_unrecognized_tag() {
 #[test]
 fn summarize_provenance_empty_returns_zeros() {
     let summary = summarize_provenance(&[]);
-    assert_eq!(summary.files_scanned, 0, "files_scanned must be 0 for empty input");
-    assert_eq!(summary.likely_llm_files, 0, "likely_llm_files must be 0 for empty input");
+    assert_eq!(
+        summary.files_scanned, 0,
+        "files_scanned must be 0 for empty input"
+    );
+    assert_eq!(
+        summary.likely_llm_files, 0,
+        "likely_llm_files must be 0 for empty input"
+    );
     assert_eq!(
         summary.avg_confidence, 0.0,
         "avg_confidence must be 0.0 for empty input"
@@ -280,5 +292,8 @@ let result = some_value();
 fn detect_llm_patterns_empty_source_returns_zero() {
     let result = detect_llm_patterns("");
     assert_eq!(result.confidence, 0.0, "empty source must score 0.0");
-    assert!(result.signals.is_empty(), "empty source must have no signals");
+    assert!(
+        result.signals.is_empty(),
+        "empty source must have no signals"
+    );
 }

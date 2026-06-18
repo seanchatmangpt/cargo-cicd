@@ -138,11 +138,7 @@ fn parse_toml_entries(content: &str) -> Vec<SafetyCriticalEntry> {
 fn parse_array_items(fragment: &str, out: &mut Vec<String>) {
     let frag = fragment.trim_end_matches(']').trim();
     for part in frag.split(',') {
-        let item = part
-            .trim()
-            .trim_matches('"')
-            .trim_matches('\'')
-            .to_string();
+        let item = part.trim().trim_matches('"').trim_matches('\'').to_string();
         if !item.is_empty() {
             out.push(item);
         }
@@ -155,10 +151,7 @@ fn parse_kv(line: &str) -> Option<(String, String)> {
     let key = line[..eq].trim().to_string();
     let raw_val = line[eq + 1..].trim();
     // Remove surrounding quotes if present
-    let val = raw_val
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_string();
+    let val = raw_val.trim_matches('"').trim_matches('\'').to_string();
     Some((key, val))
 }
 
@@ -197,15 +190,9 @@ pub fn format_registry_listing(entries: &[SafetyCriticalEntry]) -> String {
     }
 
     for entry in entries {
-        out.push_str(&format!(
-            "\n  {} v{}\n",
-            entry.crate_name, entry.version
-        ));
+        out.push_str(&format!("\n  {} v{}\n", entry.crate_name, entry.version));
         out.push_str(&format!("    Cert body: {}\n", entry.cert_body_id));
-        out.push_str(&format!(
-            "    Standards: {}\n",
-            entry.standards.join(", ")
-        ));
+        out.push_str(&format!("    Standards: {}\n", entry.standards.join(", ")));
         out.push_str(&format!("    Certified: {}\n", entry.certified_at));
         out.push_str(&format!("    Receipt:   {}\n", entry.receipt_hash));
         if let Some(ref url) = entry.evidence_url {
@@ -295,7 +282,10 @@ mod tests {
         )
         .with_evidence_url("https://evidence.example.com/");
         assert_eq!(entry.crate_name, "example-crate");
-        assert_eq!(entry.evidence_url, Some("https://evidence.example.com/".to_string()));
+        assert_eq!(
+            entry.evidence_url,
+            Some("https://evidence.example.com/".to_string())
+        );
     }
 
     #[test]

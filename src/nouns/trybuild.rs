@@ -159,7 +159,14 @@ impl VerbCommand for TrybuildChangedVerb {
             println!("to update snapshots: TRYBUILD=overwrite cargo test");
         }
 
-        finish_evidence(start_evt, t0, case_id, "PASS", "trybuild:changed", &evidence_dir);
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            "PASS",
+            "trybuild:changed",
+            &evidence_dir,
+        );
         let _ = fixture_dir;
         Ok(())
     }

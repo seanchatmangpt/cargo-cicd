@@ -478,7 +478,14 @@ impl VerbCommand for LspExplainVerb {
             }
         };
 
-        finish_evidence(start_evt, t0, case_id, verdict, "lsp:explain", &evidence_dir);
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            verdict,
+            "lsp:explain",
+            &evidence_dir,
+        );
         Ok(())
     }
 }

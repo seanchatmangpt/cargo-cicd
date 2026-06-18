@@ -82,7 +82,14 @@ impl StatusShowVerb {
         );
 
         let ev_verdict = if dirty { "WARN" } else { "PASS" };
-        finish_evidence(start_evt, t0, case_id, ev_verdict, "status:show", &evidence_dir);
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            ev_verdict,
+            "status:show",
+            &evidence_dir,
+        );
 
         // Build real engine state from adapters.
         let engine = EngineState::from_workspace();
@@ -116,9 +123,8 @@ impl StatusShowVerb {
 
         #[cfg(feature = "lsp")]
         {
-            let snapshot = cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(
-                std::path::Path::new("."),
-            );
+            let snapshot =
+                cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(std::path::Path::new("."));
             let findings = cargo_cicd_lsp::analyzers::run_all(&snapshot);
             if !findings.is_empty() {
                 println!();

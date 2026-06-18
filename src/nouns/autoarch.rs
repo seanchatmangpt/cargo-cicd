@@ -16,8 +16,8 @@ use crate::autonomic::policies::{
     WorkspaceInfo,
 };
 use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
-use crate::ui::{panel, symbols, theme};
 use crate::ui::theme::Role;
+use crate::ui::{panel, symbols, theme};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct AutoArchNoun;
@@ -71,7 +71,8 @@ impl VerbCommand for AutoArchTuneVerb {
         let git_state = collect_git_state();
         let evidence_state = collect_evidence_state();
 
-        let (rewards, counts) = score_candidates(&candidates, &workspace_info, &git_state, &evidence_state);
+        let (rewards, counts) =
+            score_candidates(&candidates, &workspace_info, &git_state, &evidence_state);
 
         let total_rounds = counts.iter().sum::<u64>().max(1);
         let best_idx = select_ucb1(&rewards, &counts, total_rounds);
@@ -93,7 +94,14 @@ impl VerbCommand for AutoArchTuneVerb {
             rewards[best_idx]
         );
 
-        finish_evidence(start_evt, t0, case_id, "PASS", "autoarch:tune", &evidence_dir);
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            "PASS",
+            "autoarch:tune",
+            &evidence_dir,
+        );
         Ok(())
     }
 }
@@ -184,9 +192,7 @@ fn score_policy_results(
             PolicyVerdict::Warn => 0.5,
             PolicyVerdict::Suggest => {
                 // Penalise a target-pressure suggest when the workspace is far under threshold.
-                if r.name == "target_pressure"
-                    && workspace.target_gb < config.target_max_gb * 0.5
-                {
+                if r.name == "target_pressure" && workspace.target_gb < config.target_max_gb * 0.5 {
                     -0.5
                 } else {
                     0.3
@@ -231,8 +237,14 @@ fn print_policy_config(config: &PolicyConfig) {
         );
     };
     kv("target_max_gb", format!("{:.1}", config.target_max_gb));
-    kv("target_warn_ratio", format!("{:.1}", config.target_warn_ratio));
+    kv(
+        "target_warn_ratio",
+        format!("{:.1}", config.target_warn_ratio),
+    );
     kv("behind_threshold", format!("{}", config.behind_threshold));
     kv("dirty_threshold", format!("{}", config.dirty_threshold));
-    kv("evidence_staleness_secs", format!("{}", config.evidence_staleness_secs));
+    kv(
+        "evidence_staleness_secs",
+        format!("{}", config.evidence_staleness_secs),
+    );
 }

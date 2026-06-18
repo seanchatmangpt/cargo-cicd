@@ -442,10 +442,7 @@ fn build_ocel_log_impl(events: &[ProcessEvent], filter: bool) -> serde_json::Val
             serde_json::Value::String(ev.trace_class.clone()),
         );
         if let Some(ms) = ev.duration_ms {
-            vmap.insert(
-                "duration_ms".into(),
-                serde_json::Value::Number(ms.into()),
-            );
+            vmap.insert("duration_ms".into(), serde_json::Value::Number(ms.into()));
         }
         if let Some(ref v) = ev.verdict_adjudicated {
             vmap.insert(
@@ -1046,7 +1043,10 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     if std::fs::create_dir_all(&history_dir).is_ok() {
         let ts = now_iso8601().replace(['-', ':', '.', 'T', 'Z'], "");
         let _ = std::fs::copy(&xes_path, history_dir.join(format!("{}-events.xes", ts)));
-        let _ = std::fs::copy(&ocel_path, history_dir.join(format!("{}-events.ocel.json", ts)));
+        let _ = std::fs::copy(
+            &ocel_path,
+            history_dir.join(format!("{}-events.ocel.json", ts)),
+        );
     }
 
     Ok(())

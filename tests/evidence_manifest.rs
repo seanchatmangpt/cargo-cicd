@@ -118,11 +118,7 @@ fn test_compute_trustworthiness_high_when_three_fields_present() {
         score
     );
     // Exact expected: 0.4 + 0.2 + 0.2 = 0.8
-    assert!(
-        (score - 0.8).abs() < 1e-5,
-        "expected 0.8, got {}",
-        score
-    );
+    assert!((score - 0.8).abs() < 1e-5, "expected 0.8, got {}", score);
 }
 
 // ─── Test 6: validate returns issues for missing archive_url ─────────────────
@@ -276,7 +272,10 @@ fn test_to_toml_block_round_trip_via_parse() {
     // Write a Cargo.toml with an evidence section.
     let m = full_manifest();
     let block = m.to_toml_block();
-    let full_toml = format!("[package]\nname = \"my-crate\"\nversion = \"1.0.0\"\n\n{}", block);
+    let full_toml = format!(
+        "[package]\nname = \"my-crate\"\nversion = \"1.0.0\"\n\n{}",
+        block
+    );
     std::fs::write(&cargo_toml_path, full_toml.as_bytes()).expect("write");
 
     let parsed = EvidenceManifest::from_cargo_toml(&cargo_toml_path);
@@ -373,6 +372,12 @@ fn test_validate_missing_receipt_hash_is_invalid() {
 #[test]
 fn test_format_evidence_status_table_empty_deps() {
     let table = format_evidence_status_table(&[]);
-    assert!(table.contains("Crate"), "headers must be present even with no deps");
-    assert!(table.contains("Evidence"), "headers must be present even with no deps");
+    assert!(
+        table.contains("Crate"),
+        "headers must be present even with no deps"
+    );
+    assert!(
+        table.contains("Evidence"),
+        "headers must be present even with no deps"
+    );
 }

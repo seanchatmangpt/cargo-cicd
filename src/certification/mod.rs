@@ -86,9 +86,8 @@ pub fn known_cert_bodies() -> Vec<CertificationBody> {
                 ComplianceStandard::Iso26262 { asil_level: 'B' },
                 ComplianceStandard::Iso26262 { asil_level: 'D' },
             ],
-            oracle_fingerprint:
-                "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
-                    .to_string(),
+            oracle_fingerprint: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+                .to_string(),
         },
         CertificationBody {
             id: "trustinsoft".to_string(),
@@ -100,25 +99,19 @@ pub fn known_cert_bodies() -> Vec<CertificationBody> {
                 ComplianceStandard::Iec61508 { sil_level: 3 },
                 ComplianceStandard::Iec61508 { sil_level: 4 },
             ],
-            oracle_fingerprint:
-                "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3"
-                    .to_string(),
+            oracle_fingerprint: "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3"
+                .to_string(),
         },
         CertificationBody {
             id: "trail-of-bits".to_string(),
             name: "Trail of Bits".to_string(),
             submission_url: "https://www.trailofbits.com/services/security-assessment/".to_string(),
             standards: vec![
-                ComplianceStandard::Custom(
-                    "Trail of Bits Rust Security Assessment".to_string(),
-                ),
-                ComplianceStandard::Custom(
-                    "SLSA Level 3 Supply Chain Audit".to_string(),
-                ),
+                ComplianceStandard::Custom("Trail of Bits Rust Security Assessment".to_string()),
+                ComplianceStandard::Custom("SLSA Level 3 Supply Chain Audit".to_string()),
             ],
-            oracle_fingerprint:
-                "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
-                    .to_string(),
+            oracle_fingerprint: "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
+                .to_string(),
         },
     ]
 }

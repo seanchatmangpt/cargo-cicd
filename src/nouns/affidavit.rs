@@ -93,7 +93,10 @@ impl VerbCommand for AffidavitSealVerb {
 /// affidavit and seal a receipt. Returns the claimed verdict string.
 fn seal_with(shell: &AffidavitShell, receipt_dir: &Path, evidence_dir: &Path) -> &'static str {
     if let Err(e) = std::fs::create_dir_all(receipt_dir) {
-        eprintln!("affidavit seal: cannot create {}: {e}", receipt_dir.display());
+        eprintln!(
+            "affidavit seal: cannot create {}: {e}",
+            receipt_dir.display()
+        );
         return "FAIL";
     }
 

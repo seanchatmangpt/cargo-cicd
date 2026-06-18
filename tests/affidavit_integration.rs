@@ -113,8 +113,8 @@ fn cli_affidavit_help_lists_both_verbs() {
         .output()
         .unwrap();
     // clap-noun-verb routes help through either stream; check both.
-    let text = String::from_utf8_lossy(&out.stdout).to_string()
-        + &String::from_utf8_lossy(&out.stderr);
+    let text =
+        String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
     assert!(text.contains("seal"), "help: {text}");
     assert!(text.contains("verify"), "help: {text}");
 }

@@ -192,9 +192,7 @@ fn main() {
         } else {
             eprintln!(
                 "Validation PASSED for {}-{}. Trustworthiness score: {:.2}",
-                args.crate_name,
-                args.crate_version,
-                score
+                args.crate_name, args.crate_version, score
             );
         }
     }
@@ -206,10 +204,7 @@ fn main() {
             // Append (or update) the [evidence] block in the target Cargo.toml.
             match append_or_update_evidence_block(cargo_toml_path, &block) {
                 Ok(()) => {
-                    eprintln!(
-                        "Written [evidence] block to {}",
-                        cargo_toml_path.display()
-                    );
+                    eprintln!("Written [evidence] block to {}", cargo_toml_path.display());
                 }
                 Err(e) => {
                     eprintln!(
@@ -236,8 +231,7 @@ fn append_or_update_evidence_block(
     cargo_toml_path: &std::path::Path,
     new_block: &str,
 ) -> Result<(), String> {
-    let existing = std::fs::read_to_string(cargo_toml_path)
-        .map_err(|e| format!("read: {}", e))?;
+    let existing = std::fs::read_to_string(cargo_toml_path).map_err(|e| format!("read: {}", e))?;
 
     let updated = if has_evidence_section(&existing) {
         replace_evidence_section(&existing, new_block)

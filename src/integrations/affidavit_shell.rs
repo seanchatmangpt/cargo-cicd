@@ -128,7 +128,14 @@ impl AffidavitShell {
         self.invoke(
             work_dir,
             &[
-                "receipt", "emit", "--type", event_type, "--object", object, "--payload", &payload,
+                "receipt",
+                "emit",
+                "--type",
+                event_type,
+                "--object",
+                object,
+                "--payload",
+                &payload,
             ],
             "receipt emit",
         )
@@ -191,7 +198,13 @@ pub fn affidavit_receipt_dir(evidence_dir: &Path) -> PathBuf {
 fn sanitize_token(s: &str) -> String {
     let cleaned: String = s
         .chars()
-        .map(|c| if c.is_whitespace() || c == ':' { '_' } else { c })
+        .map(|c| {
+            if c.is_whitespace() || c == ':' {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     if cleaned.is_empty() {
         "_".to_string()
@@ -239,7 +252,10 @@ mod tests {
 
     #[test]
     fn event_type_joins_command_and_lifecycle() {
-        assert_eq!(event_type_for("status show", "complete"), "status:show:complete");
+        assert_eq!(
+            event_type_for("status show", "complete"),
+            "status:show:complete"
+        );
         assert_eq!(event_type_for("publish run", ""), "publish:run");
         assert_eq!(event_type_for("", "start"), "event:start");
     }

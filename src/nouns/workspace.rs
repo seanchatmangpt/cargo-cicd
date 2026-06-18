@@ -170,7 +170,14 @@ impl VerbCommand for WorkspaceDoctorVerb {
             "PASS"
         };
 
-        finish_evidence(start_evt, t0, case_id, verdict_str, "workspace:doctor", &evidence_dir);
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            verdict_str,
+            "workspace:doctor",
+            &evidence_dir,
+        );
         Ok(())
     }
 }

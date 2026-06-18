@@ -35,8 +35,8 @@ fn lsp_check_output_contains_verdict_word() {
         .args(["lsp", "check"])
         .output()
         .unwrap();
-    let text = String::from_utf8_lossy(&out.stdout).to_string()
-        + &String::from_utf8_lossy(&out.stderr);
+    let text =
+        String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
     let has_verdict = text.contains("PASS")
         || text.contains("WARN")
         || text.contains("FAIL")

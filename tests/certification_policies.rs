@@ -3,13 +3,13 @@
 // Certification infrastructure policy tests.
 // Vision 2030 — Phase 1, Weeks 3-7: Safety & Certification.
 
-use cargo_cicd::certification::{
-    bodies_for_standard, cert_body_recommendation, known_cert_bodies, ComplianceStandard,
-};
 use cargo_cicd::certification::iec_61508::{self, Sil};
 use cargo_cicd::certification::iso_26262::{self, Asil};
 use cargo_cicd::certification::registry::{
     format_registry_listing, is_certified, SafetyCriticalEntry,
+};
+use cargo_cicd::certification::{
+    bodies_for_standard, cert_body_recommendation, known_cert_bodies, ComplianceStandard,
 };
 
 // ── 1. known_cert_bodies() ────────────────────────────────────────────────────
@@ -84,11 +84,7 @@ fn iec_61508_check_requirement_none_when_command_present() {
 
 #[test]
 fn asil_d_severity_is_4() {
-    assert_eq!(
-        Asil::D.severity(),
-        4,
-        "ASIL D must have severity 4"
-    );
+    assert_eq!(Asil::D.severity(), 4, "ASIL D must have severity 4");
 }
 
 // ── 7. iso_26262::requirements() returns at least 5 items ────────────────────
@@ -108,10 +104,7 @@ fn iso_26262_requirements_at_least_five() {
 #[test]
 fn is_certified_empty_registry_returns_false() {
     let result = is_certified(&[], "serde", "1.0.0");
-    assert!(
-        !result,
-        "empty registry must return false for any crate"
-    );
+    assert!(!result, "empty registry must return false for any crate");
 }
 
 // ── 9. SafetyCriticalEntry can be constructed ─────────────────────────────────
@@ -178,8 +171,14 @@ fn iec_61508_compliance_summary_contains_sil_name() {
         &["7.4.7 — verification".to_string()],
     );
     assert!(summary.contains("SIL 2"), "summary must mention SIL 2");
-    assert!(summary.contains("Satisfied"), "summary must list satisfied items");
-    assert!(summary.contains("Missing"), "summary must list missing items");
+    assert!(
+        summary.contains("Satisfied"),
+        "summary must list satisfied items"
+    );
+    assert!(
+        summary.contains("Missing"),
+        "summary must list missing items"
+    );
 }
 
 // ── Additional: ISO 26262 compliance_summary ──────────────────────────────────

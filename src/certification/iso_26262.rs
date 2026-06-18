@@ -157,10 +157,7 @@ pub fn requirements() -> Vec<Iso26262Requirement> {
 /// Check whether a given set of process evidence commands satisfies an ISO 26262 requirement.
 ///
 /// Returns `None` if satisfied, or `Some(reason)` describing the gap.
-pub fn check_requirement(
-    req: &Iso26262Requirement,
-    event_commands: &[String],
-) -> Option<String> {
+pub fn check_requirement(req: &Iso26262Requirement, event_commands: &[String]) -> Option<String> {
     let covered = req
         .covered_by_commands
         .iter()
@@ -179,10 +176,7 @@ pub fn check_requirement(
 /// Generate a human-readable compliance summary for a given ASIL level.
 pub fn compliance_summary(asil: &Asil, satisfied: &[String], missing: &[String]) -> String {
     let mut out = String::new();
-    out.push_str(&format!(
-        "ISO 26262 Compliance Summary — {}\n",
-        asil.name()
-    ));
+    out.push_str(&format!("ISO 26262 Compliance Summary — {}\n", asil.name()));
     out.push_str(&format!("Description: {}\n\n", asil.description()));
 
     if satisfied.is_empty() && missing.is_empty() {
@@ -206,7 +200,12 @@ pub fn compliance_summary(asil: &Asil, satisfied: &[String], missing: &[String])
     } else {
         (satisfied.len() * 100) / total
     };
-    out.push_str(&format!("\nCoverage: {}% ({}/{})\n", pct, satisfied.len(), total));
+    out.push_str(&format!(
+        "\nCoverage: {}% ({}/{})\n",
+        pct,
+        satisfied.len(),
+        total
+    ));
 
     out
 }
