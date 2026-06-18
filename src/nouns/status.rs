@@ -2,6 +2,7 @@ use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector}
 use crate::autonomic::policy_engine;
 use crate::engine::EngineState;
 use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::badge::{self, Verdict};
 use crate::ui::theme::{self, Role};
 use crate::ui::{chart, panel};
@@ -41,11 +42,7 @@ pub struct StatusShowVerb;
 
 impl StatusShowVerb {
     fn execute(&self) -> anyhow::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("status:show");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("status:show");
 
         println!("{}", panel::header("cargo-cicd workspace status"));
 
@@ -85,12 +82,14 @@ impl StatusShowVerb {
         );
 
         let ev_verdict = if dirty { "WARN" } else { "PASS" };
-        let mut complete_evt = ProcessEvent::completed("status:show", t0, ev_verdict);
-        complete_evt.case_id = Some(case_id.clone());
-
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            ev_verdict,
+            "status:show",
+            &evidence_dir,
+        );
 
         // Build real engine state from adapters.
         let engine = EngineState::from_workspace();
@@ -122,24 +121,24 @@ impl StatusShowVerb {
             }
         }
 
-        // Run LSP analyzers and display findings.
-        let snapshot =
-            cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(std::path::Path::new("."));
-        let findings = cargo_cicd_lsp::analyzers::run_all(&snapshot);
-
-        if !findings.is_empty() {
-            println!();
-            println!("diagnostic findings (from LSP analyzers)");
-            println!("=======================================");
-            for finding in findings {
-                println!(
-                    "[{}] {}: {}",
-                    finding.severity,
-                    finding.code.as_str(),
-                    finding.message
-                );
-                for repair in &finding.repairs {
-                    println!("  → {}", repair);
+        #[cfg(feature = "lsp")]
+        {
+            let snapshot =
+                cargo_cicd_core::workspace::WorkspaceSnapshot::from_path(std::path::Path::new("."));
+            let findings = cargo_cicd_lsp::analyzers::run_all(&snapshot);
+            if !findings.is_empty() {
+                println!();
+                println!("diagnostic findings (from LSP analyzers)");
+                for finding in findings {
+                    println!(
+                        "[{}] {}: {}",
+                        finding.severity,
+                        finding.code.as_str(),
+                        finding.message
+                    );
+                    for repair in &finding.repairs {
+                        println!("  → {}", repair);
+                    }
                 }
             }
         }

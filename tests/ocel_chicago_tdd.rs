@@ -1,8 +1,8 @@
 //! Chicago TDD verification suite for the OCEL 2.0 migration.
 //!
-//! Uses the chicago-tdd-tools framework (AAA pattern, type-first design) to
-//! prove that every capability added in the OCEL migration is complete and
-//! correct — not just compiling, but behaving as specified.
+//! Uses a vendored Arrange-Act-Assert `aaa_test!` macro (see below) to prove
+//! that every capability added in the OCEL migration is complete and correct —
+//! not just compiling, but behaving as specified.
 //!
 //! Coverage map:
 //!  - emit_ocel / emit_ocel_filtered / emit_ocel_fresh / emit_ocel_impl
@@ -49,6 +49,22 @@ use std::collections::HashMap;
 use std::path::Path;
 use tempfile::TempDir;
 
+// ── Arrange-Act-Assert test macro (vendored) ──────────────────────────────────
+//
+// Previously sourced from the external `chicago-tdd-tools` crate, which was
+// declared as a machine-local `/tmp` path dependency. That broke every CI job
+// (cargo could not even load the workspace manifest) and the upstream git repo
+// is unresolvable (malformed `registry` submodule). The framework's only
+// surface used here is the AAA `test!` macro, so it is vendored inline: each
+// invocation expands to a standard `#[test]`, keeping the suite reproducible
+// with zero external/network dependencies.
+macro_rules! aaa_test {
+    ($name:ident, $body:block) => {
+        #[test]
+        fn $name() $body
+    };
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 fn complete_event(cmd: &str) -> ProcessEvent {
@@ -73,7 +89,10 @@ fn declared_events() -> Vec<ProcessEvent> {
 fn empty_ocel_log() -> OcelLog {
     OcelLog {
         version: "2.0".to_string(),
-        types: OcelTypes { object_types: vec![], event_types: vec![] },
+        types: OcelTypes {
+            object_types: vec![],
+            event_types: vec![],
+        },
         events: HashMap::new(),
         objects: HashMap::new(),
     }
@@ -116,7 +135,7 @@ fn single_event_log() -> OcelLog {
 
 // ── emit_ocel ────────────────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(ocel_emit_creates_file, {
+aaa_test!(ocel_emit_creates_file, {
     // Arrange
     let events = declared_events();
     let tmp = TempDir::new().unwrap();
@@ -129,7 +148,7 @@ chicago_tdd_tools::test!(ocel_emit_creates_file, {
     assert!(path.exists(), "emit_ocel must create the file");
 });
 
-chicago_tdd_tools::test!(ocel_emit_version_field_is_2_0, {
+aaa_test!(ocel_emit_version_field_is_2_0, {
     // Arrange
     let events = declared_events();
     let tmp = TempDir::new().unwrap();
@@ -141,10 +160,13 @@ chicago_tdd_tools::test!(ocel_emit_version_field_is_2_0, {
     let val: serde_json::Value = serde_json::from_str(&raw).unwrap();
 
     // Assert
-    assert_eq!(val["ocel:version"], "2.0", "OCEL log must declare version 2.0 (E5 compliance)");
+    assert_eq!(
+        val["ocel:version"], "2.0",
+        "OCEL log must declare version 2.0 (E5 compliance)"
+    );
 });
 
-chicago_tdd_tools::test!(ocel_emit_events_map_contains_all_inputs, {
+aaa_test!(ocel_emit_events_map_contains_all_inputs, {
     // Arrange
     let events = declared_events();
     let tmp = TempDir::new().unwrap();
@@ -164,7 +186,7 @@ chicago_tdd_tools::test!(ocel_emit_events_map_contains_all_inputs, {
     );
 });
 
-chicago_tdd_tools::test!(ocel_emit_object_types_covers_11_cargo_types, {
+aaa_test!(ocel_emit_object_types_covers_11_cargo_types, {
     // Arrange
     let events = declared_events();
     let tmp = TempDir::new().unwrap();
@@ -191,11 +213,15 @@ chicago_tdd_tools::test!(ocel_emit_object_types_covers_11_cargo_types, {
         "cargo.pipeline",
     ];
     for t in &expected {
-        assert!(otypes.contains_key(*t), "ocel:object-types must include {}", t);
+        assert!(
+            otypes.contains_key(*t),
+            "ocel:object-types must include {}",
+            t
+        );
     }
 });
 
-chicago_tdd_tools::test!(ocel_emit_each_event_has_typed_omap, {
+aaa_test!(ocel_emit_each_event_has_typed_omap, {
     // Arrange
     let events = vec![complete_event("status:show")];
     let tmp = TempDir::new().unwrap();
@@ -210,7 +236,10 @@ chicago_tdd_tools::test!(ocel_emit_each_event_has_typed_omap, {
     let omap = first["ocel:typedOmap"].as_array().unwrap();
 
     // Assert
-    assert!(!omap.is_empty(), "every OCEL event must have at least one ocel:typedOmap entry");
+    assert!(
+        !omap.is_empty(),
+        "every OCEL event must have at least one ocel:typedOmap entry"
+    );
     assert_eq!(
         omap[0]["ocel:qualifier"], "cargo.workspace",
         "typedOmap entry must reference cargo.workspace"
@@ -219,7 +248,7 @@ chicago_tdd_tools::test!(ocel_emit_each_event_has_typed_omap, {
 
 // ── emit_ocel_filtered ────────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(ocel_filtered_excludes_start_events, {
+aaa_test!(ocel_filtered_excludes_start_events, {
     // Arrange: one declared complete + one start event (same command)
     let events = vec![complete_event("status:show"), start_event("status:show")];
     let tmp = TempDir::new().unwrap();
@@ -239,7 +268,7 @@ chicago_tdd_tools::test!(ocel_filtered_excludes_start_events, {
     );
 });
 
-chicago_tdd_tools::test!(ocel_filtered_excludes_noise_events, {
+aaa_test!(ocel_filtered_excludes_noise_events, {
     // Arrange: noise event not in DECLARED_ACTIVITIES
     let events = vec![complete_event("git:status"), complete_event("status:show")];
     let tmp = TempDir::new().unwrap();
@@ -259,7 +288,7 @@ chicago_tdd_tools::test!(ocel_filtered_excludes_noise_events, {
     );
 });
 
-chicago_tdd_tools::test!(ocel_fresh_overwrites_existing_file, {
+aaa_test!(ocel_fresh_overwrites_existing_file, {
     // Arrange: write initial file, then overwrite with single event
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("fresh.ocel.json");
@@ -284,7 +313,7 @@ chicago_tdd_tools::test!(ocel_fresh_overwrites_existing_file, {
 
 // ── build_ocel_log ────────────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(build_ocel_log_returns_valid_json, {
+aaa_test!(build_ocel_log_returns_valid_json, {
     // Arrange
     let events = declared_events();
 
@@ -299,7 +328,7 @@ chicago_tdd_tools::test!(build_ocel_log_returns_valid_json, {
     assert!(log["ocel:event-types"].is_object());
 });
 
-chicago_tdd_tools::test!(build_ocel_log_filtered_empty_for_all_noise, {
+aaa_test!(build_ocel_log_filtered_empty_for_all_noise, {
     // Arrange: all events are noise
     let events = vec![complete_event("git:status"), complete_event("git:close")];
 
@@ -316,7 +345,7 @@ chicago_tdd_tools::test!(build_ocel_log_filtered_empty_for_all_noise, {
 
 // ── append_events writes both formats ─────────────────────────────────────────
 
-chicago_tdd_tools::test!(append_events_writes_ocel_json, {
+aaa_test!(append_events_writes_ocel_json, {
     // Arrange
     let tmp = TempDir::new().unwrap();
     let evidence_dir = tmp.path().to_path_buf();
@@ -327,10 +356,13 @@ chicago_tdd_tools::test!(append_events_writes_ocel_json, {
 
     // Assert
     let ocel_path = evidence_dir.join("events.ocel.json");
-    assert!(ocel_path.exists(), "append_events must write events.ocel.json");
+    assert!(
+        ocel_path.exists(),
+        "append_events must write events.ocel.json"
+    );
 });
 
-chicago_tdd_tools::test!(append_events_writes_xes_alongside_ocel, {
+aaa_test!(append_events_writes_xes_alongside_ocel, {
     // Arrange
     let tmp = TempDir::new().unwrap();
     let evidence_dir = tmp.path().to_path_buf();
@@ -341,10 +373,13 @@ chicago_tdd_tools::test!(append_events_writes_xes_alongside_ocel, {
 
     // Assert — XES must still be present (backward-compat invariant)
     let xes_path = evidence_dir.join("events.xes");
-    assert!(xes_path.exists(), "append_events must still write events.xes (backward compat)");
+    assert!(
+        xes_path.exists(),
+        "append_events must still write events.xes (backward compat)"
+    );
 });
 
-chicago_tdd_tools::test!(append_events_ocel_accumulates_across_calls, {
+aaa_test!(append_events_ocel_accumulates_across_calls, {
     // Arrange: two separate append calls
     let tmp = TempDir::new().unwrap();
     let evidence_dir = tmp.path().to_path_buf();
@@ -365,7 +400,7 @@ chicago_tdd_tools::test!(append_events_ocel_accumulates_across_calls, {
     );
 });
 
-chicago_tdd_tools::test!(append_events_archives_ocel_to_history, {
+aaa_test!(append_events_archives_ocel_to_history, {
     // Arrange
     let tmp = TempDir::new().unwrap();
     let evidence_dir = tmp.path().to_path_buf();
@@ -383,12 +418,15 @@ chicago_tdd_tools::test!(append_events_archives_ocel_to_history, {
                 .count()
         })
         .unwrap_or(0);
-    assert_eq!(archive_count, 1, "history/ must contain exactly one archived OCEL file");
+    assert_eq!(
+        archive_count, 1,
+        "history/ must contain exactly one archived OCEL file"
+    );
 });
 
 // ── WpmEvidenceOracle::audit_ocel ─────────────────────────────────────────────
 
-chicago_tdd_tools::test!(audit_ocel_returns_blocked_when_oracle_absent, {
+aaa_test!(audit_ocel_returns_blocked_when_oracle_absent, {
     // Arrange: oracle without wpm binary will be absent in CI
     let oracle = WpmEvidenceOracle::new();
     let tmp = TempDir::new().unwrap();
@@ -409,7 +447,7 @@ chicago_tdd_tools::test!(audit_ocel_returns_blocked_when_oracle_absent, {
     // If oracle IS available, any non-panic result satisfies the test.
 });
 
-chicago_tdd_tools::test!(audit_ocel_returns_blocked_for_missing_file, {
+aaa_test!(audit_ocel_returns_blocked_for_missing_file, {
     // Arrange
     let oracle = WpmEvidenceOracle::new();
     let absent = Path::new("/tmp/does-not-exist-ocel.json");
@@ -427,7 +465,7 @@ chicago_tdd_tools::test!(audit_ocel_returns_blocked_for_missing_file, {
 
 // ── assert_wpm_verdict_ocel ───────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(assert_wpm_verdict_ocel_passes_on_blocked_blocked, {
+aaa_test!(assert_wpm_verdict_ocel_passes_on_blocked_blocked, {
     // Arrange
     let oracle = WpmEvidenceOracle::new();
     let absent = Path::new("/tmp/does-not-exist-ocel.json");
@@ -438,18 +476,21 @@ chicago_tdd_tools::test!(assert_wpm_verdict_ocel_passes_on_blocked_blocked, {
 
 // ── Wasm4pmShell new receipt methods ─────────────────────────────────────────
 
-chicago_tdd_tools::test!(wasm4pm_shell_receipt_verify_ocel2_returns_err_when_absent, {
-    // Arrange: detect() returns None in CI without wpm, so we use a known-absent path
-    if let Some(wpm) = Wasm4pmShell::detect() {
-        // Act
-        let result = wpm.receipt_verify_ocel2("/tmp/no-such-file.ocel.json");
-        // Assert: returns a Result (Ok or Err), never panics
-        let _ = result;
+aaa_test!(
+    wasm4pm_shell_receipt_verify_ocel2_returns_err_when_absent,
+    {
+        // Arrange: detect() returns None in CI without wpm, so we use a known-absent path
+        if let Some(wpm) = Wasm4pmShell::detect() {
+            // Act
+            let result = wpm.receipt_verify_ocel2("/tmp/no-such-file.ocel.json");
+            // Assert: returns a Result (Ok or Err), never panics
+            let _ = result;
+        }
+        // If wpm not present, compile-time proof that the method exists is sufficient.
     }
-    // If wpm not present, compile-time proof that the method exists is sufficient.
-});
+);
 
-chicago_tdd_tools::test!(wasm4pm_shell_six_receipt_methods_are_callable, {
+aaa_test!(wasm4pm_shell_six_receipt_methods_are_callable, {
     // Compile-time check: all 6 new methods exist and have correct signatures.
     // This test proves the API surface is complete even without a live wpm binary.
     if let Some(wpm) = Wasm4pmShell::detect() {
@@ -465,15 +506,19 @@ chicago_tdd_tools::test!(wasm4pm_shell_six_receipt_methods_are_callable, {
 
 // ── ocel::OcelLog struct ──────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(ocel_log_cargo_object_types_returns_11, {
+aaa_test!(ocel_log_cargo_object_types_returns_11, {
     // Arrange + Act
     let types = OcelLog::cargo_object_types();
 
     // Assert
-    assert_eq!(types.len(), 11, "OcelLog::cargo_object_types() must return exactly 11 types");
+    assert_eq!(
+        types.len(),
+        11,
+        "OcelLog::cargo_object_types() must return exactly 11 types"
+    );
 });
 
-chicago_tdd_tools::test!(ocel_log_validate_empty_log_passes, {
+aaa_test!(ocel_log_validate_empty_log_passes, {
     // Arrange
     let log = empty_ocel_log();
 
@@ -481,12 +526,15 @@ chicago_tdd_tools::test!(ocel_log_validate_empty_log_passes, {
     let report = log.validate();
 
     // Assert — an empty log is structurally valid
-    assert!(report.valid, "validate() on an empty OcelLog must return valid=true");
+    assert!(
+        report.valid,
+        "validate() on an empty OcelLog must return valid=true"
+    );
     assert_eq!(report.event_count, 0);
     assert_eq!(report.object_count, 0);
 });
 
-chicago_tdd_tools::test!(ocel_log_validate_detects_missing_object_type, {
+aaa_test!(ocel_log_validate_detects_missing_object_type, {
     // Arrange: event references object type not declared in types and missing from objects
     let mut events: HashMap<String, OcelEvent> = HashMap::new();
     events.insert(
@@ -505,7 +553,10 @@ chicago_tdd_tools::test!(ocel_log_validate_detects_missing_object_type, {
 
     let log = OcelLog {
         version: "2.0".to_string(),
-        types: OcelTypes { object_types: vec![], event_types: vec![] },
+        types: OcelTypes {
+            object_types: vec![],
+            event_types: vec![],
+        },
         events,
         objects: HashMap::new(),
     };
@@ -520,7 +571,7 @@ chicago_tdd_tools::test!(ocel_log_validate_detects_missing_object_type, {
     );
 });
 
-chicago_tdd_tools::test!(ocel_log_validate_passes_for_declared_types, {
+aaa_test!(ocel_log_validate_passes_for_declared_types, {
     // Arrange: event correctly references declared type and existing object
     let log = single_event_log();
 
@@ -537,7 +588,7 @@ chicago_tdd_tools::test!(ocel_log_validate_passes_for_declared_types, {
     assert_eq!(report.object_count, 1);
 });
 
-chicago_tdd_tools::test!(ocel_log_flatten_groups_events_by_pipeline_object, {
+aaa_test!(ocel_log_flatten_groups_events_by_pipeline_object, {
     // Arrange: two events belonging to two distinct pipeline objects → two cases
     let mut events: HashMap<String, OcelEvent> = HashMap::new();
     events.insert(
@@ -604,11 +655,17 @@ chicago_tdd_tools::test!(ocel_log_flatten_groups_events_by_pipeline_object, {
         2,
         "flatten() must produce one case per distinct cargo.pipeline object"
     );
-    assert_eq!(flat.total_events, 2, "flatten() must report correct total_events");
-    assert_eq!(flat.total_objects, 2, "flatten() must report correct total_objects");
+    assert_eq!(
+        flat.total_events, 2,
+        "flatten() must report correct total_events"
+    );
+    assert_eq!(
+        flat.total_objects, 2,
+        "flatten() must report correct total_objects"
+    );
 });
 
-chicago_tdd_tools::test!(ocel_log_flatten_single_event_no_pipeline_goes_to_default, {
+aaa_test!(ocel_log_flatten_single_event_no_pipeline_goes_to_default, {
     // Arrange: event with no cargo.pipeline relationship → goes to "default" case
     let log = single_event_log();
 
@@ -616,12 +673,16 @@ chicago_tdd_tools::test!(ocel_log_flatten_single_event_no_pipeline_goes_to_defau
     let flat = log.flatten();
 
     // Assert — one case (the "default" bucket)
-    assert_eq!(flat.cases.len(), 1, "event with no cargo.pipeline relationship must land in default case");
+    assert_eq!(
+        flat.cases.len(),
+        1,
+        "event with no cargo.pipeline relationship must land in default case"
+    );
     assert_eq!(flat.cases[0].case_id, "default");
     assert_eq!(flat.cases[0].events.len(), 1);
 });
 
-chicago_tdd_tools::test!(ocel_log_e2o_returns_event_object_type_triples, {
+aaa_test!(ocel_log_e2o_returns_event_object_type_triples, {
     // Arrange
     let log = single_event_log();
 
@@ -629,7 +690,11 @@ chicago_tdd_tools::test!(ocel_log_e2o_returns_event_object_type_triples, {
     let triples = log.e2o();
 
     // Assert — (event_id, object_id, object_type) triple
-    assert_eq!(triples.len(), 1, "e2o() must return one triple per relationship");
+    assert_eq!(
+        triples.len(),
+        1,
+        "e2o() must return one triple per relationship"
+    );
     assert!(
         triples.iter().any(|&(eid, oid, otype)| {
             eid == "e1" && oid == "ws:test" && otype == "cargo.workspace"
@@ -639,7 +704,7 @@ chicago_tdd_tools::test!(ocel_log_e2o_returns_event_object_type_triples, {
     );
 });
 
-chicago_tdd_tools::test!(ocel_log_o2o_returns_empty_for_no_object_relations, {
+aaa_test!(ocel_log_o2o_returns_empty_for_no_object_relations, {
     // Arrange: no O2O relationships in our single_event_log
     let log = single_event_log();
 
@@ -653,11 +718,14 @@ chicago_tdd_tools::test!(ocel_log_o2o_returns_empty_for_no_object_relations, {
     );
 });
 
-chicago_tdd_tools::test!(ocel_log_oaval_returns_attribute_values_by_type, {
+aaa_test!(ocel_log_oaval_returns_attribute_values_by_type, {
     // Arrange: object with an attribute in ovmap
     let mut objects: HashMap<String, OcelObject> = HashMap::new();
     let mut ovmap = HashMap::new();
-    ovmap.insert("repo_path".to_string(), serde_json::json!("/home/user/cargo-cicd"));
+    ovmap.insert(
+        "repo_path".to_string(),
+        serde_json::json!("/home/user/cargo-cicd"),
+    );
     objects.insert(
         "ws:test".to_string(),
         OcelObject {
@@ -669,7 +737,10 @@ chicago_tdd_tools::test!(ocel_log_oaval_returns_attribute_values_by_type, {
 
     let log = OcelLog {
         version: "2.0".to_string(),
-        types: OcelTypes { object_types: vec![], event_types: vec![] },
+        types: OcelTypes {
+            object_types: vec![],
+            event_types: vec![],
+        },
         events: HashMap::new(),
         objects,
     };
@@ -678,7 +749,11 @@ chicago_tdd_tools::test!(ocel_log_oaval_returns_attribute_values_by_type, {
     let vals = log.oaval("cargo.workspace", "repo_path");
 
     // Assert
-    assert_eq!(vals.len(), 1, "oaval() must return one entry for the matching object");
+    assert_eq!(
+        vals.len(),
+        1,
+        "oaval() must return one entry for the matching object"
+    );
     assert_eq!(
         vals[0].1,
         &serde_json::json!("/home/user/cargo-cicd"),
@@ -688,7 +763,7 @@ chicago_tdd_tools::test!(ocel_log_oaval_returns_attribute_values_by_type, {
 
 // ── ocel::blake3_hex ──────────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(blake3_hex_produces_64_char_hex, {
+aaa_test!(blake3_hex_produces_64_char_hex, {
     // Arrange
     let data = b"cargo-cicd process evidence";
 
@@ -696,14 +771,18 @@ chicago_tdd_tools::test!(blake3_hex_produces_64_char_hex, {
     let hex = blake3_hex(data);
 
     // Assert
-    assert_eq!(hex.len(), 64, "blake3_hex must return a 64-character hex string");
+    assert_eq!(
+        hex.len(),
+        64,
+        "blake3_hex must return a 64-character hex string"
+    );
     assert!(
         hex.chars().all(|c| c.is_ascii_hexdigit()),
         "blake3_hex must return only hex characters"
     );
 });
 
-chicago_tdd_tools::test!(blake3_hex_is_deterministic, {
+aaa_test!(blake3_hex_is_deterministic, {
     // Arrange
     let data = b"deterministic input";
 
@@ -712,21 +791,27 @@ chicago_tdd_tools::test!(blake3_hex_is_deterministic, {
     let h2 = blake3_hex(data);
 
     // Assert
-    assert_eq!(h1, h2, "blake3_hex must be deterministic for identical input");
+    assert_eq!(
+        h1, h2,
+        "blake3_hex must be deterministic for identical input"
+    );
 });
 
-chicago_tdd_tools::test!(blake3_hex_differs_for_different_inputs, {
+aaa_test!(blake3_hex_differs_for_different_inputs, {
     // Arrange
     let a = blake3_hex(b"input-a");
     let b = blake3_hex(b"input-b");
 
     // Assert — different inputs must produce different hashes
-    assert_ne!(a, b, "blake3_hex must produce distinct hashes for distinct inputs");
+    assert_ne!(
+        a, b,
+        "blake3_hex must produce distinct hashes for distinct inputs"
+    );
 });
 
 // ── ocel::Perturbator ─────────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(perturbator_perturb_trace_preserves_elements, {
+aaa_test!(perturbator_perturb_trace_preserves_elements, {
     // Arrange
     let p = Perturbator::new(42);
     let trace: Vec<String> = vec!["a".into(), "b".into(), "c".into(), "d".into()];
@@ -735,15 +820,22 @@ chicago_tdd_tools::test!(perturbator_perturb_trace_preserves_elements, {
     let result = p.perturb_trace(&trace);
 
     // Assert — length preserved, elements preserved (reordered)
-    assert_eq!(result.len(), trace.len(), "perturb_trace must preserve trace length");
+    assert_eq!(
+        result.len(),
+        trace.len(),
+        "perturb_trace must preserve trace length"
+    );
     let mut orig_sorted = trace.clone();
     orig_sorted.sort();
     let mut result_sorted = result.clone();
     result_sorted.sort();
-    assert_eq!(orig_sorted, result_sorted, "perturb_trace must preserve all elements");
+    assert_eq!(
+        orig_sorted, result_sorted,
+        "perturb_trace must preserve all elements"
+    );
 });
 
-chicago_tdd_tools::test!(perturbator_perturb_trace_changes_order, {
+aaa_test!(perturbator_perturb_trace_changes_order, {
     // Arrange: seed=0 swaps index 0 and 1 (deterministic)
     let p = Perturbator::new(0);
     let trace: Vec<String> = vec!["first".into(), "second".into(), "third".into()];
@@ -754,10 +846,13 @@ chicago_tdd_tools::test!(perturbator_perturb_trace_changes_order, {
     // Assert — at least something changed (any swap produces a different sequence for seed=0)
     // Note: if seed % len == (seed*2+1) % len they'd be the same element — but with 3 elements
     // and seed=0: i=0, j=1 → swap first↔second
-    assert_ne!(result, trace, "perturb_trace(seed=0) must reorder a 3-element trace");
+    assert_ne!(
+        result, trace,
+        "perturb_trace(seed=0) must reorder a 3-element trace"
+    );
 });
 
-chicago_tdd_tools::test!(perturbator_drop_event_reduces_length, {
+aaa_test!(perturbator_drop_event_reduces_length, {
     // Arrange
     let p = Perturbator::new(42);
     let trace: Vec<String> = vec!["a".into(), "b".into(), "c".into()];
@@ -766,10 +861,14 @@ chicago_tdd_tools::test!(perturbator_drop_event_reduces_length, {
     let dropped = p.drop_event(&trace);
 
     // Assert
-    assert_eq!(dropped.len(), 2, "drop_event must reduce trace length by exactly 1");
+    assert_eq!(
+        dropped.len(),
+        2,
+        "drop_event must reduce trace length by exactly 1"
+    );
 });
 
-chicago_tdd_tools::test!(perturbator_drop_event_removes_one_element, {
+aaa_test!(perturbator_drop_event_removes_one_element, {
     // Arrange
     let p = Perturbator::new(1);
     let trace: Vec<String> = vec!["x".into(), "y".into(), "z".into()];
@@ -779,12 +878,15 @@ chicago_tdd_tools::test!(perturbator_drop_event_removes_one_element, {
 
     // Assert — all remaining elements are from the original trace
     for ev in &dropped {
-        assert!(trace.contains(ev), "drop_event must only retain original elements");
+        assert!(
+            trace.contains(ev),
+            "drop_event must only retain original elements"
+        );
     }
     assert_eq!(dropped.len(), trace.len() - 1);
 });
 
-chicago_tdd_tools::test!(perturbator_inject_noise_increases_length, {
+aaa_test!(perturbator_inject_noise_increases_length, {
     // Arrange
     let p = Perturbator::new(0);
     let trace: Vec<String> = vec!["start".into(), "end".into()];
@@ -793,14 +895,18 @@ chicago_tdd_tools::test!(perturbator_inject_noise_increases_length, {
     let result = p.inject_noise(&trace, "noise:injected");
 
     // Assert
-    assert_eq!(result.len(), 3, "inject_noise must increase trace length by 1");
+    assert_eq!(
+        result.len(),
+        3,
+        "inject_noise must increase trace length by 1"
+    );
     assert!(
         result.contains(&"noise:injected".to_string()),
         "inject_noise must insert the given noise event"
     );
 });
 
-chicago_tdd_tools::test!(perturbator_inject_noise_preserves_existing_elements, {
+aaa_test!(perturbator_inject_noise_preserves_existing_elements, {
     // Arrange
     let p = Perturbator::new(99);
     let trace: Vec<String> = vec!["a".into(), "b".into(), "c".into()];
@@ -810,13 +916,16 @@ chicago_tdd_tools::test!(perturbator_inject_noise_preserves_existing_elements, {
 
     // Assert — original elements are all still present
     for ev in &trace {
-        assert!(result.contains(ev), "inject_noise must preserve all original elements");
+        assert!(
+            result.contains(ev),
+            "inject_noise must preserve all original elements"
+        );
     }
 });
 
 // ── ocel::DimensionGroup<U> ───────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(dimension_group_accumulates_values, {
+aaa_test!(dimension_group_accumulates_values, {
     // Arrange
     let mut dg: DimensionGroup<DimCount> = DimensionGroup::new("event_count");
 
@@ -826,7 +935,11 @@ chicago_tdd_tools::test!(dimension_group_accumulates_values, {
     dg.push(3.0);
 
     // Assert
-    assert_eq!(dg.values.len(), 3, "DimensionGroup must accumulate all pushed values");
+    assert_eq!(
+        dg.values.len(),
+        3,
+        "DimensionGroup must accumulate all pushed values"
+    );
     assert!(
         (dg.mean() - 2.0).abs() < 1e-10,
         "DimensionGroup::mean() must return arithmetic mean, got {}",
@@ -834,16 +947,22 @@ chicago_tdd_tools::test!(dimension_group_accumulates_values, {
     );
 });
 
-chicago_tdd_tools::test!(dimension_group_label_is_preserved, {
+aaa_test!(dimension_group_label_is_preserved, {
     // Arrange + Act
     let dg: DimensionGroup<DimCount> = DimensionGroup::new("latency_ms");
 
     // Assert
-    assert_eq!(dg.label, "latency_ms", "DimensionGroup must preserve the label");
-    assert!(dg.values.is_empty(), "new DimensionGroup must start with empty values");
+    assert_eq!(
+        dg.label, "latency_ms",
+        "DimensionGroup must preserve the label"
+    );
+    assert!(
+        dg.values.is_empty(),
+        "new DimensionGroup must start with empty values"
+    );
 });
 
-chicago_tdd_tools::test!(dimension_group_max_min, {
+aaa_test!(dimension_group_max_min, {
     // Arrange
     let mut dg: DimensionGroup<DimCount> = DimensionGroup::new("test");
     dg.push(3.0);
@@ -851,13 +970,19 @@ chicago_tdd_tools::test!(dimension_group_max_min, {
     dg.push(5.0);
 
     // Act + Assert
-    assert!((dg.max() - 5.0).abs() < 1e-10, "max() must return largest value");
-    assert!((dg.min() - 1.0).abs() < 1e-10, "min() must return smallest value");
+    assert!(
+        (dg.max() - 5.0).abs() < 1e-10,
+        "max() must return largest value"
+    );
+    assert!(
+        (dg.min() - 1.0).abs() < 1e-10,
+        "min() must return smallest value"
+    );
 });
 
 // ── ocel::reject_dominated / is_dominated ─────────────────────────────────────
 
-chicago_tdd_tools::test!(pareto_is_dominated_detects_dominated_point, {
+aaa_test!(pareto_is_dominated_detects_dominated_point, {
     // Arrange: (0.9, 0.8) dominates (0.7, 0.7) — both dimensions are ≥, at least one is >
     let candidates = vec![(0.9f64, 0.8f64), (0.5, 0.9)];
 
@@ -868,7 +993,7 @@ chicago_tdd_tools::test!(pareto_is_dominated_detects_dominated_point, {
     );
 });
 
-chicago_tdd_tools::test!(pareto_is_dominated_passes_for_nondominated_point, {
+aaa_test!(pareto_is_dominated_passes_for_nondominated_point, {
     // Arrange: (0.9, 0.8) is NOT dominated by (0.5, 0.9) — fitness 0.9 > 0.5
     let candidates = vec![(0.5f64, 0.9f64)];
 
@@ -879,7 +1004,7 @@ chicago_tdd_tools::test!(pareto_is_dominated_passes_for_nondominated_point, {
     );
 });
 
-chicago_tdd_tools::test!(pareto_reject_dominated_returns_pareto_front, {
+aaa_test!(pareto_reject_dominated_returns_pareto_front, {
     // Arrange: (0.7, 0.7) is dominated by (0.9, 0.8); (0.9, 0.6) is dominated by (0.9, 0.8)
     let candidates = vec![(0.9f64, 0.8), (0.5, 0.9), (0.7, 0.7), (0.9, 0.6)];
 
@@ -887,13 +1012,25 @@ chicago_tdd_tools::test!(pareto_reject_dominated_returns_pareto_front, {
     let front = reject_dominated(&candidates);
 
     // Assert
-    assert!(!front.contains(&(0.7, 0.7)), "reject_dominated must remove dominated point (0.7, 0.7)");
-    assert!(!front.contains(&(0.9, 0.6)), "reject_dominated must remove dominated point (0.9, 0.6)");
-    assert!(front.contains(&(0.9, 0.8)), "reject_dominated must keep non-dominated point (0.9, 0.8)");
-    assert!(front.contains(&(0.5, 0.9)), "reject_dominated must keep non-dominated point (0.5, 0.9)");
+    assert!(
+        !front.contains(&(0.7, 0.7)),
+        "reject_dominated must remove dominated point (0.7, 0.7)"
+    );
+    assert!(
+        !front.contains(&(0.9, 0.6)),
+        "reject_dominated must remove dominated point (0.9, 0.6)"
+    );
+    assert!(
+        front.contains(&(0.9, 0.8)),
+        "reject_dominated must keep non-dominated point (0.9, 0.8)"
+    );
+    assert!(
+        front.contains(&(0.5, 0.9)),
+        "reject_dominated must keep non-dominated point (0.5, 0.9)"
+    );
 });
 
-chicago_tdd_tools::test!(pareto_reject_dominated_empty_input, {
+aaa_test!(pareto_reject_dominated_empty_input, {
     // Arrange
     let empty: Vec<(f64, f64)> = vec![];
 
@@ -901,12 +1038,15 @@ chicago_tdd_tools::test!(pareto_reject_dominated_empty_input, {
     let front = reject_dominated(&empty);
 
     // Assert
-    assert!(front.is_empty(), "reject_dominated on empty input must return empty");
+    assert!(
+        front.is_empty(),
+        "reject_dominated on empty input must return empty"
+    );
 });
 
 // ── ocel::BasicPredicate ──────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(basic_predicate_variants_are_distinct, {
+aaa_test!(basic_predicate_variants_are_distinct, {
     // Arrange + Act: construct each variant with required struct fields
     let e2o = BasicPredicate::E2O {
         event_type: "status:show".into(),
@@ -929,7 +1069,7 @@ chicago_tdd_tools::test!(basic_predicate_variants_are_distinct, {
 
 // ── ocel::ocpq_eval ───────────────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(ocpq_eval_e2o_matches_correct_activity_and_type, {
+aaa_test!(ocpq_eval_e2o_matches_correct_activity_and_type, {
     // Arrange
     let mut events: HashMap<String, OcelEvent> = HashMap::new();
     events.insert(
@@ -980,12 +1120,19 @@ chicago_tdd_tools::test!(ocpq_eval_e2o_matches_correct_activity_and_type, {
     let results = ocpq_eval(&log, &preds);
 
     // Assert — non-empty results; first predicate matches, second does not
-    assert_eq!(results.len(), 2, "ocpq_eval must return one result per predicate");
-    assert!(results[0], "E2O predicate must match status:show → cargo.workspace");
+    assert_eq!(
+        results.len(),
+        2,
+        "ocpq_eval must return one result per predicate"
+    );
+    assert!(
+        results[0],
+        "E2O predicate must match status:show → cargo.workspace"
+    );
     assert!(!results[1], "E2O predicate must not match missing:activity");
 });
 
-chicago_tdd_tools::test!(ocpq_eval_tbe_matches_event_type_presence, {
+aaa_test!(ocpq_eval_tbe_matches_event_type_presence, {
     // Arrange
     let mut events: HashMap<String, OcelEvent> = HashMap::new();
     events.insert(
@@ -1000,26 +1147,41 @@ chicago_tdd_tools::test!(ocpq_eval_tbe_matches_event_type_presence, {
 
     let log = OcelLog {
         version: "2.0".to_string(),
-        types: OcelTypes { object_types: vec![], event_types: vec![] },
+        types: OcelTypes {
+            object_types: vec![],
+            event_types: vec![],
+        },
         events,
         objects: HashMap::new(),
     };
 
     // Act
     let preds = vec![
-        BasicPredicate::Tbe { event_type: "status:show".into(), threshold_ms: 1000 },
-        BasicPredicate::Tbe { event_type: "not:present".into(), threshold_ms: 1000 },
+        BasicPredicate::Tbe {
+            event_type: "status:show".into(),
+            threshold_ms: 1000,
+        },
+        BasicPredicate::Tbe {
+            event_type: "not:present".into(),
+            threshold_ms: 1000,
+        },
     ];
     let results = ocpq_eval(&log, &preds);
 
     // Assert
-    assert!(results[0], "Tbe predicate must match when event type is present");
-    assert!(!results[1], "Tbe predicate must not match when event type is absent");
+    assert!(
+        results[0],
+        "Tbe predicate must match when event type is present"
+    );
+    assert!(
+        !results[1],
+        "Tbe predicate must not match when event type is absent"
+    );
 });
 
 // ── ocel miniml-core functions ────────────────────────────────────────────────
 
-chicago_tdd_tools::test!(score_sequence_anomaly_zero_for_constant_sequence, {
+aaa_test!(score_sequence_anomaly_zero_for_constant_sequence, {
     // Arrange
     let seq = vec![5.0f64; 20];
 
@@ -1034,7 +1196,7 @@ chicago_tdd_tools::test!(score_sequence_anomaly_zero_for_constant_sequence, {
     );
 });
 
-chicago_tdd_tools::test!(score_sequence_anomaly_nonzero_for_spike, {
+aaa_test!(score_sequence_anomaly_nonzero_for_spike, {
     // Arrange: inject a spike at position 10
     let mut seq = vec![1.0f64; 20];
     seq[10] = 1000.0;
@@ -1043,10 +1205,13 @@ chicago_tdd_tools::test!(score_sequence_anomaly_nonzero_for_spike, {
     let score = score_sequence_anomaly(&seq);
 
     // Assert
-    assert!(score > 0.0, "score_sequence_anomaly must return >0 when a spike is present");
+    assert!(
+        score > 0.0,
+        "score_sequence_anomaly must return >0 when a spike is present"
+    );
 });
 
-chicago_tdd_tools::test!(detect_drift_false_for_identical_windows, {
+aaa_test!(detect_drift_false_for_identical_windows, {
     // Arrange
     let window = vec![3.0f64, 3.0, 3.0, 3.0, 3.0];
 
@@ -1054,10 +1219,13 @@ chicago_tdd_tools::test!(detect_drift_false_for_identical_windows, {
     let drifted = detect_drift(&window, &window);
 
     // Assert
-    assert!(!drifted, "detect_drift must return false when both windows are identical");
+    assert!(
+        !drifted,
+        "detect_drift must return false when both windows are identical"
+    );
 });
 
-chicago_tdd_tools::test!(detect_drift_true_for_large_shift, {
+aaa_test!(detect_drift_true_for_large_shift, {
     // Arrange
     let a = vec![1.0f64; 10];
     let b = vec![100.0f64; 10];
@@ -1066,10 +1234,13 @@ chicago_tdd_tools::test!(detect_drift_true_for_large_shift, {
     let drifted = detect_drift(&a, &b);
 
     // Assert
-    assert!(drifted, "detect_drift must return true when means are very far apart");
+    assert!(
+        drifted,
+        "detect_drift must return true when means are very far apart"
+    );
 });
 
-chicago_tdd_tools::test!(page_hinkley_no_change_point_in_flat_sequence, {
+aaa_test!(page_hinkley_no_change_point_in_flat_sequence, {
     // Arrange
     let flat = vec![5.0f64; 30];
 
@@ -1077,10 +1248,13 @@ chicago_tdd_tools::test!(page_hinkley_no_change_point_in_flat_sequence, {
     let cp = page_hinkley_test(&flat, 10.0, 0.1);
 
     // Assert
-    assert!(cp.is_none(), "page_hinkley_test must return None for a flat sequence");
+    assert!(
+        cp.is_none(),
+        "page_hinkley_test must return None for a flat sequence"
+    );
 });
 
-chicago_tdd_tools::test!(page_hinkley_detects_step_change, {
+aaa_test!(page_hinkley_detects_step_change, {
     // Arrange: 20 observations at 1.0 then 10 at 5.0
     let mut obs: Vec<f64> = (0..20).map(|_| 1.0).collect();
     obs.extend((0..10).map(|_| 5.0));
@@ -1092,7 +1266,7 @@ chicago_tdd_tools::test!(page_hinkley_detects_step_change, {
     assert!(cp.is_some(), "page_hinkley_test must detect a step change");
 });
 
-chicago_tdd_tools::test!(select_ucb1_prefers_arm_with_higher_reward, {
+aaa_test!(select_ucb1_prefers_arm_with_higher_reward, {
     // Arrange: arm 0 has low reward, arm 1 has high reward, equal counts
     let rewards = [1.0f64, 9.0];
     let counts = [10u64, 10];
@@ -1102,10 +1276,13 @@ chicago_tdd_tools::test!(select_ucb1_prefers_arm_with_higher_reward, {
     let chosen = select_ucb1(&rewards, &counts, total);
 
     // Assert — arm 1 (higher reward) should be preferred
-    assert_eq!(chosen, 1, "select_ucb1 must prefer the arm with higher reward when counts are equal");
+    assert_eq!(
+        chosen, 1,
+        "select_ucb1 must prefer the arm with higher reward when counts are equal"
+    );
 });
 
-chicago_tdd_tools::test!(select_ucb1_prefers_unexplored_arm, {
+aaa_test!(select_ucb1_prefers_unexplored_arm, {
     // Arrange: arm 0 well-explored, arm 1 never explored
     let rewards = [5.0f64, 0.0];
     let counts = [100u64, 0];
@@ -1115,12 +1292,15 @@ chicago_tdd_tools::test!(select_ucb1_prefers_unexplored_arm, {
     let chosen = select_ucb1(&rewards, &counts, total);
 
     // Assert — arm 1 gets infinite UCB bonus for count=0
-    assert_eq!(chosen, 1, "select_ucb1 must select unexplored arm (UCB1 exploration bonus)");
+    assert_eq!(
+        chosen, 1,
+        "select_ucb1 must select unexplored arm (UCB1 exploration bonus)"
+    );
 });
 
 // ── policy: evidence_stale accepts OCEL ───────────────────────────────────────
 
-chicago_tdd_tools::test!(evidence_stale_policy_accepts_ocel_as_fresh, {
+aaa_test!(evidence_stale_policy_accepts_ocel_as_fresh, {
     // Arrange: create a directory with only events.ocel.json (no events.xes)
     let tmp = TempDir::new().unwrap();
     let evidence_dir = tmp.path().join("evidence");
@@ -1139,7 +1319,7 @@ chicago_tdd_tools::test!(evidence_stale_policy_accepts_ocel_as_fresh, {
     );
 });
 
-chicago_tdd_tools::test!(evidence_stale_policy_rejects_when_neither_format_present, {
+aaa_test!(evidence_stale_policy_rejects_when_neither_format_present, {
     // Arrange: empty directory — neither OCEL nor XES
     let tmp = TempDir::new().unwrap();
     let evidence_dir = tmp.path().join("evidence");
@@ -1158,8 +1338,14 @@ chicago_tdd_tools::test!(evidence_stale_policy_rejects_when_neither_format_prese
 });
 
 // ── lsp: CICD-EVIDENCE-002 references events.ocel.json ───────────────────────
+//
+// The `lsp` noun is feature-gated, so `lsp explain` only exists when the `lsp`
+// feature is enabled. Gate this test to match — under the default feature set
+// the command is absent and the assertion would not apply.
 
-chicago_tdd_tools::test!(lsp_cicd_evidence_002_references_ocel_path, {
+#[cfg(feature = "lsp")]
+#[test]
+fn lsp_cicd_evidence_002_references_ocel_path() {
     // Arrange: check the compiled source to confirm the catalog entry was updated
     use assert_cmd::Command;
     let output = Command::cargo_bin("cargo-cicd")
@@ -1175,4 +1361,4 @@ chicago_tdd_tools::test!(lsp_cicd_evidence_002_references_ocel_path, {
         "lsp explain CICD-EVIDENCE-002 must reference events.ocel.json, got: {}",
         text
     );
-});
+}

@@ -442,10 +442,7 @@ fn build_ocel_log_impl(events: &[ProcessEvent], filter: bool) -> serde_json::Val
             serde_json::Value::String(ev.trace_class.clone()),
         );
         if let Some(ms) = ev.duration_ms {
-            vmap.insert(
-                "duration_ms".into(),
-                serde_json::Value::Number(ms.into()),
-            );
+            vmap.insert("duration_ms".into(), serde_json::Value::Number(ms.into()));
         }
         if let Some(ref v) = ev.verdict_adjudicated {
             vmap.insert(
@@ -986,6 +983,23 @@ pub fn emit_receipt_json(
 /// Additionally, each invocation archives `events.xes` to
 /// `<evidence_dir>/history/<timestamp>-events.xes` so individual pipeline
 /// runs are preserved for forensic inspection (fresh-trace-per-run).
+/// Read the full accumulated process-event journal (`<evidence_dir>/events.jsonl`)
+/// back into memory.
+///
+/// Returns an empty vec if the journal does not exist or is empty. Malformed
+/// lines are skipped on a best-effort basis (never panics). This mirrors the
+/// read-back path inside [`append_events`] and is used by external witnesses
+/// (e.g. the affidavit provenance engine) that certify the full process history.
+pub fn read_journal(evidence_dir: &Path) -> Vec<ProcessEvent> {
+    let jsonl_path = evidence_dir.join("events.jsonl");
+    let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
+    content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect()
+}
+
 pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()> {
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -1029,7 +1043,10 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     if std::fs::create_dir_all(&history_dir).is_ok() {
         let ts = now_iso8601().replace(['-', ':', '.', 'T', 'Z'], "");
         let _ = std::fs::copy(&xes_path, history_dir.join(format!("{}-events.xes", ts)));
-        let _ = std::fs::copy(&ocel_path, history_dir.join(format!("{}-events.ocel.json", ts)));
+        let _ = std::fs::copy(
+            &ocel_path,
+            history_dir.join(format!("{}-events.ocel.json", ts)),
+        );
     }
 
     Ok(())

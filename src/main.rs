@@ -36,6 +36,8 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
             "publish" => Some("run"),
             "workspace" => Some("doctor"),
             "evidence" => Some("doctor"),
+            #[cfg(feature = "affidavit")]
+            "affidavit" => Some("verify"),
             _ => None,
         };
         if let Some(verb) = default_verb {
@@ -86,6 +88,8 @@ fn main() -> Result<()> {
         }
     }
 
+    // `mut` is required when any noun-adding feature (lsp, autoarch, affidavit,
+    // advanced) is enabled; allow it to be unused on the default feature set.
     #[allow(unused_mut)]
     let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
@@ -97,8 +101,22 @@ fn main() -> Result<()> {
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
         .noun(nouns::workspace::WorkspaceNoun::new())
-        .noun(nouns::lsp::LspNoun::new())
         .noun(nouns::ui::UiNoun::new());
+
+    #[cfg(feature = "lsp")]
+    {
+        cli = cli.noun(nouns::lsp::LspNoun::new());
+    }
+
+    #[cfg(feature = "autoarch")]
+    {
+        cli = cli.noun(nouns::autoarch::AutoArchNoun::new());
+    }
+
+    #[cfg(feature = "affidavit")]
+    {
+        cli = cli.noun(nouns::affidavit::AffidavitNoun::new());
+    }
 
     #[cfg(feature = "advanced")]
     {

@@ -1,0 +1,646 @@
+# Cargo-CICD Capability Ontology Registry Schema
+#
+# Defines the RDF vocabulary for the Vision 2030 capability registry.
+# Crates, CI/CD pipelines, and process-evidence archives can declare
+# their capabilities using the classes and properties defined here.
+#
+# Prefix conventions:
+#   cc:   cargo-cicd ontology namespace (classes, properties, instances)
+#   skos: SKOS concept scheme (for human-readable labels and definitions)
+#   dcterms: Dublin Core Terms (authorship, dates, descriptions)
+#   owl:  OWL ontology axioms (class hierarchies, restrictions)
+#   xsd:  XML Schema Datatypes (typed literals)
+#   foaf: Friend of a Friend (Agent, Organization)
+#   prov: W3C PROV-O (provenance)
+#
+# Versioning: This schema is versioned independently from cargo-cicd.
+# See cc:SchemaVersion for the current version declaration.
+
+@prefix cc:      <http://cargo-cicd.rs/ontology#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix foaf:    <http://xmlns.com/foaf/0.1/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+# ─── Ontology declaration ─────────────────────────────────────────────────────
+
+<http://cargo-cicd.rs/ontology>
+    a owl:Ontology ;
+    dcterms:title "Cargo-CICD Capability Ontology Registry Schema" ;
+    dcterms:description
+        "Vocabulary for declaring, discovering, and verifying process capabilities \
+         of Rust crates and their CI/CD pipelines.  Part of the Vision 2030 \
+         ecosystem initiative for supply-chain trustworthiness." ;
+    dcterms:created "2026-06-17"^^xsd:date ;
+    dcterms:creator <http://cargo-cicd.rs/> ;
+    dcterms:license <https://spdx.org/licenses/MIT.html> ;
+    owl:versionIRI <http://cargo-cicd.rs/ontology/1.0> ;
+    owl:versionInfo "1.0.0" .
+
+# ─── Schema version marker ───────────────────────────────────────────────────
+
+cc:SchemaVersion
+    a owl:NamedIndividual ;
+    dcterms:identifier "1.0.0" ;
+    dcterms:created "2026-06-17"^^xsd:date ;
+    rdfs:label "Cargo-CICD Ontology Schema v1.0.0" .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 1: Core Classes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── RegistryEntry ───────────────────────────────────────────────────────────
+
+cc:RegistryEntry
+    a owl:Class ;
+    rdfs:label "Registry Entry" ;
+    rdfs:comment
+        "A single entry in the capability registry.  Represents one published \
+         crate version together with its declared capabilities and evidence \
+         metadata.  Each RegistryEntry links to one or more CapabilitySet \
+         instances and optionally to a process evidence archive." ;
+    dcterms:description
+        "The top-level entity in the registry.  Identified by the crate \
+         name + version pair.  Analogous to a package record in a software \
+         bill of materials (SBOM)." .
+
+# Required properties for RegistryEntry:
+cc:crateName
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:RegistryEntry ;
+    rdfs:range xsd:string ;
+    rdfs:label "crate name" ;
+    rdfs:comment "The crate name as it appears on crates.io." .
+
+cc:crateVersion
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:RegistryEntry ;
+    rdfs:range xsd:string ;
+    rdfs:label "crate version" ;
+    rdfs:comment "Semver version string, e.g. '1.0.0'." .
+
+cc:hasCapabilitySet
+    a owl:ObjectProperty ;
+    rdfs:domain cc:RegistryEntry ;
+    rdfs:range cc:CapabilitySet ;
+    rdfs:label "has capability set" ;
+    rdfs:comment "Links a registry entry to one or more capability sets." .
+
+cc:hasEvidenceArchive
+    a owl:ObjectProperty ;
+    rdfs:domain cc:RegistryEntry ;
+    rdfs:range cc:EvidenceArchive ;
+    rdfs:label "has evidence archive" ;
+    rdfs:comment
+        "Links a registry entry to a process evidence archive.  May be absent \
+         for entries that have not yet undergone adjudication." .
+
+cc:trustworthinessScore
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:RegistryEntry ;
+    rdfs:range xsd:float ;
+    rdfs:label "trustworthiness score" ;
+    rdfs:comment
+        "Composite trustworthiness score in [0.0, 1.0].  Computed by the \
+         scoring function defined in docs/trustworthiness-scoring.md." .
+
+cc:registeredAt
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:RegistryEntry ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "registered at" ;
+    rdfs:comment "ISO-8601 UTC timestamp when this entry was added to the registry." .
+
+# ─── CapabilitySet ───────────────────────────────────────────────────────────
+
+cc:CapabilitySet
+    a owl:Class ;
+    rdfs:label "Capability Set" ;
+    rdfs:comment
+        "A named, versioned collection of capabilities.  A CapabilitySet groups \
+         ProcessCapability and ComplianceCapability instances that were declared \
+         together (e.g., all capabilities of a given CI/CD pipeline version)." ;
+    dcterms:description
+        "Analogous to a profile or a feature set.  CapabilitySets are reusable: \
+         the same CapabilitySet may be linked from multiple RegistryEntry \
+         instances if they share a common pipeline configuration." .
+
+cc:capabilitySetName
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:CapabilitySet ;
+    rdfs:range xsd:string ;
+    rdfs:label "capability set name" ;
+    rdfs:comment "Human-readable name for this capability set." .
+
+cc:capabilitySetVersion
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:CapabilitySet ;
+    rdfs:range xsd:string ;
+    rdfs:label "capability set version" ;
+    rdfs:comment "Version of this capability set, independent of the crate version." .
+
+cc:includesCapability
+    a owl:ObjectProperty ;
+    rdfs:domain cc:CapabilitySet ;
+    rdfs:range cc:ProcessCapability ;
+    rdfs:label "includes capability" ;
+    rdfs:comment "Links a CapabilitySet to individual ProcessCapability instances." .
+
+cc:includesComplianceCapability
+    a owl:ObjectProperty ;
+    rdfs:domain cc:CapabilitySet ;
+    rdfs:range cc:ComplianceCapability ;
+    rdfs:label "includes compliance capability" ;
+    rdfs:comment "Links a CapabilitySet to ComplianceCapability instances." .
+
+cc:definedBy
+    a owl:ObjectProperty ;
+    rdfs:domain cc:CapabilitySet ;
+    rdfs:range foaf:Agent ;
+    rdfs:label "defined by" ;
+    rdfs:comment "The agent (person or organization) who defined this capability set." .
+
+cc:supersedes
+    a owl:ObjectProperty ;
+    rdfs:domain cc:CapabilitySet ;
+    rdfs:range cc:CapabilitySet ;
+    rdfs:label "supersedes" ;
+    rdfs:comment
+        "When a CapabilitySet replaces an older version, this property links to \
+         the deprecated set.  Allows registry consumers to follow upgrade chains." .
+
+# ─── ProcessCapability ───────────────────────────────────────────────────────
+
+cc:ProcessCapability
+    a owl:Class ;
+    rdfs:label "Process Capability" ;
+    rdfs:comment
+        "A single verifiable activity or property of the crate's development \
+         process.  Examples: automated test execution, change-based test \
+         selection, evidence emission, git phase tracking." ;
+    dcterms:description
+        "Process capabilities describe *how* a crate is developed and maintained, \
+         not *what* the crate does.  They are verified by process-evidence \
+         adjudication rather than by functional testing." .
+
+cc:noun
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessCapability ;
+    rdfs:range xsd:string ;
+    rdfs:label "noun" ;
+    rdfs:comment "The CLI noun that exposes this capability, e.g. 'status', 'test'." .
+
+cc:verb
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessCapability ;
+    rdfs:range xsd:string ;
+    rdfs:label "verb" ;
+    rdfs:comment "The CLI verb that implements this capability, e.g. 'show', 'changed'." .
+
+cc:cliCommand
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessCapability ;
+    rdfs:range xsd:string ;
+    rdfs:label "CLI command" ;
+    rdfs:comment "Full CLI invocation string, e.g. 'cargo cicd status show'." .
+
+cc:isEvidenceEmitting
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessCapability ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is evidence-emitting" ;
+    rdfs:comment
+        "True when this capability emits process events to the XES evidence log." .
+
+cc:requiresConfirmation
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessCapability ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "requires confirmation" ;
+    rdfs:comment
+        "True when this capability performs a destructive operation and requires \
+         the --confirm flag to proceed." .
+
+cc:verbCategory
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessCapability ;
+    rdfs:range xsd:string ;
+    rdfs:label "verb category" ;
+    rdfs:comment
+        "Category of the verb: 'read-only', 'dry-run', 'execution', or 'special'." .
+
+# ─── ComplianceCapability ─────────────────────────────────────────────────────
+
+cc:ComplianceCapability
+    a owl:Class ;
+    rdfs:subClassOf cc:ProcessCapability ;
+    rdfs:label "Compliance Capability" ;
+    rdfs:comment
+        "A process capability that has been adjudicated against a recognized \
+         safety or quality standard.  Adds standard reference and assurance \
+         level to the base ProcessCapability." ;
+    dcterms:description
+        "ComplianceCapability instances are produced by external adjudication \
+         (e.g., wasm4pm) and linked from RegistryEntry after successful verdict." .
+
+cc:standardReference
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ComplianceCapability ;
+    rdfs:range xsd:string ;
+    rdfs:label "standard reference" ;
+    rdfs:comment
+        "The standard this capability satisfies, e.g. 'IEC 61508 SIL 2', \
+         'ISO 26262 ASIL B', 'DO-178C Level C'." .
+
+cc:assuranceLevel
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ComplianceCapability ;
+    rdfs:range xsd:string ;
+    rdfs:label "assurance level" ;
+    rdfs:comment "The assurance level within the standard, e.g. 'SIL 2', 'ASIL B'." .
+
+cc:adjudicatedBy
+    a owl:ObjectProperty ;
+    rdfs:domain cc:ComplianceCapability ;
+    rdfs:range cc:ProcessOracle ;
+    rdfs:label "adjudicated by" ;
+    rdfs:comment "The oracle that adjudicated this compliance capability." .
+
+cc:adjudicationTimestamp
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ComplianceCapability ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "adjudication timestamp" ;
+    rdfs:comment "ISO-8601 UTC timestamp when adjudication was performed." .
+
+# ─── EvidenceArchive ─────────────────────────────────────────────────────────
+
+cc:EvidenceArchive
+    a owl:Class ;
+    rdfs:label "Evidence Archive" ;
+    rdfs:comment
+        "A gzip-compressed tar archive containing the XES event log and wasm4pm \
+         receipt from a CI/CD run.  Linked from RegistryEntry via \
+         cc:hasEvidenceArchive." .
+
+cc:archiveUrl
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:EvidenceArchive ;
+    rdfs:range xsd:anyURI ;
+    rdfs:label "archive URL" ;
+    rdfs:comment "HTTPS URL where the archive can be fetched." .
+
+cc:receiptHash
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:EvidenceArchive ;
+    rdfs:range xsd:string ;
+    rdfs:label "receipt hash" ;
+    rdfs:comment "SHA-256 hex of the wasm4pm receipt, prefixed 'sha256:'." .
+
+cc:oracleKey
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:EvidenceArchive ;
+    rdfs:range xsd:string ;
+    rdfs:label "oracle key" ;
+    rdfs:comment "Base64-encoded DER public key of the adjudication oracle." .
+
+# ─── ProcessOracle ───────────────────────────────────────────────────────────
+
+cc:ProcessOracle
+    a owl:Class ;
+    rdfs:label "Process Oracle" ;
+    rdfs:comment
+        "An external adjudication service that evaluates process evidence and \
+         issues verdicts.  The primary oracle in the cargo-cicd ecosystem is \
+         wasm4pm." .
+
+cc:oracleName
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "oracle name" .
+
+cc:oracleVersion
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessOracle ;
+    rdfs:range xsd:string ;
+    rdfs:label "oracle version" .
+
+cc:oracleHomepage
+    a owl:DatatypeProperty ;
+    rdfs:domain cc:ProcessOracle ;
+    rdfs:range xsd:anyURI ;
+    rdfs:label "oracle homepage" .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 2: Well-Known Instance: wasm4pm Oracle
+# ═══════════════════════════════════════════════════════════════════════════════
+
+cc:Wasm4pmOracle
+    a cc:ProcessOracle ;
+    cc:oracleName "wasm4pm" ;
+    cc:oracleVersion "1.0" ;
+    cc:oracleHomepage <https://github.com/wasm4pm/wasm4pm> ;
+    dcterms:description
+        "The primary process oracle for the cargo-cicd ecosystem.  Accepts XES \
+         event logs and wasm4pm receipt JSON files and issues Accept/Refuse \
+         verdicts based on process conformance." .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3: Example Capability Instances
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── Example 1: Status health check (read-only) ──────────────────────────────
+
+cc:status-show
+    a cc:ProcessCapability, skos:Concept ;
+    rdfs:label "Status Show" ;
+    skos:prefLabel "Status Show" ;
+    skos:definition
+        "Emits a workspace-health snapshot covering git state, target directory \
+         size, changed files, test plan, and toolchain.  Read-only; does not \
+         modify any files." ;
+    cc:noun "status" ;
+    cc:verb "show" ;
+    cc:cliCommand "cargo cicd status show" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "read-only" ;
+    dcterms:description
+        "The primary daily-driver command.  Exits 0 when workspace is clean; \
+         exits with WARN code when dirty files or staleness is detected." .
+
+# ─── Example 2: Changed test selection (execution) ───────────────────────────
+
+cc:test-changed
+    a cc:ProcessCapability, skos:Concept ;
+    rdfs:label "Test Changed" ;
+    skos:prefLabel "Test Changed" ;
+    skos:definition
+        "Selects and runs only the test files that have changed relative to \
+         origin/main.  Uses git diff to identify changed .rs files and maps \
+         them to their corresponding test modules." ;
+    cc:noun "test" ;
+    cc:verb "changed" ;
+    cc:cliCommand "cargo cicd test changed" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "execution" ;
+    dcterms:description
+        "Conservative by default — runs no tests if no .rs files changed. \
+         Emits a PASS event when all selected tests pass; FAIL when any test \
+         fails." .
+
+# ─── Example 3: Target pruning (dry-run + execution pair) ────────────────────
+
+cc:target-prune
+    a cc:ProcessCapability, skos:Concept ;
+    rdfs:label "Target Prune" ;
+    skos:prefLabel "Target Prune" ;
+    skos:definition
+        "Removes stale build artifacts from the target directory.  By default \
+         runs in dry-run mode, printing a size reclamation summary.  Requires \
+         --confirm to perform destructive removal." ;
+    cc:noun "target" ;
+    cc:verb "prune" ;
+    cc:cliCommand "cargo cicd target prune" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "true"^^xsd:boolean ;
+    cc:verbCategory "dry-run" ;
+    dcterms:description
+        "The dry-run mode emits WARN:dry_run verdict.  The --confirm mode emits \
+         PASS after successful pruning.  Both modes emit XES evidence." .
+
+# ─── Example 4: Evidence adjudication (special, compliance-adjacent) ─────────
+
+cc:evidence-audit
+    a cc:ProcessCapability, cc:ComplianceCapability, skos:Concept ;
+    rdfs:label "Evidence Audit" ;
+    skos:prefLabel "Evidence Audit" ;
+    skos:definition
+        "Submits the accumulated XES event log to the wasm4pm oracle for \
+         adjudication.  Returns Accept, Refuse, or Blocked based on the \
+         oracle verdict." ;
+    cc:noun "evidence" ;
+    cc:verb "audit" ;
+    cc:cliCommand "cargo cicd evidence audit" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "special" ;
+    cc:standardReference "IEC 61508 SIL 2" ;
+    cc:assuranceLevel "SIL 2" ;
+    cc:adjudicatedBy cc:Wasm4pmOracle ;
+    dcterms:description
+        "This capability is self-referential: its own evidence emission is \
+         adjudicated by the same oracle it invokes.  The capability is \
+         intentionally idempotent — multiple audit calls on the same XES log \
+         must produce the same verdict." .
+
+# ─── Example 5: Workspace diagnostics (reusable pattern) ─────────────────────
+
+cc:workspace-doctor
+    a cc:ProcessCapability, skos:Concept ;
+    rdfs:label "Workspace Doctor" ;
+    skos:prefLabel "Workspace Doctor" ;
+    skos:definition
+        "Runs a comprehensive set of workspace diagnostics and policy \
+         evaluations.  Reports missing fields, toolchain mismatches, target \
+         pressure, and autonomic policy recommendations." ;
+    cc:noun "workspace" ;
+    cc:verb "doctor" ;
+    cc:cliCommand "cargo cicd workspace doctor" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "read-only" ;
+    dcterms:description
+        "The workspace doctor aggregates all autonomic policies.  Each policy \
+         emits a PolicyEntry with a Pass/Warn/Skip verdict.  The overall \
+         workspace-doctor verdict is PASS if all policies pass; WARN if any \
+         policy emits a recommendation." .
+
+# ─── Example 6: Git phase tracking (read + execution pair) ───────────────────
+
+cc:git-phase
+    a cc:ProcessCapability, skos:Concept ;
+    rdfs:label "Git Phase" ;
+    skos:prefLabel "Git Phase" ;
+    skos:definition
+        "Reports the current git development phase (active, staged, clean, \
+         or released) and validates phase invariants." ;
+    cc:noun "git" ;
+    cc:verb "phase" ;
+    cc:cliCommand "cargo cicd git phase" ;
+    cc:isEvidenceEmitting "false"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "read-only" ;
+    dcterms:description
+        "Phase tracking enables structured development workflows where each \
+         phase has entry and exit criteria.  Exiting a phase requires a clean \
+         working tree and successful test run." .
+
+cc:git-close
+    a cc:ProcessCapability, skos:Concept ;
+    rdfs:label "Git Close" ;
+    skos:prefLabel "Git Close" ;
+    skos:definition
+        "Advances the current git phase and records the transition in \
+         cicd.toml.  Requires a clean working tree." ;
+    cc:noun "git" ;
+    cc:verb "close" ;
+    cc:cliCommand "cargo cicd git close" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "execution" ;
+    dcterms:description
+        "Phase closure is the primary gate before publishing.  The git close \
+         command refuses to proceed if the working tree is dirty, ensuring that \
+         every release starts from a clean, well-defined state." .
+
+# ─── Example 7: Publish gate (compliance capability) ─────────────────────────
+
+cc:publish-run
+    a cc:ProcessCapability, cc:ComplianceCapability, skos:Concept ;
+    rdfs:label "Publish Run" ;
+    skos:prefLabel "Publish Run" ;
+    skos:definition
+        "Runs the full publishing gate: checks all required Cargo.toml fields \
+         (name, version, description, license, readme), validates git state, \
+         and emits process evidence for adjudication." ;
+    cc:noun "publish" ;
+    cc:verb "run" ;
+    cc:cliCommand "cargo cicd publish run" ;
+    cc:isEvidenceEmitting "true"^^xsd:boolean ;
+    cc:requiresConfirmation "false"^^xsd:boolean ;
+    cc:verbCategory "execution" ;
+    cc:standardReference "ISO 26262 ASIL A" ;
+    cc:assuranceLevel "ASIL A" ;
+    cc:adjudicatedBy cc:Wasm4pmOracle ;
+    dcterms:description
+        "The publish gate is the final quality check before cargo publish.  A \
+         PASS verdict means all required fields are present and git state is \
+         clean.  A WARN verdict means optional quality fields are missing but \
+         the crate can still be published.  A FAIL verdict blocks publishing." .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 4: Well-Known Capability Sets
+# ═══════════════════════════════════════════════════════════════════════════════
+
+cc:CargoCicdBaselineCapabilities
+    a cc:CapabilitySet ;
+    cc:capabilitySetName "cargo-cicd baseline" ;
+    cc:capabilitySetVersion "26.6.2" ;
+    cc:includesCapability
+        cc:status-show,
+        cc:test-changed,
+        cc:target-prune,
+        cc:workspace-doctor,
+        cc:git-phase,
+        cc:git-close ;
+    cc:includesComplianceCapability
+        cc:evidence-audit,
+        cc:publish-run ;
+    cc:definedBy <http://cargo-cicd.rs/> ;
+    dcterms:description
+        "The baseline capability set shipped with cargo-cicd v26.6.2.  \
+         Includes all read-only, dry-run, and execution capabilities \
+         available without feature flags." .
+
+cc:CargoCicdComplianceCapabilities
+    a cc:CapabilitySet ;
+    cc:capabilitySetName "cargo-cicd compliance" ;
+    cc:capabilitySetVersion "26.6.2" ;
+    cc:includesComplianceCapability
+        cc:evidence-audit,
+        cc:publish-run ;
+    cc:definedBy <http://cargo-cicd.rs/> ;
+    dcterms:description
+        "The compliance-focused subset: capabilities that have been adjudicated \
+         against recognized safety standards.  Suitable for use as a filter \
+         when selecting capabilities for regulated-environment deployments." .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 5: SKOS Concept Scheme
+# ═══════════════════════════════════════════════════════════════════════════════
+
+cc:CargoCicdCapabilityScheme
+    a skos:ConceptScheme ;
+    skos:prefLabel "Cargo-CICD Capability Concept Scheme" ;
+    skos:definition
+        "Top-level SKOS scheme for all process capabilities declared in the \
+         cargo-cicd ontology registry." ;
+    dcterms:created "2026-06-17"^^xsd:date .
+
+cc:status-show    skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:test-changed   skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:target-prune   skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:evidence-audit skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:workspace-doctor skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:git-phase      skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:git-close      skos:inScheme cc:CargoCicdCapabilityScheme .
+cc:publish-run    skos:inScheme cc:CargoCicdCapabilityScheme .
+
+# ─── Narrower/broader relationships ──────────────────────────────────────────
+
+cc:evidence-audit skos:broader cc:workspace-doctor .
+cc:publish-run    skos:broader cc:git-close .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6: OWL Restrictions (Optional — for DL-reasoning toolchains)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# A RegistryEntry must have exactly one crate name.
+cc:RegistryEntry
+    rdfs:subClassOf [
+        a owl:Restriction ;
+        owl:onProperty cc:crateName ;
+        owl:cardinality "1"^^xsd:nonNegativeInteger
+    ] .
+
+# A RegistryEntry must have exactly one crate version.
+cc:RegistryEntry
+    rdfs:subClassOf [
+        a owl:Restriction ;
+        owl:onProperty cc:crateVersion ;
+        owl:cardinality "1"^^xsd:nonNegativeInteger
+    ] .
+
+# A ComplianceCapability must be adjudicated by exactly one ProcessOracle.
+cc:ComplianceCapability
+    rdfs:subClassOf [
+        a owl:Restriction ;
+        owl:onProperty cc:adjudicatedBy ;
+        owl:minCardinality "1"^^xsd:nonNegativeInteger
+    ] .
+
+# trustworthinessScore is functional (at most one value per subject).
+cc:trustworthinessScore
+    a owl:FunctionalProperty .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 7: Namespace Conventions
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# IRIs for registry entries follow this convention:
+#
+#   Crate entry:      http://cargo-cicd.rs/registry/<crate-name>/<version>
+#   Capability:       http://cargo-cicd.rs/ontology#<noun>-<verb>
+#   Capability set:   http://cargo-cicd.rs/capability-set/<name>/<version>
+#   Evidence archive: http://cargo-cicd.rs/evidence/<crate>/<version>
+#   Oracle:           http://cargo-cicd.rs/oracle/<name>
+#
+# Example IRI for the serde 1.0.200 registry entry:
+#
+#   <http://cargo-cicd.rs/registry/serde/1.0.200>
+#       a cc:RegistryEntry ;
+#       cc:crateName "serde" ;
+#       cc:crateVersion "1.0.200" ;
+#       cc:hasCapabilitySet cc:CargoCicdBaselineCapabilities ;
+#       cc:trustworthinessScore "0.8"^^xsd:float .
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# End of schema
+# ═══════════════════════════════════════════════════════════════════════════════

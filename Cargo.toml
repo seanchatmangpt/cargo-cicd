@@ -24,6 +24,8 @@ tempfile = "3"
 # Internal crates
 cargo-cicd-core = { path = "crates/cargo-cicd-core" }
 cargo-cicd-lsp = { path = "crates/cargo-cicd-lsp" }
+# External git crates
+lsp-max-anti-cheat = { git = "https://github.com/seanchatmangpt/lsp-max", branch = "master" }
 
 [package]
 name = "cargo-cicd"
@@ -56,12 +58,23 @@ exclude = [
 name = "cargo-cicd"
 path = "src/main.rs"
 
+[[bin]]
+name = "cicd-evidence-gen"
+path = "src/bin/cicd-evidence-gen.rs"
+
 [features]
 default = []
 process-data = []
 autonomic = ["process-data"]
+autoarch = ["autonomic"]
 contrib = ["process-data"]
 wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
+anti-llm-cheat = ["dep:lsp-max-anti-cheat"]
+lsp = []
+# Cryptographic provenance receipts via the affidavit `affi` CLI (shell-out
+# oracle, mirroring wasm4pm). affidavit itself is a nightly-only crate, so it is
+# integrated as an external binary — never linked — to keep this build on stable.
+affidavit = ["process-data"]
 advanced = [
   "process-data",
   "dep:ignore",
@@ -104,6 +117,7 @@ petgraph = { version = "0.6", optional = true }
 jiff = { version = "0.2", optional = true, features = ["serde"] }
 hdrhistogram = { version = "7", optional = true }
 aho-corasick = { version = "1", optional = true }
+lsp-max-anti-cheat = { workspace = true, optional = true }
 
 [[example]]
 name = "01_first_clean"
@@ -186,9 +200,43 @@ path = "tests/refusal_calibration.rs"
 name = "lsp_explain"
 path = "tests/lsp_explain.rs"
 
+[[test]]
+name = "lsp_check_anti_llm"
+path = "tests/lsp_check_anti_llm.rs"
+
+[[test]]
+name = "test_lsp"
+path = "tests/cli/test_lsp.rs"
+
+[[test]]
+name = "oracle_key_lifecycle"
+path = "tests/oracle_key_lifecycle.rs"
+
+[[test]]
+name = "code_provenance_detection"
+path = "tests/code_provenance_detection.rs"
+
+[[test]]
+name = "xes_v2_compliance"
+path = "tests/xes_v2_compliance.rs"
+
+[[test]]
+name = "certification_policies"
+path = "tests/certification_policies.rs"
+
+[[test]]
+name = "evidence_manifest"
+path = "tests/evidence_manifest.rs"
+
+[[test]]
+name = "affidavit_integration"
+path = "tests/affidavit_integration.rs"
+
 [dev-dependencies]
 assert_cmd = { workspace = true }
 tempfile = { workspace = true }
 predicates = { workspace = true }
 toml = { workspace = true }
-chicago-tdd-tools = { path = "/tmp/chicago-tdd-tools" }
+
+[patch.crates-io]
+wasm4pm-compat = { git = "https://github.com/seanchatmangpt/wasm4pm-compat" }

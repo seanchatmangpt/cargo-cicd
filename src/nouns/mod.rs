@@ -13,9 +13,11 @@
 //! Bare nouns inject default verbs automatically (e.g. `status` → `status show`).
 
 pub mod evidence;
+pub mod evidence_helpers;
 pub mod git;
 pub mod lsp;
 pub mod pipeline;
+pub mod process_helpers;
 pub mod publish;
 pub mod status;
 pub mod target;
@@ -24,6 +26,10 @@ pub mod trybuild;
 pub mod ui;
 pub mod workspace;
 
-// Advanced nouns (feature-gated)
+// Feature-gated nouns
+#[cfg(feature = "affidavit")]
+pub mod affidavit;
 #[cfg(feature = "advanced")]
 pub mod analyze;
+#[cfg(feature = "autoarch")]
+pub mod autoarch;

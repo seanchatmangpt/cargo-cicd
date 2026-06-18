@@ -154,7 +154,10 @@ pub struct OcelNdJsonStream {
 
 impl OcelNdJsonStream {
     pub fn new(source: impl Into<String>) -> Self {
-        Self { source: source.into(), line_count: 0 }
+        Self {
+            source: source.into(),
+            line_count: 0,
+        }
     }
 }
 
@@ -187,52 +190,70 @@ impl OcelLog {
             OcelObjectType {
                 name: "cargo.workspace".into(),
                 attributes: vec![
-                    OcelObjectAttribute { name: "workspace_id".into(), attr_type: "string".into() },
-                    OcelObjectAttribute { name: "repo_path".into(), attr_type: "string".into() },
+                    OcelObjectAttribute {
+                        name: "workspace_id".into(),
+                        attr_type: "string".into(),
+                    },
+                    OcelObjectAttribute {
+                        name: "repo_path".into(),
+                        attr_type: "string".into(),
+                    },
                 ],
             },
             OcelObjectType {
                 name: "cargo.git-phase".into(),
                 attributes: vec![
-                    OcelObjectAttribute { name: "branch".into(), attr_type: "string".into() },
-                    OcelObjectAttribute { name: "dirty_count".into(), attr_type: "integer".into() },
+                    OcelObjectAttribute {
+                        name: "branch".into(),
+                        attr_type: "string".into(),
+                    },
+                    OcelObjectAttribute {
+                        name: "dirty_count".into(),
+                        attr_type: "integer".into(),
+                    },
                 ],
             },
             OcelObjectType {
                 name: "cargo.target".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "total_size_bytes".into(), attr_type: "integer".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "total_size_bytes".into(),
+                    attr_type: "integer".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.toolchain".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "rust_version".into(), attr_type: "string".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "rust_version".into(),
+                    attr_type: "string".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.crate".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "name".into(), attr_type: "string".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "name".into(),
+                    attr_type: "string".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.test-plan".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "estimated_count".into(), attr_type: "integer".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "estimated_count".into(),
+                    attr_type: "integer".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.trybuild".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "snapshot_mode".into(), attr_type: "string".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "snapshot_mode".into(),
+                    attr_type: "string".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.policy".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "verdict".into(), attr_type: "string".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "verdict".into(),
+                    attr_type: "string".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.artifact".into(),
@@ -240,15 +261,17 @@ impl OcelLog {
             },
             OcelObjectType {
                 name: "cargo.evidence".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "format".into(), attr_type: "string".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "format".into(),
+                    attr_type: "string".into(),
+                }],
             },
             OcelObjectType {
                 name: "cargo.pipeline".into(),
-                attributes: vec![
-                    OcelObjectAttribute { name: "trace_class".into(), attr_type: "string".into() },
-                ],
+                attributes: vec![OcelObjectAttribute {
+                    name: "trace_class".into(),
+                    attr_type: "string".into(),
+                }],
             },
         ]
     }
@@ -256,8 +279,12 @@ impl OcelLog {
     /// Validate the OCEL log structure — mirrors `ValidationReport` from ocel-core.
     pub fn validate(&self) -> OcelValidationReport {
         let mut violations = Vec::new();
-        let declared_types: std::collections::HashSet<&str> =
-            self.types.object_types.iter().map(|t| t.name.as_str()).collect();
+        let declared_types: std::collections::HashSet<&str> = self
+            .types
+            .object_types
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
 
         for (eid, ev) in &self.events {
             for rel in &ev.typed_omap {
@@ -314,7 +341,11 @@ impl OcelLog {
                     .map(|s| s.iter().cloned().collect())
                     .unwrap_or_default();
                 objs.sort();
-                OcelFlatCase { case_id: cid, events: evts, objects: objs }
+                OcelFlatCase {
+                    case_id: cid,
+                    events: evts,
+                    objects: objs,
+                }
             })
             .collect();
 
@@ -330,9 +361,9 @@ impl OcelLog {
         self.events
             .iter()
             .flat_map(|(eid, ev)| {
-                ev.typed_omap.iter().map(move |r| {
-                    (eid.as_str(), r.object_id.as_str(), r.object_type.as_str())
-                })
+                ev.typed_omap
+                    .iter()
+                    .map(move |r| (eid.as_str(), r.object_id.as_str(), r.object_type.as_str()))
             })
             .collect()
     }
@@ -342,9 +373,9 @@ impl OcelLog {
         self.objects
             .iter()
             .flat_map(|(oid, obj)| {
-                obj.o2o.iter().map(move |r| {
-                    (oid.as_str(), r.object_id.as_str(), r.object_type.as_str())
-                })
+                obj.o2o
+                    .iter()
+                    .map(move |r| (oid.as_str(), r.object_id.as_str(), r.object_type.as_str()))
             })
             .collect()
     }
@@ -576,9 +607,7 @@ pub fn mcts_select(scores: &[f64], exploration_constant: f64) -> usize {
     let ucb: Vec<f64> = scores
         .iter()
         .enumerate()
-        .map(|(i, &s)| {
-            s + exploration_constant * (total_visits.ln() / (i as f64 + 1.0)).sqrt()
-        })
+        .map(|(i, &s)| s + exploration_constant * (total_visits.ln() / (i as f64 + 1.0)).sqrt())
         .collect();
     ucb.iter()
         .enumerate()
@@ -608,7 +637,11 @@ pub fn jaccard_similarity(a: &[&str], b: &[&str]) -> f64 {
     let set_b: std::collections::HashSet<&&str> = b.iter().collect();
     let intersection = set_a.intersection(&set_b).count();
     let union = set_a.union(&set_b).count();
-    if union == 0 { 1.0 } else { intersection as f64 / union as f64 }
+    if union == 0 {
+        1.0
+    } else {
+        intersection as f64 / union as f64
+    }
 }
 
 /// Mirrors `Perturbator` from wasm4pm-utils.
@@ -693,7 +726,10 @@ impl<U> DimensionGroup<U> {
     }
 
     pub fn max(&self) -> f64 {
-        self.values.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+        self.values
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max)
     }
 
     pub fn min(&self) -> f64 {
@@ -707,9 +743,9 @@ pub fn reject_dominated(candidates: &[(f64, f64)]) -> Vec<(f64, f64)> {
     candidates
         .iter()
         .filter(|&&(fit, sim)| {
-            !candidates.iter().any(|&(f2, s2)| {
-                f2 >= fit && s2 >= sim && (f2 > fit || s2 > sim)
-            })
+            !candidates
+                .iter()
+                .any(|&(f2, s2)| f2 >= fit && s2 >= sim && (f2 > fit || s2 > sim))
         })
         .cloned()
         .collect()
@@ -767,9 +803,8 @@ pub fn replay(kb: &[String], trace: &[&str]) -> f64 {
     let proved = trace
         .iter()
         .filter(|&&step| {
-            kb.iter().any(|atom| {
-                atom.starts_with(step) || atom.contains(&format!(":- {step}"))
-            })
+            kb.iter()
+                .any(|atom| atom.starts_with(step) || atom.contains(&format!(":- {step}")))
         })
         .count();
     proved as f64 / trace.len() as f64
@@ -786,11 +821,17 @@ pub fn hash_bytes(data: &[u8]) -> Blake3Hash {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BasicPredicate {
     /// Event-to-Object relationship predicate (E2O).
-    E2O { event_type: String, object_type: String },
+    E2O {
+        event_type: String,
+        object_type: String,
+    },
     /// Object-to-Object relationship predicate (O2O).
     O2O { from_type: String, to_type: String },
     /// Time-Before-Event predicate (Tbe).
-    Tbe { event_type: String, threshold_ms: u64 },
+    Tbe {
+        event_type: String,
+        threshold_ms: u64,
+    },
 }
 
 /// Mirrors `CHILD SET cardinality` from ocpq.
@@ -808,17 +849,20 @@ pub fn ocpq_eval(log: &OcelLog, predicates: &[BasicPredicate]) -> Vec<bool> {
     predicates
         .iter()
         .map(|pred| match pred {
-            BasicPredicate::E2O { event_type, object_type } => log.events.values().any(|ev| {
+            BasicPredicate::E2O {
+                event_type,
+                object_type,
+            } => log.events.values().any(|ev| {
                 ev.activity == *event_type
                     && ev.typed_omap.iter().any(|r| r.object_type == *object_type)
             }),
             BasicPredicate::O2O { from_type, to_type } => log.objects.values().any(|obj| {
-                obj.object_type == *from_type
-                    && obj.o2o.iter().any(|r| r.object_type == *to_type)
+                obj.object_type == *from_type && obj.o2o.iter().any(|r| r.object_type == *to_type)
             }),
-            BasicPredicate::Tbe { event_type, threshold_ms: _ } => {
-                log.events.values().any(|ev| ev.activity == *event_type)
-            }
+            BasicPredicate::Tbe {
+                event_type,
+                threshold_ms: _,
+            } => log.events.values().any(|ev| ev.activity == *event_type),
         })
         .collect()
 }
@@ -852,8 +896,7 @@ pub fn detect_drift(window_a: &[f64], window_b: &[f64]) -> bool {
     }
     let mean_a = window_a.iter().sum::<f64>() / window_a.len() as f64;
     let mean_b = window_b.iter().sum::<f64>() / window_b.len() as f64;
-    let var_a =
-        window_a.iter().map(|&x| (x - mean_a).powi(2)).sum::<f64>() / window_a.len() as f64;
+    let var_a = window_a.iter().map(|&x| (x - mean_a).powi(2)).sum::<f64>() / window_a.len() as f64;
     let std_a = var_a.sqrt();
     (mean_b - mean_a).abs() > 2.0 * std_a
 }
@@ -940,7 +983,11 @@ mod tests {
             },
         );
         let report = log.validate();
-        assert!(report.valid, "clean log must validate: {:?}", report.violations);
+        assert!(
+            report.valid,
+            "clean log must validate: {:?}",
+            report.violations
+        );
     }
 
     #[test]
@@ -956,7 +1003,11 @@ mod tests {
         let v = serde_json::json!({"z": 1, "a": 2, "m": 3});
         let s = canonical_json(&v);
         let a_pos = s.find('"').unwrap();
-        assert!(s[a_pos..].starts_with("\"a\""), "first key must be 'a', got: {}", s);
+        assert!(
+            s[a_pos..].starts_with("\"a\""),
+            "first key must be 'a', got: {}",
+            s
+        );
     }
 
     #[test]
@@ -964,9 +1015,18 @@ mod tests {
         let candidates = vec![(0.9, 0.8), (0.5, 0.9), (0.7, 0.7), (0.9, 0.6)];
         let front = reject_dominated(&candidates);
         // (0.7, 0.7) is dominated by (0.9, 0.8); (0.9, 0.6) is dominated by (0.9, 0.8)
-        assert!(!front.contains(&(0.7, 0.7)), "dominated point must be rejected");
-        assert!(front.contains(&(0.9, 0.8)), "non-dominated point must be kept");
-        assert!(front.contains(&(0.5, 0.9)), "non-dominated point must be kept");
+        assert!(
+            !front.contains(&(0.7, 0.7)),
+            "dominated point must be rejected"
+        );
+        assert!(
+            front.contains(&(0.9, 0.8)),
+            "non-dominated point must be kept"
+        );
+        assert!(
+            front.contains(&(0.5, 0.9)),
+            "non-dominated point must be kept"
+        );
     }
 
     #[test]
@@ -979,7 +1039,11 @@ mod tests {
     #[test]
     fn score_sequence_anomaly_constant() {
         let seq = [1.0, 1.0, 1.0, 1.0];
-        assert_eq!(score_sequence_anomaly(&seq), 0.0, "constant sequence has zero anomaly");
+        assert_eq!(
+            score_sequence_anomaly(&seq),
+            0.0,
+            "constant sequence has zero anomaly"
+        );
     }
 
     #[test]
@@ -997,7 +1061,10 @@ mod tests {
         admit_atom(&mut kb, "target:prune");
         admit_rule(&mut kb, "pipeline_ok", &["status:show", "target:prune"]);
         let score = replay(&kb, &["status:show", "target:prune"]);
-        assert!(score > 0.0, "provable atoms must yield positive replay score");
+        assert!(
+            score > 0.0,
+            "provable atoms must yield positive replay score"
+        );
     }
 
     #[test]
@@ -1019,22 +1086,43 @@ mod tests {
     fn ocpq_eval_e2o_match() {
         let mut log = OcelLog {
             version: "2.0".into(),
-            types: OcelTypes { object_types: OcelLog::cargo_object_types(), event_types: vec![] },
+            types: OcelTypes {
+                object_types: OcelLog::cargo_object_types(),
+                event_types: vec![],
+            },
             events: HashMap::new(),
             objects: HashMap::new(),
         };
-        log.objects.insert("ws:x".into(), OcelObject {
-            object_type: "cargo.workspace".into(), ovmap: HashMap::new(), o2o: vec![],
-        });
-        log.events.insert("e1".into(), OcelEvent {
-            activity: "status:show".into(),
-            timestamp: "2026-06-14T00:00:00Z".into(),
-            vmap: HashMap::new(),
-            typed_omap: vec![OcelRelationship { object_id: "ws:x".into(), object_type: "cargo.workspace".into(), qualifier: None }],
-        });
+        log.objects.insert(
+            "ws:x".into(),
+            OcelObject {
+                object_type: "cargo.workspace".into(),
+                ovmap: HashMap::new(),
+                o2o: vec![],
+            },
+        );
+        log.events.insert(
+            "e1".into(),
+            OcelEvent {
+                activity: "status:show".into(),
+                timestamp: "2026-06-14T00:00:00Z".into(),
+                vmap: HashMap::new(),
+                typed_omap: vec![OcelRelationship {
+                    object_id: "ws:x".into(),
+                    object_type: "cargo.workspace".into(),
+                    qualifier: None,
+                }],
+            },
+        );
         let preds = vec![
-            BasicPredicate::E2O { event_type: "status:show".into(), object_type: "cargo.workspace".into() },
-            BasicPredicate::E2O { event_type: "missing".into(), object_type: "cargo.workspace".into() },
+            BasicPredicate::E2O {
+                event_type: "status:show".into(),
+                object_type: "cargo.workspace".into(),
+            },
+            BasicPredicate::E2O {
+                event_type: "missing".into(),
+                object_type: "cargo.workspace".into(),
+            },
         ];
         let results = ocpq_eval(&log, &preds);
         assert!(results[0], "matching E2O predicate must be true");

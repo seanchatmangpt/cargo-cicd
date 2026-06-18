@@ -1,5 +1,5 @@
 use crate::adapters::TargetScannerAdapter;
-use crate::evidence::ProcessEvent;
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::badge::{self, Verdict};
 use crate::ui::theme::{self, Role};
 use crate::ui::{chart, panel};
@@ -38,11 +38,7 @@ impl VerbCommand for TargetShowVerb {
         "Show target directory size and state"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("target:show");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("target:show");
 
         let target_dir = "target";
         let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
@@ -84,12 +80,14 @@ impl VerbCommand for TargetShowVerb {
         } else {
             "WARN"
         };
-        let mut complete_evt = ProcessEvent::completed("target:show", t0, ev_verdict);
-        complete_evt.case_id = Some(case_id.clone());
-
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            ev_verdict,
+            "target:show",
+            &evidence_dir,
+        );
         Ok(())
     }
 }
@@ -119,11 +117,7 @@ impl VerbCommand for TargetPruneVerb {
             )
     }
     fn run(&self, args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
-        let evidence_dir = crate::evidence::evidence_dir();
-        let case_id = crate::session::read_or_create_session_id(&evidence_dir);
-
-        let (mut start_evt, t0) = ProcessEvent::started("target:prune");
-        start_evt.case_id = Some(case_id.clone());
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("target:prune");
 
         // Respect --apply flag: without it this is a dry run (suggest mode only).
         // We detect --apply directly from the process args rather than via the
@@ -190,12 +184,14 @@ impl VerbCommand for TargetPruneVerb {
             "PASS"
         };
 
-        let mut complete_evt = ProcessEvent::completed("target:prune", t0, verdict);
-        complete_evt.case_id = Some(case_id.clone());
-
-        if let Err(e) = crate::evidence::append_events(&[start_evt, complete_evt], &evidence_dir) {
-            eprintln!("warning: evidence emission failed: {}", e);
-        }
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            verdict,
+            "target:prune",
+            &evidence_dir,
+        );
         let _ = (would_free_gb, release_protected);
         Ok(())
     }

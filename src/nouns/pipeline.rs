@@ -1,3 +1,4 @@
+use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct PipelineNoun;
@@ -152,15 +153,17 @@ impl PipelineRunVerb {
             if audit_ocel.exists() {
                 let r = wpm_shell
                     .receipt_verify_ocel2(audit_ocel.to_str().unwrap_or(""))
-                    .unwrap_or_else(|_| wpm_shell
-                        .audit(audit_xes.to_str().unwrap_or(""))
-                        .unwrap_or_else(|e| crate::integrations::WpmResult {
-                            command: "wpm audit".to_string(),
-                            success: false,
-                            stdout: String::new(),
-                            stderr: e.to_string(),
-                            verdict: crate::integrations::WpmVerdict::Fail,
-                        }));
+                    .unwrap_or_else(|_| {
+                        wpm_shell
+                            .audit(audit_xes.to_str().unwrap_or(""))
+                            .unwrap_or_else(|e| crate::integrations::WpmResult {
+                                command: "wpm audit".to_string(),
+                                success: false,
+                                stdout: String::new(),
+                                stderr: e.to_string(),
+                                verdict: crate::integrations::WpmVerdict::Fail,
+                            })
+                    });
                 Some(r)
             } else if audit_xes.exists() {
                 let r = wpm_shell

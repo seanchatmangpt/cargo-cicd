@@ -149,6 +149,7 @@ The CLI uses `clap-noun-verb` (published crate). Each noun is a module implement
 8. **publish** — Artifact publishing gate (`run`)
 9. **workspace** — Workspace-wide diagnostics (`doctor`)
 10. **lsp** — Language server for IDE integration (`explain`)
+11. **affidavit** — Cryptographic provenance receipts via the `affi` engine (`seal`, `verify`) — feature-gated (`affidavit`)
 
 **Verb Categories:**
 - **Read-only:** `show`, `status`, `explain`, `doctor`
@@ -339,6 +340,7 @@ wasm4pm = ["process-data"]
 | **autonomic** | Policy suggestions in suggest mode | `policies::run_all_policies()` | Optional (implies process-data) | Reads PolicyState; emits recommendations, never takes action |
 | **contrib** | Community contribution tooling | Extra diagnostics for maintainers | Optional (implies process-data) | Enables verbose logging, debug output |
 | **wasm4pm** | wasm4pm oracle integration | Wasm4pmShell, verdict adjudication | Optional (implies process-data) | Calls `wpm audit <xes>` and `wpm receipt doctor` |
+| **affidavit** | affidavit provenance engine integration | AffidavitShell, `affidavit` noun | Optional (implies process-data) | Shells out to `affi receipt emit/assemble/verify`; no crate linked (stays on stable) |
 
 **Feature Coupling:** All non-default flags imply `process-data`. The Level 5 engine is **opt-in**, not forced on users.
 

@@ -55,3 +55,18 @@ fn all_nouns_have_expected_verbs() {
     // status
     assert_verb_registered!("status", "show");
 }
+
+#[test]
+#[cfg(feature = "lsp")]
+fn lsp_verbs_are_registered() {
+    Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["lsp", "doctor", "--help"])
+        .assert()
+        .success();
+    Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["lsp", "explain", "--help"])
+        .assert()
+        .success();
+}
