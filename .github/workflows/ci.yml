@@ -38,7 +38,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Pin the toolchain so `clippy -- -D warnings` is deterministic: a new
+      # stable Rust release adds lints that would otherwise turn this gate red
+      # with no code change. Bump deliberately (keep in sync with the fmt job).
+      - uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: clippy
 

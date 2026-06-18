@@ -195,11 +195,7 @@ pub fn compliance_summary(asil: &Asil, satisfied: &[String], missing: &[String])
     }
 
     let total = satisfied.len() + missing.len();
-    let pct = if total == 0 {
-        0
-    } else {
-        (satisfied.len() * 100) / total
-    };
+    let pct = (satisfied.len() * 100).checked_div(total).unwrap_or(0);
     out.push_str(&format!(
         "\nCoverage: {}% ({}/{})\n",
         pct,
