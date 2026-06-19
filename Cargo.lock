@@ -280,7 +280,7 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "cargo-cicd"
-version = "26.6.2"
+version = "26.6.19"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-cicd-core"
-version = "26.6.2"
+version = "26.6.19"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-cicd-lsp"
-version = "26.6.2"
+version = "26.6.19"
 dependencies = [
  "cargo-cicd-core",
  "serde",

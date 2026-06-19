@@ -911,7 +911,7 @@ pub fn build_receipt_json(
     serde_json::json!({
         "receipt_id":       receipt_id,
         "producer":         "cargo-cicd",
-        "producer_version": "26.6.2",
+        "producer_version": "26.6.19",
         "created_at":       now,
         "repo_path":        repo_path,
         "git_head":         git_head,

@@ -2,7 +2,7 @@
 
 A comprehensive, organized reference for the cargo-cicd command-line interface.
 
-**Version:** 26.6.2  
+**Version:** 26.6.19  
 **Last Updated:** 2026-06-14
 
 ## Quick Navigation
@@ -404,7 +404,7 @@ cargo-cicd leverages Rust's build cache:
 
 ## Versioning
 
-Current version: **26.6.2**
+Current version: **26.6.19**
 
 Check your version:
 ```bash
@@ -579,7 +579,7 @@ cargo cicd target prune --help
 This reference guide was generated from the cargo-cicd source code and documentation.
 
 - **Last Updated:** 2026-06-14
-- **Version:** 26.6.2
+- **Version:** 26.6.19
 - **Maintainer:** cargo-cicd community
 
 For the most up-to-date documentation, visit the [GitHub repository](https://github.com/seanchatmangpt/cargo-cicd).

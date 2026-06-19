@@ -2,7 +2,7 @@
 
 **Audience:** Organisations that want to become a registered cargo-cicd certification provider.  
 **Revision:** Vision 2030 Phase 1 (2026-06-17)  
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ---
 

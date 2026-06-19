@@ -2,7 +2,7 @@
 
 **A complete, publication-ready reference guide for the cargo-cicd command-line interface.**
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ---
 
@@ -56,7 +56,7 @@ This comprehensive reference guide is designed for developers of all skill level
 
 ```bash
 cargo install cargo-cicd
-cargo cicd --version  # Verify: 26.6.2
+cargo cicd --version  # Verify: 26.6.19
 ```
 
 ### 2. First Command
@@ -405,7 +405,7 @@ cargo install cargo-cicd
 
 ```bash
 cargo cicd --version
-# Expected output: cargo-cicd 26.6.2
+# Expected output: cargo-cicd 26.6.19
 
 cargo cicd status
 # Should show workspace status
@@ -448,7 +448,7 @@ See [Troubleshooting Guide](CLI_TROUBLESHOOTING.md) for detailed solutions.
 
 ## Version Information
 
-- **Current Version:** 26.6.2
+- **Current Version:** 26.6.19
 - **Rust Version:** 1.70+ (recommended)
 - **Platforms:** Linux, macOS, Windows
 
@@ -593,7 +593,7 @@ Consult the appropriate guide:
 ## About This Guide
 
 **Created:** 2026-06-14  
-**Version:** 26.6.2  
+**Version:** 26.6.19  
 **Status:** Complete and production-ready
 
 This comprehensive reference guide includes:

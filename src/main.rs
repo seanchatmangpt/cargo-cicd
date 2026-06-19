@@ -78,7 +78,7 @@ fn main() -> Result<()> {
 
     let cli = CliBuilder::new()
         .name("cargo-cicd")
-        .version("26.6.2")
+        .version("26.6.19")
         .about("Local-first CI/CD helpers for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml.");
 
     if needs_default {

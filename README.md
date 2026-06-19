@@ -25,7 +25,7 @@ Verify:
 
 ```sh
 cargo cicd --version
-# cargo-cicd 26.6.2
+# cargo-cicd 26.6.19
 ```
 
 If the binary is not found, ensure `~/.cargo/bin` is on your `PATH`:
@@ -147,7 +147,7 @@ Use as a dependency:
 
 ```toml
 [dependencies]
-cargo-cicd = { version = "26.6.2", features = ["process-data"] }
+cargo-cicd = { version = "26.6.19", features = ["process-data"] }
 ```
 
 See [docs/reference/feature-flags.md](docs/reference/feature-flags.md) for full

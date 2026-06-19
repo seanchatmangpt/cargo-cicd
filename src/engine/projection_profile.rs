@@ -8,9 +8,9 @@ pub struct ProjectionProfile {
 }
 
 impl ProjectionProfile {
-    pub fn v26_6_2() -> Self {
+    pub fn v26_6_19() -> Self {
         Self {
-            version: "26.6.2".into(),
+            version: "26.6.19".into(),
             public_level: 2,
             suppress_private_fields: true,
         }

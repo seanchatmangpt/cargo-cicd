@@ -6,7 +6,7 @@ Quick one-page reference for the most common cargo-cicd commands.
 
 ```sh
 cargo install cargo-cicd
-cargo cicd --version   # Verify: 26.6.2
+cargo cicd --version   # Verify: 26.6.19
 ```
 
 ## Status & Diagnosis

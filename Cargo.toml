@@ -29,7 +29,7 @@ lsp-max-anti-cheat = { git = "https://github.com/seanchatmangpt/lsp-max", branch
 
 [package]
 name = "cargo-cicd"
-version = "26.6.2"
+version = "26.6.19"
 edition = "2021"
 rust-version = "1.86"
 description = "Local-first CI/CD helper for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml."

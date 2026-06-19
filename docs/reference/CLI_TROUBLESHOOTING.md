@@ -2,7 +2,7 @@
 
 A comprehensive guide to diagnosing and fixing common issues with cargo-cicd.
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ## Table of Contents
 
@@ -75,7 +75,7 @@ A comprehensive guide to diagnosing and fixing common issues with cargo-cicd.
 2. **Verify installation:**
    ```sh
    cargo cicd --version
-   # Should output: cargo-cicd 26.6.2
+   # Should output: cargo-cicd 26.6.19
    ```
 
 3. **Check for conflicts (multiple versions):**

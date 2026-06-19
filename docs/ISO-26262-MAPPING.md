@@ -3,7 +3,7 @@
 **Standard:** ISO 26262:2018 — Road vehicles: Functional safety  
 **Parts covered:** Part 6 (Software) and Part 8 (Safety management of the safety lifecycle)  
 **Revision:** Vision 2030 Phase 1 (2026-06-17)  
-**Binary:** `cargo-cicd` v26.6.2  
+**Binary:** `cargo-cicd` v26.6.19  
 **Oracle:** wasm4pm (`wpm` binary)
 
 ---

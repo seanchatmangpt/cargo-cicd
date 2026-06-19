@@ -2,7 +2,7 @@
 
 **Standard:** SOC2 Trust Service Criteria (2022 edition)  
 **Revision:** Vision 2030 Phase 1 (2026-06-19)  
-**Binary:** `cargo-cicd` v26.6.2  
+**Binary:** `cargo-cicd` v26.6.19  
 **Oracle:** wasm4pm (`wpm` binary)
 
 ---

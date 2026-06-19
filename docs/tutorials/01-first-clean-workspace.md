@@ -6,14 +6,14 @@ By the end of this tutorial you will have run `cargo cicd status` in your own wo
 
 - Rust 1.85 or later
 - A Cargo workspace with at least one crate (a new `cargo new my-project` works fine)
-- cargo-cicd installed: `cargo install cargo-cicd --version 26.6.2`
+- cargo-cicd installed: `cargo install cargo-cicd --version 26.6.19`
 
 ---
 
 ## Step 1 — Install cargo-cicd
 
 ```sh
-cargo install cargo-cicd --version 26.6.2
+cargo install cargo-cicd --version 26.6.19
 ```
 
 Verify it is available:

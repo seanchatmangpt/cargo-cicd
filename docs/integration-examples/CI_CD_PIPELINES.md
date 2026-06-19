@@ -2,7 +2,7 @@
 
 Practical examples of integrating cargo-cicd into CI/CD pipelines, IDEs, and development workflows.
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ## Table of Contents
 

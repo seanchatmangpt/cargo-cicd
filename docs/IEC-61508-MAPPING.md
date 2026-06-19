@@ -2,7 +2,7 @@
 
 **Standard:** IEC 61508:2010 — Functional Safety of Electrical/Electronic/Programmable Electronic Safety-Related Systems  
 **Revision:** Vision 2030 Phase 1 (2026-06-17)  
-**Binary:** `cargo-cicd` v26.6.2  
+**Binary:** `cargo-cicd` v26.6.19  
 **Oracle:** wasm4pm (`wpm` binary)
 
 ---
