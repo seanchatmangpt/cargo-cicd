@@ -8,6 +8,8 @@
 pub mod iec_61508;
 pub mod iso_26262;
 pub mod registry;
+pub mod soc2;
+pub mod togaf;
 
 /// A certification body that can issue process evidence receipts.
 #[derive(Debug, Clone)]

@@ -87,6 +87,14 @@ impl CertificationShowVerb {
         let iso_summary = iso_26262::compliance_summary(&asil, &iso_satisfied, &iso_missing);
         println!("{}", theme::paint(&iso_summary, Role::Value));
 
+        // ── SOC2 Trust Service Criteria ──────────────────────────────────────
+        let soc2_summary = crate::certification::soc2::compliance_summary();
+        println!("\n{}", theme::paint(&soc2_summary, Role::Value));
+
+        // ── TOGAF ADM phase coverage ─────────────────────────────────────────
+        let togaf_summary = crate::certification::togaf::coverage_summary();
+        println!("\n{}", theme::paint(&togaf_summary, Role::Value));
+
         // ── Registered certification bodies ─────────────────────────────────
         let bodies = known_cert_bodies();
         if !bodies.is_empty() {
