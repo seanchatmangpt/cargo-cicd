@@ -12,6 +12,7 @@
 //!
 //! Bare nouns inject default verbs automatically (e.g. `status` → `status show`).
 
+pub mod certification;
 pub mod evidence;
 pub mod evidence_helpers;
 pub mod git;

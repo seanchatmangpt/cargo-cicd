@@ -6,6 +6,7 @@ mod adapters;
 #[cfg(feature = "advanced")]
 mod advanced;
 mod autonomic;
+mod certification;
 mod cicd_toml;
 mod engine;
 pub mod evidence;
@@ -36,6 +37,7 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
             "publish" => Some("run"),
             "workspace" => Some("doctor"),
             "evidence" => Some("doctor"),
+            "certification" => Some("show"),
             #[cfg(feature = "affidavit")]
             "affidavit" => Some("verify"),
             _ => None,
@@ -67,7 +69,7 @@ fn main() -> Result<()> {
     let is_help_flag = matches!(verb_arg.as_str(), "--help" | "-h");
     let needs_default = matches!(
         noun.as_str(),
-        "status" | "publish" | "workspace" | "evidence"
+        "status" | "publish" | "workspace" | "evidence" | "certification"
     ) && (verb_arg.is_empty() || (verb_arg.starts_with('-') && !is_help_flag));
 
     // Inject default verbs into local args (used only for reference, not for cli.run()).
@@ -84,6 +86,7 @@ fn main() -> Result<()> {
             "publish" => return nouns::publish::PublishNoun::run_direct(),
             "workspace" => return nouns::workspace::WorkspaceNoun::run_doctor(),
             "evidence" => return nouns::evidence::EvidenceNoun::run_direct(),
+            "certification" => return nouns::certification::CertificationNoun::run_direct(),
             _ => {}
         }
     }
@@ -101,7 +104,8 @@ fn main() -> Result<()> {
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
         .noun(nouns::workspace::WorkspaceNoun::new())
-        .noun(nouns::ui::UiNoun::new());
+        .noun(nouns::ui::UiNoun::new())
+        .noun(nouns::certification::CertificationNoun::new());
 
     #[cfg(feature = "lsp")]
     {
