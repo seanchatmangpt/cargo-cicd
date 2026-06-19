@@ -3,7 +3,7 @@
 
 # `cargo cicd sbom generate` / `cargo cicd sbom show`
 
-Generates or displays a CycloneDX JSON Software Bill of Materials (SBOM) for the workspace. `generate` shells to `cargo cyclonedx` and writes `sbom.json`; `show` reads that file and prints its size and first 20 lines.
+Generates or displays a CycloneDX JSON Software Bill of Materials (SBOM) for the workspace. `generate` shells to `cargo cyclonedx` and writes `sbom.json`; `show` reads that file and displays file size + first 20 lines.
 
 **Noun:** `sbom` &nbsp;&nbsp; **Verbs:** `generate`, `show`
 
