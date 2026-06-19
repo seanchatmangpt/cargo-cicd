@@ -77,6 +77,10 @@ jobs:
       - name: ggen customization guard
         run: cargo test --test ggen_customization_guard -- --nocapture
 
+      - name: ggen pipeline smoke (workspace sync)
+        run: cargo run -- workspace sync
+        continue-on-error: true
+
   # ── Evidence gate (non-blocking, runs after tests) ──────────────────────────
   evidence-gate:
     name: Evidence Gate (wasm4pm)
