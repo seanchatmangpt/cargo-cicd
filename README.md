@@ -84,8 +84,27 @@ bare nouns work too (`cargo cicd status` = `cargo cicd status show`).
 | `cargo cicd git close` | Performs the lawful branch-close sequence: ensures tests pass, commits any staged evidence, merges to the trunk branch, and emits a GitCloseEvent as a receipt. |
 | `cargo cicd publish run` | Publishes eligible workspace crates to crates.io after verifying all release readiness conditions are met. Emits a PublishRunEvent that the wasm4pm oracle may audit post-release. |
 | `cargo cicd workspace doctor` | Diagnoses the Cargo workspace for structural health: duplicate dependencies, missing feature declarations, version skew, and toolchain mismatch. Emits a WorkspaceDoctorEvent. |
+| `cargo cicd certification show` | Prints an IEC 61508 / ISO 26262 / SOC2 / TOGAF compliance summary against registered certification bodies. |
+| `cargo cicd sbom generate` | Generates a CycloneDX SBOM (`sbom.json`) from the workspace via `cargo-cyclonedx`. |
+| `cargo cicd sbom show` | Displays the previously generated SBOM. |
 
 <!-- END ggen:commands -->
+
+### Compliance & Supply Chain
+
+```sh
+# Print IEC 61508 / ISO 26262 / SOC2 / TOGAF compliance summary
+cargo cicd certification show
+
+# Generate a CycloneDX SBOM (requires cargo-cyclonedx)
+cargo cicd sbom generate
+
+# Display the previously generated SBOM
+cargo cicd sbom show
+```
+
+`cargo cicd sbom generate` degrades gracefully when `cargo-cyclonedx` is not
+installed and tells you how to add it.
 
 ### Global Flags
 
