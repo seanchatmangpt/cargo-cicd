@@ -20,6 +20,7 @@ pub mod lsp;
 pub mod pipeline;
 pub mod process_helpers;
 pub mod publish;
+pub mod sbom;
 pub mod status;
 pub mod target;
 pub mod test;

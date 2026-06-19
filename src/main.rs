@@ -38,6 +38,7 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
             "workspace" => Some("doctor"),
             "evidence" => Some("doctor"),
             "certification" => Some("show"),
+            "sbom" => Some("generate"),
             #[cfg(feature = "affidavit")]
             "affidavit" => Some("verify"),
             _ => None,
@@ -69,7 +70,7 @@ fn main() -> Result<()> {
     let is_help_flag = matches!(verb_arg.as_str(), "--help" | "-h");
     let needs_default = matches!(
         noun.as_str(),
-        "status" | "publish" | "workspace" | "evidence" | "certification"
+        "status" | "publish" | "workspace" | "evidence" | "certification" | "sbom"
     ) && (verb_arg.is_empty() || (verb_arg.starts_with('-') && !is_help_flag));
 
     // Inject default verbs into local args (used only for reference, not for cli.run()).
@@ -87,6 +88,7 @@ fn main() -> Result<()> {
             "workspace" => return nouns::workspace::WorkspaceNoun::run_doctor(),
             "evidence" => return nouns::evidence::EvidenceNoun::run_direct(),
             "certification" => return nouns::certification::CertificationNoun::run_direct(),
+            "sbom" => return nouns::sbom::SbomNoun::run_direct(),
             _ => {}
         }
     }
@@ -97,6 +99,7 @@ fn main() -> Result<()> {
     let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::pipeline::PipelineNoun::new())
+        .noun(nouns::sbom::SbomNoun::new())
         .noun(nouns::status::StatusNoun::new())
         .noun(nouns::target::TargetNoun::new())
         .noun(nouns::test::TestNoun::new())
