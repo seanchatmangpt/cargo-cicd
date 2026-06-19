@@ -7,6 +7,12 @@
 
 ---
 
+> **Note (2026-06-19):** XES is now a legacy side-channel. cargo-cicd emits
+> `events.ocel.json` (OCEL 2.0) as the primary audit format. `events.xes`
+> continues to be written on every run for backwards compatibility with process
+> mining tools (ProM, Disco, Celonis), but it is not the oracle audit target.
+> New integrations should use `wpm audit events.ocel.json`, not `events.xes`.
+
 ## 1. Overview
 
 XES (eXtensible Event Stream) is an international standard for process event log interchange. It enables process mining tools such as ProM, Disco, and Celonis to discover, conformance-check, and enhance process models from real execution traces.
