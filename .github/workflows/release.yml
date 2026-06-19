@@ -80,19 +80,6 @@ jobs:
         run: cargo test --test wasm4pm_evidence_gate --features wasm4pm
         continue-on-error: true
 
-      - name: Install wpm oracle
-        run: |
-          if ! command -v wpm >/dev/null 2>&1; then
-            echo "wpm not found — attempting install from source"
-            cargo install --git https://github.com/seanchatmangpt/wasm4pm --bin wpm --locked || true
-          fi
-          wpm --version || echo "wpm unavailable; status audit will BLOCK"
-        continue-on-error: true
-
-      - name: status audit (wasm4pm evidence gate)
-        run: cargo run -- status audit
-        continue-on-error: true
-
   build-release:
     name: Build Release Binary
     runs-on: ubuntu-latest

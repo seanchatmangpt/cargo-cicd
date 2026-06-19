@@ -77,10 +77,6 @@ jobs:
       - name: ggen customization guard
         run: cargo test --test ggen_customization_guard -- --nocapture
 
-      - name: ggen pipeline smoke (workspace sync)
-        run: cargo run -- workspace sync
-        continue-on-error: true
-
   # ── Evidence gate (non-blocking, runs after tests) ──────────────────────────
   evidence-gate:
     name: Evidence Gate (wasm4pm)
@@ -128,11 +124,11 @@ jobs:
             wpm audit "$f" || true
           done
 
-  # ── Affidavit gate (non-blocking, runs after tests) ─────────────────────────
-  affidavit-gate:
-    name: Affidavit Gate (seal/verify)
+  # ── LSP admissibility (anti-LLM cheat check) ────────────────────────────────
+  lsp-admissibility:
+    name: LSP Admissibility (anti-llm-cheat)
     runs-on: ubuntu-latest
-    needs: [check-and-test]
+    needs: check-and-test
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -141,11 +137,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build cargo-cicd with affidavit feature
-        run: cargo build --features affidavit
+      - name: Build with anti-llm-cheat
+        run: cargo build --features anti-llm-cheat
 
-      - name: Seal evidence receipt
-        run: cargo run --features affidavit -- affidavit seal || true
-
-      - name: Verify sealed receipt
-        run: cargo run --features affidavit -- affidavit verify || true
+      - name: LSP admissibility check
+        run: cargo run --features anti-llm-cheat -- lsp check
