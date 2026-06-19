@@ -270,6 +270,7 @@ impl VerbCommand for EvidenceResetVerb {
         // Remove the mutable evidence files; leave receipts/ intact (permanent records).
         let _ = std::fs::remove_file(evidence_dir.join("events.jsonl"));
         let _ = std::fs::remove_file(evidence_dir.join("events.xes"));
+        let _ = std::fs::remove_file(evidence_dir.join("events.ocel.json"));
         let session_file = evidence_dir.join(".session");
         let _ = std::fs::remove_file(&session_file);
 

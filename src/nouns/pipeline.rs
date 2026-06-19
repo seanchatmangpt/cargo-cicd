@@ -107,10 +107,8 @@ impl PipelineRunVerb {
         // Three full passes of the 9-activity sequence yields fitness ≈ 0.964,
         // crossing the 0.95 TRUTHFUL threshold.
         //
-        // Written to `audit-events.xes` (dedicated path) so subsequent
-        // append_events() calls (which rebuild events.xes from JSONL) do not
-        // overwrite the canonical form used by the oracle.
-        let audit_xes = evidence_dir.join("audit-events.xes");
+        // Written to `audit-events.ocel.json` (dedicated path) so subsequent
+        // append_events() calls do not overwrite the canonical form used by the oracle.
         let audit_ocel = evidence_dir.join("audit-events.ocel.json");
         {
             let declared_pipeline: &[&str] = &[
@@ -132,9 +130,6 @@ impl PipelineRunVerb {
                     canonical_events.push(ev);
                 }
             }
-            if let Err(e) = crate::evidence::emit_xes_fresh(&canonical_events, &audit_xes) {
-                eprintln!("warning: canonical audit XES write failed: {}", e);
-            }
             if let Err(e) = crate::evidence::emit_ocel_fresh(&canonical_events, &audit_ocel) {
                 eprintln!("warning: canonical audit OCEL write failed: {}", e);
             }
@@ -149,27 +144,11 @@ impl PipelineRunVerb {
 
         let wpm = crate::integrations::Wasm4pmShell::detect();
         let audit_result = if let Some(wpm_shell) = &wpm {
-            // Prefer OCEL 2.0 adjudication; fall back to XES if OCEL not available.
             if audit_ocel.exists() {
                 let r = wpm_shell
                     .receipt_verify_ocel2(audit_ocel.to_str().unwrap_or(""))
-                    .unwrap_or_else(|_| {
-                        wpm_shell
-                            .audit(audit_xes.to_str().unwrap_or(""))
-                            .unwrap_or_else(|e| crate::integrations::WpmResult {
-                                command: "wpm audit".to_string(),
-                                success: false,
-                                stdout: String::new(),
-                                stderr: e.to_string(),
-                                verdict: crate::integrations::WpmVerdict::Fail,
-                            })
-                    });
-                Some(r)
-            } else if audit_xes.exists() {
-                let r = wpm_shell
-                    .audit(audit_xes.to_str().unwrap_or(""))
                     .unwrap_or_else(|e| crate::integrations::WpmResult {
-                        command: "wpm audit".to_string(),
+                        command: "wpm receipt-verify-ocel2".to_string(),
                         success: false,
                         stdout: String::new(),
                         stderr: e.to_string(),
@@ -308,15 +287,6 @@ impl VerbCommand for PipelineStatusVerb {
             println!("evidence:       no events.jsonl");
         }
 
-        let xes_path = evidence_dir.join("events.xes");
-        println!(
-            "events.xes:     {}",
-            if xes_path.exists() {
-                "present"
-            } else {
-                "missing"
-            }
-        );
         let ocel_path = evidence_dir.join("events.ocel.json");
         println!(
             "events.ocel.json: {}",
