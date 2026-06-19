@@ -119,7 +119,7 @@ jobs:
       - name: Audit with wpm (if available)
         if: steps.wpm-check.outputs.wpm_available == 'true'
         run: |
-          for f in $(find target/cargo-cicd/evidence/ -name "*.xes" 2>/dev/null); do
+          for f in $(find target/cargo-cicd/evidence/ -name "*.ocel.json" 2>/dev/null); do
             echo "Auditing: $f"
             wpm audit "$f" || true
           done
