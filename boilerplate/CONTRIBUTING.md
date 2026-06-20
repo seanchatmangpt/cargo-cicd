@@ -253,3 +253,20 @@ pub fn workspace_name() -> Result<String> { ... }
 ```
 
 Private helpers do not require doc comments but benefit from a `//` line explaining non-obvious intent.
+
+---
+
+## Architecture
+
+Before making structural changes, read [`ARCHITECTURE.md`](ARCHITECTURE.md). It covers:
+
+- The crate topology and dependency rules
+- The main data-flow paths (HTTP request, configuration loading, error propagation)
+- Important modules and their locations
+- When to split vs. merge crates
+
+Significant architectural decisions are recorded as Architecture Decision Records (ADRs) in
+[`docs/decisions/`](docs/decisions/). If your change alters the structure of the workspace,
+introduces a new cross-cutting pattern, or reverses a previous decision, add or update an ADR
+alongside the code change. Copy the template at
+[`docs/decisions/0000-template.md`](docs/decisions/0000-template.md) and increment the number.
