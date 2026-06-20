@@ -77,6 +77,32 @@ jobs:
       - name: ggen customization guard
         run: cargo test --test ggen_customization_guard -- --nocapture
 
+      - name: ggen pipeline smoke (workspace sync)
+        run: cargo run -- workspace sync
+        continue-on-error: true
+
+  # ── Affidavit gate (seal + verify provenance receipt) ───────────────────────
+  affidavit-gate:
+    name: Affidavit Gate (provenance receipt)
+    runs-on: ubuntu-latest
+    needs: check-and-test
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.94.1
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build with affidavit feature
+        run: cargo build --features affidavit
+
+      - name: Affidavit seal
+        run: cargo run --features affidavit -- affidavit seal || true
+
+      - name: Affidavit verify
+        run: cargo run --features affidavit -- affidavit verify || true
+
   # ── Evidence gate (non-blocking, runs after tests) ──────────────────────────
   evidence-gate:
     name: Evidence Gate (wasm4pm)
