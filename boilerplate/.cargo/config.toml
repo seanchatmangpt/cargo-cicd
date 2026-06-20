@@ -18,10 +18,29 @@ retry = 3
 [registry]
 default = "crates-io"
 
+[registries.crates-io]
+# Sparse index is faster than the legacy git index (~10x on cold fetch).
+protocol = "sparse"
+
+# ---------------------------------------------------------------------------
+# Handy aliases — saves typing on the most common commands
+# ---------------------------------------------------------------------------
+[alias]
+t   = "nextest run --workspace"
+b   = "build --workspace"
+br  = "build --workspace --release"
+c   = "check --workspace --all-targets --all-features"
+cl  = "clippy --workspace --all-targets --all-features -- -D warnings"
+
 [profile.dev]
 # Split debug info to speed up incremental links (Linux/macOS only).
 # On Windows this is silently ignored; no harm keeping it cross-platform.
 split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+# Compile third-party crates at opt-level 1 even in dev builds.
+# Keeps your code debuggable while making test runs measurably faster.
+opt-level = 1
 
 [profile.release]
 # Already declared in the workspace Cargo.toml; these settings are mirrored
