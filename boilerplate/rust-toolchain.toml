@@ -1,0 +1,7 @@
+[toolchain]
+channel = "stable"
+# Pinned to the minimum supported version declared in Cargo.toml (rust-version = "1.86").
+# Bumping this line is the only change needed when the MSRV moves forward.
+# Run `rustup update stable` locally if rustup reports the toolchain is out of date.
+components = ["rustfmt", "clippy", "rust-src"]
+targets = []

@@ -1,0 +1,25 @@
+# Project-wide Clippy configuration.
+# This file is read by `cargo clippy` automatically.
+# Lint levels are also declared in [workspace.lints.clippy] in Cargo.toml;
+# this file handles configuration *values* (thresholds, allowed patterns, etc.).
+
+# Maximum allowed cyclomatic complexity per function.
+cognitive-complexity-threshold = 20
+
+# Maximum number of arguments before Clippy warns.
+too-many-arguments-threshold = 8
+
+# Maximum number of lines in a function body before Clippy warns.
+too-many-lines-threshold = 120
+
+# Strings matching these patterns are allowed in `dbg!` macros.
+# (Empty by default; add patterns if the project uses sentinel debug values.)
+allow-dbg-in-tests = true
+
+# Allowed long integer literals for clarity (e.g. bit masks, byte counts).
+# Format: 1_000_000 rather than 1000000 — enforced by clippy::unreadable_literal.
+enforce-iter-loop-reborrow = false
+
+# Allow `clippy::wildcard_imports` in test modules (already set to allow in
+# workspace lints but calling it out here for clarity).
+allow-mixed-uniform-imports = true

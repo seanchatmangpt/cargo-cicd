@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Formatting
+  # ──────────────────────────────────────────────────────────────────────────
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Lint
+  # ──────────────────────────────────────────────────────────────────────────
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Tests — stable
+  # ──────────────────────────────────────────────────────────────────────────
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-${{ matrix.os }}
+
+      - name: Install cargo-make
+        uses: davidB/rust-cargo-make-action@v1
+
+      - name: Build workspace
+        run: cargo make build
+
+      - name: Run full test suite
+        run: cargo make test
+
+      - name: Run invariant tests
+        run: cargo make test-invariants
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Feature-flag matrix
+  # ──────────────────────────────────────────────────────────────────────────
+  features:
+    name: Feature flags
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""
+          - "process-data"
+          - "autonomic"
+          - "advanced"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: features-${{ matrix.features }}
+
+      - name: Build with features "${{ matrix.features }}"
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo build --workspace
+          else
+            cargo build --workspace --features "${{ matrix.features }}"
+          fi
+
+      - name: Test with features "${{ matrix.features }}"
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo test --workspace
+          else
+            cargo test --workspace --features "${{ matrix.features }}"
+          fi
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # MSRV check
+  # ──────────────────────────────────────────────────────────────────────────
+  msrv:
+    name: MSRV (1.86)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@1.86
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: msrv
+
+      - name: Check workspace on MSRV
+        run: cargo check --workspace --all-targets
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Documentation
+  # ──────────────────────────────────────────────────────────────────────────
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: docs
+
+      - name: Build docs (deny warnings)
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --workspace --no-deps

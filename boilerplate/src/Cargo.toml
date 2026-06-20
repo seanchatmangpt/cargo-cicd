@@ -1,0 +1,56 @@
+[package]
+name = "project"
+version = "0.1.0"
+description = "PROJECT keeps your Rust workspace clean, fast, and push-ready."
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cargo-project"
+path = "main.rs"
+
+[lib]
+name = "project"
+path = "lib.rs"
+
+[dependencies]
+# Workspace core
+project-core.workspace = true
+
+# Error handling — anyhow for ergonomic propagation in the binary
+anyhow.workspace = true
+
+# CLI
+clap = { workspace = true }
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+# Filesystem scanning
+walkdir.workspace = true
+
+# Concurrency helpers
+once_cell.workspace = true
+
+# Observability
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+
+[features]
+default = []
+# Level 5 engine internals — EngineState, adapters, cicd.toml carrier.
+process-data = []
+# Autonomic policy suggestions (read-only). Implies process-data.
+autonomic = ["process-data"]
+# Advanced: high-performance scanning, caching, observability.
+advanced = ["process-data"]

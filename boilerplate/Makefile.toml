@@ -1,0 +1,123 @@
+[config]
+default_to_workspace = false
+skip_core_tasks = false
+
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+RUST_BACKTRACE = "1"
+
+# ────────────────────────────────────────────────────────────────────────────
+# Build
+# ────────────────────────────────────────────────────────────────────────────
+
+[tasks.build]
+description = "Build the workspace in debug mode"
+command = "cargo"
+args = ["build", "--workspace"]
+
+[tasks.build-release]
+description = "Build the workspace in release mode"
+command = "cargo"
+args = ["build", "--workspace", "--release"]
+
+[tasks.build-all-features]
+description = "Build with all optional features enabled"
+command = "cargo"
+args = ["build", "--workspace", "--all-features"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Check (lint + type-check, no binary produced)
+# ────────────────────────────────────────────────────────────────────────────
+
+[tasks.check]
+description = "Type-check the workspace without producing binaries"
+command = "cargo"
+args = ["check", "--workspace", "--all-targets"]
+
+[tasks.clippy]
+description = "Run Clippy lints across the workspace"
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.fmt]
+description = "Format all source files"
+command = "cargo"
+args = ["fmt", "--all"]
+
+[tasks.fmt-check]
+description = "Verify formatting without modifying files"
+command = "cargo"
+args = ["fmt", "--all", "--", "--check"]
+
+[tasks.lint]
+description = "Run fmt-check + clippy"
+dependencies = ["fmt-check", "clippy"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Test
+# ────────────────────────────────────────────────────────────────────────────
+
+[tasks.test]
+description = "Run all tests in the workspace"
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.test-all-features]
+description = "Run tests with all feature flags enabled"
+command = "cargo"
+args = ["test", "--workspace", "--all-features"]
+
+[tasks.test-verbose]
+description = "Run tests with live output (nocapture)"
+command = "cargo"
+args = ["test", "--workspace", "--", "--nocapture"]
+
+[tasks.test-invariants]
+description = "Run only the public-boundary invariant tests"
+command = "cargo"
+args = ["test", "--workspace", "--test", "invariants"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Documentation
+# ────────────────────────────────────────────────────────────────────────────
+
+[tasks.doc]
+description = "Build workspace documentation"
+command = "cargo"
+args = ["doc", "--workspace", "--no-deps"]
+
+[tasks.doc-open]
+description = "Build and open workspace documentation"
+command = "cargo"
+args = ["doc", "--workspace", "--no-deps", "--open"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Composite CI gate
+# ────────────────────────────────────────────────────────────────────────────
+
+[tasks.ci]
+description = "Full CI gate: fmt-check, clippy, build, test"
+dependencies = ["fmt-check", "clippy", "build", "test"]
+
+[tasks.pre-commit]
+description = "Pre-commit gate: fmt, clippy, test"
+dependencies = ["fmt", "clippy", "test"]
+
+# ────────────────────────────────────────────────────────────────────────────
+# Maintenance
+# ────────────────────────────────────────────────────────────────────────────
+
+[tasks.clean]
+description = "Remove build artifacts"
+command = "cargo"
+args = ["clean"]
+
+[tasks.update]
+description = "Update all dependencies"
+command = "cargo"
+args = ["update"]
+
+[tasks.audit]
+description = "Run cargo audit for security advisories"
+command = "cargo"
+args = ["audit"]

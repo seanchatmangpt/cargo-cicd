@@ -1,0 +1,25 @@
+[package]
+name = "project-core"
+version = "0.1.0"
+description = "Shared domain types, error taxonomy, and primitives for the workspace"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Typed error enums — exported as the canonical error surface.
+thiserror.workspace = true
+# Serialization for domain types that cross the wire.
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Property-based testing for domain invariants.
+proptest.workspace = true
+
+[features]
+default = []
+# Enable Serialize/Deserialize on all domain types.
+serde = ["dep:serde", "dep:serde_json"]

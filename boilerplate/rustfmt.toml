@@ -1,0 +1,52 @@
+# rustfmt configuration — applies to the entire workspace.
+# Run `cargo fmt --all` to format; `cargo fmt --all -- --check` in CI.
+
+edition = "2021"
+
+# Maximum line width before rustfmt wraps.
+max_width = 100
+
+# Number of spaces per indentation level.
+tab_spaces = 4
+hard_tabs = false
+
+# Brace style: AlwaysSameLine (K&R), PreferSameLine (default), or SameLineWhere.
+brace_style = "SameLineWhere"
+
+# Where to place the `where` clause for functions with bounds.
+where_single_line = false
+
+# Import organisation: keep std/external/local grouped; merge where possible.
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+
+# Trailing commas in multi-line constructs.
+trailing_comma = "Vertical"
+
+# Reorder `use` imports alphabetically within each group.
+reorder_imports = true
+reorder_modules = true
+
+# Normalise string literals.
+normalize_doc_attributes = true
+normalize_comments = false
+
+# Short functions can stay on one line.
+fn_single_line = false
+struct_lit_single_line = true
+
+# Wrap long function signatures.
+fn_args_layout = "Tall"
+
+# Chain method calls: keep each call on its own line when the chain is long.
+chain_width = 60
+
+# Always use field init shorthand when available (x instead of x: x).
+use_field_init_shorthand = true
+
+# Prefer `use x::y::z` over `use x::y::{z}` for single-item paths.
+use_try_shorthand = true
+
+# Blank lines between items.
+blank_lines_upper_bound = 2
+blank_lines_lower_bound = 0
