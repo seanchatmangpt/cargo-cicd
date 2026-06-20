@@ -258,3 +258,26 @@ jobs:
       - name: Check for typos
         # .typos.toml at repo root controls which files and patterns are checked
         run: typos --config .typos.toml
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build time profiling — advisory; surfaces slow crates without blocking CI
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-timing:
+    name: Build time profile
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build with timings
+        run: cargo build --workspace --timings --message-format=json 2>&1 | tee /tmp/timings.json
+      - name: Upload timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-timings-${{ github.sha }}
+          path: |
+            cargo-timing.html
+            /tmp/timings.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,15 @@
+name: Label Pull Requests
+
+on:
+  pull_request:
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Apply path-based labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml

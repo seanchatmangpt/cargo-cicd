@@ -12,54 +12,33 @@ updates:
       time: "08:00"
       timezone: "UTC"
 
-    # Open at most 5 PRs at a time for Cargo updates
     open-pull-requests-limit: 5
 
-    # Separate production and development dependency updates
     groups:
-      # Dev dependencies (test, bench, example crates) in one PR per week
-      dev-dependencies:
-        dependency-type: "development"
-        update-types:
-          - "minor"
-          - "patch"
-
-      # Production dependencies — patch updates only, grouped
-      production-patch:
-        dependency-type: "production"
+      # Group all patch updates together into a single PR per week
+      patch-updates:
         update-types:
           - "patch"
 
-      # Production minor updates (separate so they get individual review)
-      production-minor:
-        dependency-type: "production"
-        update-types:
-          - "minor"
-
-    # Automatically assign reviewers and labels
     assignees:
-      - "your-github-username"
+      - "seanchatmangpt"
 
     labels:
       - "dependencies"
-      - "rust"
+      - "automated"
 
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "deps"
       include: "scope"
 
-    # Rebase strategy: always rebase to keep the PR branch current
     rebase-strategy: "auto"
 
-    # Allow major version bumps only for these packages (they use semver properly)
-    allow:
-      - dependency-type: "all"
-
     ignore:
-      # Ignore major version bumps for these crates (manual review required)
-      # Uncomment and adjust as needed:
-      # - dependency-name: "tokio"
-      #   update-types: ["version-update:semver-major"]
+      # clap and tokio major version bumps require manual review
+      - dependency-name: "clap"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tokio"
+        update-types: ["version-update:semver-major"]
 
   # ---------------------------------------------------------------------------
   # GitHub Actions
@@ -75,20 +54,49 @@ updates:
     open-pull-requests-limit: 5
 
     groups:
-      # Group all actions updates into a single PR per week
+      # Auto-merge patch and minor action updates together
       github-actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
     assignees:
-      - "your-github-username"
+      - "seanchatmangpt"
 
     labels:
       - "dependencies"
-      - "ci"
+      - "automated"
 
     commit-message:
       prefix: "ci"
+      include: "scope"
+
+    rebase-strategy: "auto"
+
+  # ---------------------------------------------------------------------------
+  # Docker
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+
+    open-pull-requests-limit: 5
+
+    assignees:
+      - "seanchatmangpt"
+
+    labels:
+      - "dependencies"
+      - "automated"
+
+    commit-message:
+      prefix: "docker"
       include: "scope"
 
     rebase-strategy: "auto"

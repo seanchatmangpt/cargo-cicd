@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+      - 'v*'
 
 permissions:
   contents: write
@@ -14,7 +14,7 @@ env:
 
 # ---------------------------------------------------------------------------
 # Job 1: validate-tag
-# Ensures the tag is strict semver and that src/Cargo.toml agrees on version.
+# Ensures the tag is strict semver and that Cargo.toml agrees on version.
 # All downstream jobs gate on this one.
 # ---------------------------------------------------------------------------
 jobs:
@@ -32,34 +32,35 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
 
-          # Enforce strict vMAJOR.MINOR.PATCH format
-          if [[ ! "${TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "::error title=Bad tag format::Tag '${TAG}' does not match vX.Y.Z — re-tag with the correct format and re-push."
+          # Enforce strict vMAJOR.MINOR.PATCH[-prerelease] format
+          if [[ ! "${TAG}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+.*)$ ]]; then
+            echo "::error title=Bad tag format::Tag '${TAG}' does not start with vX.Y.Z"
             exit 1
           fi
 
-          VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          VERSION="${BASH_REMATCH[1]}"
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "Tag validated: ${TAG} -> ${VERSION}"
 
       - name: Verify Cargo.toml version matches tag
         run: |
           VERSION="${{ steps.parse.outputs.version }}"
+          # Strip any pre-release suffix for Cargo.toml comparison
+          BASE_VERSION="${VERSION%%-*}"
 
-          if ! grep -qE "^version = \"${VERSION}\"" src/Cargo.toml; then
-            CARGO_VER=$(grep -m1 '^version' src/Cargo.toml | cut -d'"' -f2)
-            echo "::error title=Version mismatch::src/Cargo.toml has version '${CARGO_VER}' but tag is 'v${VERSION}'."
-            echo "::error::Fix: update src/Cargo.toml to version = \"${VERSION}\", commit, then re-tag."
+          if ! grep -qE "^version = \"${BASE_VERSION}\"" Cargo.toml; then
+            CARGO_VER=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+            echo "::error title=Version mismatch::Cargo.toml has version '${CARGO_VER}' but tag is 'v${BASE_VERSION}'."
+            echo "::error::Fix: update Cargo.toml to version = \"${BASE_VERSION}\", commit, then re-tag."
             exit 1
           fi
 
-          echo "Cargo.toml version confirmed: ${VERSION}"
+          echo "Cargo.toml version confirmed: ${BASE_VERSION}"
 
 # ---------------------------------------------------------------------------
 # Job 2: build
-# Cross-compiles for all 5 target triples and produces per-target tarballs /
+# Cross-compiles for all 6 target triples and produces per-target tarballs /
 # zips plus individual .sha256 sidecar files.
-# Hashes are also surfaced as a job output (base64) for SLSA provenance.
 # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.target }}
@@ -69,25 +70,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+            use_cross: false
+            archive: tar
+
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             ext: ""
             use_cross: true
             archive: tar
 
-          - target: aarch64-unknown-linux-musl
+          - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             ext: ""
             use_cross: true
             archive: tar
 
-          - target: x86_64-apple-darwin
+          - target: aarch64-apple-darwin
             os: macos-latest
             ext: ""
             use_cross: false
             archive: tar
 
-          - target: aarch64-apple-darwin
+          - target: x86_64-apple-darwin
             os: macos-latest
             ext: ""
             use_cross: false
@@ -99,10 +106,6 @@ jobs:
             use_cross: false
             archive: zip
 
-    outputs:
-      # Populated by the checksums job (see below); declared here for SLSA wiring.
-      hashes: ${{ steps.export-hashes.outputs.hashes }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,24 +115,38 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Cargo registry and build artefacts
+      - name: Cache Cargo registry and build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: ${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
-      # ---- Linux musl: use `cross` so we get a static musl libc ----
-      - name: Install cross (Linux musl targets)
+      # ---- Install cross for non-native Linux targets ----
+      - name: Install cross
         if: matrix.use_cross
         run: cargo install cross --locked
 
-      - name: Build (cross — Linux musl)
+      # ---- Build: cross for musl/aarch64-linux ----
+      - name: Build (cross)
         if: matrix.use_cross
         run: cross build --release --target ${{ matrix.target }} --bin cargo-project
 
-      # ---- macOS / Windows: native cargo ----
-      - name: Build (cargo — macOS / Windows)
+      # ---- Build: native cargo for macOS / Windows / x86_64-linux-gnu ----
+      - name: Build (cargo)
         if: "!matrix.use_cross"
         run: cargo build --release --target ${{ matrix.target }} --bin cargo-project
+
+      # ---- Strip binary (Linux / macOS only) ----
+      - name: Strip binary (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          BINARY="target/${{ matrix.target }}/release/cargo-project"
+          # aarch64 cross-compiled binaries may need the cross-strip; fall back gracefully
+          if command -v aarch64-linux-gnu-strip &>/dev/null && [[ "${{ matrix.target }}" == aarch64* ]]; then
+            aarch64-linux-gnu-strip "${BINARY}" || strip "${BINARY}" || true
+          else
+            strip "${BINARY}" || true
+          fi
 
       # ---- Package: tar.gz for Unix ----
       - name: Package (tar.gz — Unix)
@@ -163,26 +180,9 @@ jobs:
           $hash = (Get-FileHash $ARCHIVE -Algorithm SHA256).Hash.ToLower()
           "$hash  $ARCHIVE" | Out-File -Encoding ASCII "${ARCHIVE}.sha256"
 
-          echo "ARCHIVE=$ARCHIVE" >> $env:GITHUB_ENV
+          "ARCHIVE=$ARCHIVE" | Out-File -Append -Encoding ASCII $env:GITHUB_ENV
 
-      - name: Export per-target hash (Unix)
-        if: runner.os != 'Windows'
-        id: export-hashes
-        shell: bash
-        run: |
-          # Surface as a step output so the checksums job can aggregate them.
-          HASH=$(cat "${ARCHIVE}.sha256")
-          echo "hashes=${HASH}" >> "${GITHUB_OUTPUT}"
-
-      - name: Export per-target hash (Windows)
-        if: runner.os == 'Windows'
-        id: export-hashes-win
-        shell: pwsh
-        run: |
-          $hash = Get-Content "${env:ARCHIVE}.sha256"
-          echo "hashes=$hash" >> $env:GITHUB_OUTPUT
-
-      - name: Upload archive artefact
+      - name: Upload archive artifact
         uses: actions/upload-artifact@v4
         with:
           name: archive-${{ matrix.target }}
@@ -194,7 +194,7 @@ jobs:
 
 # ---------------------------------------------------------------------------
 # Job 3: checksums
-# Downloads every per-target artefact, concatenates the .sha256 sidecars into
+# Downloads every per-target artifact, concatenates the .sha256 sidecars into
 # a single checksums.sha256, and re-uploads it.  Also base64-encodes the full
 # checksum set for the SLSA provenance job.
 # ---------------------------------------------------------------------------
@@ -205,7 +205,7 @@ jobs:
     outputs:
       hashes: ${{ steps.b64.outputs.hashes }}
     steps:
-      - name: Download all build artefacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: all-artifacts/
@@ -213,7 +213,6 @@ jobs:
       - name: Collect archives and checksums
         run: |
           mkdir -p release-files
-          # Flatten directory tree created by download-artifact
           find all-artifacts/ -type f | while read -r f; do
             cp "$f" release-files/
           done
@@ -223,7 +222,6 @@ jobs:
       - name: Generate checksums.sha256
         run: |
           cd release-files
-          # Concatenate individual .sha256 sidecar files into one manifest
           cat *.sha256 | sort > checksums.sha256
           echo "checksums.sha256:"
           cat checksums.sha256
@@ -234,7 +232,7 @@ jobs:
           HASHES=$(base64 -w0 release-files/checksums.sha256)
           echo "hashes=${HASHES}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload checksums artefact
+      - name: Upload checksums artifact
         uses: actions/upload-artifact@v4
         with:
           name: checksums
@@ -243,14 +241,34 @@ jobs:
           if-no-files-found: error
 
 # ---------------------------------------------------------------------------
-# Job 4: create-release
+# Job 4: provenance (SLSA level 3)
+# Uses the official SLSA GitHub Generator to produce a signed provenance
+# attestation for the release binaries.  Runs after checksums so it can
+# consume the base64-encoded checksum hashes.
+# ---------------------------------------------------------------------------
+  provenance:
+    name: SLSA provenance
+    needs: checksums
+    permissions:
+      actions: read
+      id-token: write
+      contents: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2
+    with:
+      base64-subjects: "${{ needs.checksums.outputs.hashes }}"
+      upload-assets: false
+
+# ---------------------------------------------------------------------------
+# Job 5: create-release
 # Extracts the CHANGELOG section for this version, creates the GitHub Release,
-# and attaches all archives plus checksums.sha256.
+# and attaches all archives, checksums, and the SLSA provenance bundle.
 # ---------------------------------------------------------------------------
   create-release:
     name: Create GitHub Release
-    needs: [build, checksums]
+    needs: [build, checksums, provenance]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -268,46 +286,39 @@ jobs:
           name: checksums
           path: all-artifacts/
 
+      - name: Download SLSA provenance
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.intoto.jsonl"
+          path: all-artifacts/
+          merge-multiple: true
+
       - name: Extract CHANGELOG section
         id: changelog
+        shell: bash
         run: |
           VERSION="${{ needs.validate-tag.outputs.version }}"
+          # Strip pre-release suffix for CHANGELOG heading lookup
+          BASE_VERSION="${VERSION%%-*}"
 
           if [[ -f CHANGELOG.md ]]; then
-            python3 - <<'PYEOF'
-          import re, sys, os
+            awk \
+              -v ver="[${BASE_VERSION}]" \
+              '/^## \[/{if(p)exit; if(index($0, ver)){p=1; next}} p' \
+              CHANGELOG.md \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              > /tmp/release_body.md
 
-          version = os.environ["VERSION"]
-          text    = open("CHANGELOG.md").read()
-
-          # Find the heading for this version; heading may use [X.Y.Z] or plain X.Y.Z
-          start_pat = re.compile(
-              r'^##\s+\[?' + re.escape(version) + r'\]?',
-              re.MULTILINE
-          )
-          end_pat   = re.compile(r'^##\s+\[', re.MULTILINE)
-
-          m = start_pat.search(text)
-          if not m:
-              body = "See commit history for changes in this release."
-          else:
-              rest  = text[m.end():]
-              end_m = end_pat.search(rest)
-              body  = rest[:end_m.start()].strip() if end_m else rest.strip()
-              if not body:
-                  body = "See commit history for changes in this release."
-
-          with open("/tmp/release_body.md", "w") as f:
-              f.write(body + "\n")
-          PYEOF
+            # Fall back if awk matched nothing
+            if [[ ! -s /tmp/release_body.md ]]; then
+              echo "See commit history for changes in this release." > /tmp/release_body.md
+            fi
           else
             echo "See commit history for changes in this release." > /tmp/release_body.md
           fi
 
-          echo "Release body:"
-          cat /tmp/release_body.md
-        env:
-          VERSION: ${{ needs.validate-tag.outputs.version }}
+          echo "Release body preview (first 20 lines):"
+          head -20 /tmp/release_body.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -316,28 +327,38 @@ jobs:
           name: "cargo-project ${{ github.ref_name }}"
           body_path: /tmp/release_body.md
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref, '-') }}
+          fail_on_unmatched_files: false
           files: |
             all-artifacts/*.tar.gz
             all-artifacts/*.zip
             all-artifacts/checksums.sha256
+            all-artifacts/*.intoto.jsonl
           token: ${{ secrets.GITHUB_TOKEN }}
 
 # ---------------------------------------------------------------------------
-# Job 5: provenance (SLSA level 3)
-# Uses the official SLSA GitHub Generator to produce a signed provenance
-# attestation for the release binaries.  Must run after build so it can
-# consume the base64-encoded checksum hashes.
+# Job 6: publish-crates
+# Publishes to crates.io after a successful release.  Skipped for pre-releases
+# (tags containing a hyphen, e.g. v1.2.3-rc.1).
 # ---------------------------------------------------------------------------
-  provenance:
-    name: SLSA provenance
-    needs: [checksums, create-release]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
-    with:
-      base64-subjects: "${{ needs.checksums.outputs.hashes }}"
-      upload-assets: true
+  publish-crates:
+    name: Publish to crates.io
+    needs: create-release
+    if: "!contains(github.ref, '-')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Publish workspace crates
+        run: cargo publish --workspace
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

@@ -1,0 +1,110 @@
+name: Benchmarks
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'crates/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'crates/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  benchmark:
+    name: Benchmark regression check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: bench-${{ hashFiles('**/Cargo.lock') }}
+
+      # ── Restore the baseline from the last main push ──────────────────────────
+      # On PRs: this will hit if main was pushed to previously.
+      # On main pushes: this restores the prior baseline before we overwrite it.
+      - name: Restore bench baseline
+        id: restore-baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: target/bench-baseline.txt
+          # Look for any existing baseline; we'll overwrite with the newest one.
+          key: bench-baseline-${{ github.sha }}
+          restore-keys: |
+            bench-baseline-
+
+      # ── Run benchmarks ────────────────────────────────────────────────────────
+      - name: Run benchmarks
+        run: cargo bench --workspace --features process-data 2>&1 | tee target/bench-output.txt
+
+      # ── Store baseline on main pushes ─────────────────────────────────────────
+      - name: Store new baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: target/bench-output.txt
+          key: bench-baseline-${{ github.sha }}
+
+      # ── Compare against baseline on PRs ───────────────────────────────────────
+      - name: Copy baseline for comparison
+        if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
+        run: cp target/bench-baseline.txt /tmp/bench-baseline.txt
+
+      - name: Write empty baseline placeholder (no prior baseline found)
+        if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit != 'true'
+        run: |
+          echo "# No prior baseline — this is the first run." > /tmp/bench-baseline.txt
+
+      - name: Compare benchmarks against baseline
+        if: github.event_name == 'pull_request'
+        id: bench-compare
+        continue-on-error: true
+        run: |
+          python3 scripts/bench-compare.py /tmp/bench-baseline.txt target/bench-output.txt \
+            | tee /tmp/bench-diff.md
+          echo "md_output<<EOF" >> "${GITHUB_OUTPUT}"
+          cat /tmp/bench-diff.md >> "${GITHUB_OUTPUT}"
+          echo "EOF" >> "${GITHUB_OUTPUT}"
+
+      # ── Post PR comment ───────────────────────────────────────────────────────
+      - name: Post benchmark summary comment
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## Benchmark Results
+
+            ${{ steps.bench-compare.outputs.md_output || '_Benchmark comparison unavailable (no prior baseline or script error)._' }}
+
+            > Full raw output is in the `bench-results-${{ github.sha }}` workflow artifact.
+            > Regression check is **advisory** — it does not block the PR.
+          comment_tag: bench-report
+          mode: upsert
+
+      # ── Upload raw output as artifact ─────────────────────────────────────────
+      - name: Upload bench output
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-results-${{ github.sha }}
+          path: target/bench-output.txt
+          retention-days: 30
+          if-no-files-found: warn
