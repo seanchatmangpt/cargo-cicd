@@ -1,0 +1,33 @@
+# =============================================================================
+# .cargo/config.toml — workspace-level Cargo configuration
+# https://doc.rust-lang.org/cargo/reference/config.html
+# =============================================================================
+
+[build]
+# Use all available parallelism; CI overrides this with CARGO_BUILD_JOBS.
+jobs = 0
+
+[net]
+# Fetch git dependencies via the system git binary for better credential
+# handling (respects SSH agent, credential helpers, and proxy settings).
+git-fetch-with-cli = true
+# Retry transient network errors — common in CI environments with rate-limited
+# or flaky registries.
+retry = 3
+
+[registry]
+default = "crates-io"
+
+[profile.dev]
+# Split debug info to speed up incremental links (Linux/macOS only).
+# On Windows this is silently ignored; no harm keeping it cross-platform.
+split-debuginfo = "unpacked"
+
+[profile.release]
+# Already declared in the workspace Cargo.toml; these settings are mirrored
+# here so the config file is self-documenting and values are visible without
+# opening the manifest.
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
