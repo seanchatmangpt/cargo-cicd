@@ -1,0 +1,214 @@
+# =============================================================================
+# docker.yml — multi-arch Docker build, push, and security scan
+#
+# Triggers:
+#   push to main    → build + push :latest and :sha-<7char>
+#   push tag v*     → build + push version tag
+#   pull_request    → build only (validates Dockerfile, no push)
+# =============================================================================
+
+name: Docker
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+  # Required for uploading SARIF results to GitHub Security tab
+  security-events: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # build-and-push
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    outputs:
+      # Pass the image digest produced by the amd64 build to the scan job.
+      # Both platforms produce the same digest once merged into the manifest,
+      # so reading from one matrix leg is sufficient.
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # QEMU is needed only for cross-platform emulation on the amd64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # BuildKit (buildx) provides multi-platform support, inline cache, and
+      # build-secret handling.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login is skipped during pull_request runs because the GITHUB_TOKEN
+      # for a forked PR does not have write permission to the registry.
+      - name: Log in to ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # metadata-action generates OCI-compliant tags and labels from git
+      # context (branch name, tag name, SHA, etc.).
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            # Push :latest when the triggering ref is main
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Push :sha-<7char> for every push to main (pinnable image reference)
+            type=sha,prefix=sha-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            # Push :<tag> for version tags (e.g. v1.2.3)
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.title=cargo-project-serve
+            org.opencontainers.image.description=HTTP service layer for cargo-project workspace
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT OR Apache-2.0
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          # Build for the single platform in this matrix leg; the merge job
+          # below combines both legs into one multi-arch manifest.
+          platforms: ${{ matrix.platform }}
+          # Only push when this is not a pull_request event.
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CARGO_VERSION=${{ github.ref_name }}
+          # GitHub Actions layer cache — dramatically speeds up repeated builds.
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      # Docker Scout CVE scan (optional — skip gracefully if not configured).
+      # To enable, add DOCKER_SCOUT_ORG and DOCKER_SCOUT_TOKEN to repository
+      # secrets and install the scout CLI in your runner image.
+      - name: Run Docker Scout CVE scan
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          if command -v docker-scout &>/dev/null; then
+            docker scout cves \
+              --only-severity critical,high \
+              --format sarif \
+              --output docker-scout-results.sarif \
+              ghcr.io/${{ github.repository }}:sha-$(echo "${{ github.sha }}" | cut -c1-7)
+          else
+            echo "docker-scout not available — skipping CVE scan"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # merge — combine per-platform image manifests into one multi-arch manifest
+  # Runs only on push (not PRs), after both matrix legs succeed.
+  # ---------------------------------------------------------------------------
+  merge:
+    name: Merge multi-arch manifest
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker metadata (for merge)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=tag
+
+      # Create and push the combined multi-arch manifest.
+      - name: Create and push manifest list
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CARGO_VERSION=${{ github.ref_name }}
+          cache-from: |
+            type=gha,scope=linux/amd64
+            type=gha,scope=linux/arm64
+
+  # ---------------------------------------------------------------------------
+  # container-scan — Trivy CVE scan, runs after push (not PRs)
+  # ---------------------------------------------------------------------------
+  container-scan:
+    name: Container Security Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: merge
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Trivy scans the pushed image and emits results in SARIF format so they
+      # appear in the repository's "Security → Code scanning" tab.
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: >-
+            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          # Exit 0 even on findings so the SARIF upload step always runs.
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-container

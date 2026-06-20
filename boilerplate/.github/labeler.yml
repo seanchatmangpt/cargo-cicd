@@ -1,0 +1,50 @@
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**'
+      - 'Makefile.toml'
+      - 'deny.toml'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
+
+core:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/core/**'
+      - 'src/**'
+
+domain:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/domain/**'
+
+testing:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**'
+      - 'fuzz/**'
+
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Dockerfile*'
+      - 'docker-compose*'
+      - 'kubernetes/**'
+
+security:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'deny.toml'
+      - '.github/workflows/supply-chain.yml'
+      - '.cargo/config.toml'

@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# pre-commit — fast pre-commit hook (target: < 10 seconds)
+#
+# Runs cargo fmt --check and cargo clippy on staged Rust files only.
+# Skips entirely if no .rs files are staged.
+#
+# NOTE: After writing via the Write tool, make this executable:
+#   chmod +x .git-hooks/pre-commit
+
+set -euo pipefail
+
+START="${SECONDS}"
+
+# ---------------------------------------------------------------------------
+# TTY awareness — silent on failure, verbose on TTY
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  CYAN='\033[0;36m'
+  BOLD='\033[1m'
+  RESET='\033[0m'
+else
+  RED='' GREEN='' YELLOW='' CYAN='' BOLD='' RESET=''
+fi
+
+info()    { [[ -t 1 ]] && echo -e "${CYAN}[pre-commit]${RESET} $*" || true; }
+success() { [[ -t 1 ]] && echo -e "${GREEN}[pre-commit]${RESET} $*" || true; }
+fail()    { echo -e "${RED}[pre-commit] FAIL:${RESET} $*" >&2; }
+
+# ---------------------------------------------------------------------------
+# Detect staged Rust files
+# ---------------------------------------------------------------------------
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$' || true)
+
+if [[ -z "${STAGED}" ]]; then
+  info "No staged .rs files — skipping pre-commit checks."
+  exit 0
+fi
+
+STAGED_COUNT=$(echo "${STAGED}" | wc -l | tr -d ' ')
+info "Checking ${STAGED_COUNT} staged Rust file(s)..."
+
+# ---------------------------------------------------------------------------
+# cargo fmt --check
+# Fast: no compilation, pure formatting check.
+# ---------------------------------------------------------------------------
+info "Running cargo fmt --check..."
+if ! cargo fmt --check 2>&1; then
+  fail "cargo fmt found unformatted code."
+  fail "Run: cargo fmt"
+  exit 1
+fi
+success "fmt: OK"
+
+# ---------------------------------------------------------------------------
+# cargo clippy
+# Non-pedantic warnings are denied; pedantic lints are allowed so this
+# stays faster and less noisy than the full CI gate.
+# ---------------------------------------------------------------------------
+info "Running cargo clippy (non-pedantic)..."
+if ! cargo clippy --workspace --all-targets -- -D warnings -A clippy::pedantic 2>&1; then
+  fail "cargo clippy found warnings or errors."
+  fail "Fix the issues above, then re-stage your changes."
+  exit 1
+fi
+success "clippy: OK"
+
+# ---------------------------------------------------------------------------
+# Done
+# ---------------------------------------------------------------------------
+echo "pre-commit: ${SECONDS}s"

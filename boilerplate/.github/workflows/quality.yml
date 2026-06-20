@@ -1,0 +1,283 @@
+name: Quality Gates
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  COVERAGE_THRESHOLD: 60
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Detect which paths changed so expensive jobs can be skipped on unrelated PRs
+  # ─────────────────────────────────────────────────────────────────────────────
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      cargo: ${{ steps.filter.outputs.cargo }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'src/**/*.rs'
+              - 'crates/**/*.rs'
+              - 'tests/**/*.rs'
+            cargo:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '**/Cargo.toml'
+              - 'src/**/*.rs'
+              - 'crates/**/*.rs'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Coverage — replaces the basic coverage job; enforces 60% line threshold
+  # ─────────────────────────────────────────────────────────────────────────────
+  coverage:
+    name: Coverage (tarpaulin)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: coverage
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+
+      - name: Run tarpaulin
+        run: |
+          cargo tarpaulin \
+            --workspace \
+            --features "process-data autonomic" \
+            --timeout 180 \
+            --exclude-files "*/main.rs" \
+            --exclude-files "tests/*" \
+            --exclude-files "benches/*" \
+            --exclude-files "build.rs" \
+            --out Xml Lcov Html \
+            --output-dir target/coverage \
+            -- --test-threads 1
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Copt-level=0'
+
+      - name: Upload LCOV to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: target/coverage/lcov.info
+          flags: unittests
+          name: workspace-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+      - name: Upload HTML report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: target/coverage/tarpaulin-report.html
+          retention-days: 14
+
+      - name: Parse coverage percentage
+        id: coverage
+        run: |
+          PCT=$(python3 - <<'PYEOF'
+          import xml.etree.ElementTree as ET, sys
+          tree = ET.parse("target/coverage/cobertura.xml")
+          root = tree.getroot()
+          rate = float(root.attrib.get("line-rate", "0"))
+          print(f"{rate * 100:.2f}")
+          PYEOF
+          )
+          echo "percentage=${PCT}" >> "${GITHUB_OUTPUT}"
+          echo "Coverage: ${PCT}%"
+
+      - name: Enforce 60% line coverage threshold
+        run: |
+          python3 - <<PYEOF
+          pct = float("${{ steps.coverage.outputs.percentage }}")
+          threshold = float("${{ env.COVERAGE_THRESHOLD }}")
+          if pct < threshold:
+              print(f"FAIL: {pct:.2f}% < {threshold}% minimum required")
+              raise SystemExit(1)
+          print(f"PASS: {pct:.2f}% >= {threshold}% minimum")
+          PYEOF
+
+      - name: Post coverage comment on PR
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## Code Coverage Report
+
+            | Metric     | Value                                                                 |
+            |------------|-----------------------------------------------------------------------|
+            | Coverage   | **${{ steps.coverage.outputs.percentage }}%**                        |
+            | Threshold  | ${{ env.COVERAGE_THRESHOLD }}%                                        |
+            | Status     | ${{ fromJSON(steps.coverage.outputs.percentage) >= 60 && '✅ PASS' || '❌ FAIL' }} |
+
+            Full HTML report is available in the workflow artifacts as `coverage-report-${{ github.sha }}`.
+          comment_tag: coverage-report
+          mode: upsert
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Semver checks — only when Cargo manifests or Rust source files changed
+  # ─────────────────────────────────────────────────────────────────────────────
+  semver-checks:
+    name: Semver compatibility
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.cargo == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: semver
+
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --locked
+
+      - name: Run semver checks
+        id: semver
+        # continue so we can post a comment even on breakage before failing
+        continue-on-error: true
+        run: |
+          cargo semver-checks check-release --workspace 2>&1 | tee /tmp/semver-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "${GITHUB_OUTPUT}"
+
+      - name: Post semver comment on breaking changes
+        if: steps.semver.outcome == 'failure'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## ⚠️ Semver Breaking Changes Detected
+
+            `cargo semver-checks` found API breakage in this PR.
+            If this is intentional, bump the major version per semver rules.
+
+            <details>
+            <summary>Full output</summary>
+
+            ```
+            ${{ steps.semver.outputs.semver_output }}
+            ```
+
+            </details>
+          comment_tag: semver-report
+          mode: upsert
+
+      - name: Fail job on breaking changes
+        if: steps.semver.outcome == 'failure'
+        run: |
+          echo "Semver breaking changes detected — see PR comment for details."
+          cat /tmp/semver-output.txt
+          exit 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Doc tests — nextest does not run doctests; run them separately
+  # ─────────────────────────────────────────────────────────────────────────────
+  doc-tests:
+    name: Doc tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: doctests
+
+      - name: Run doc tests (all features)
+        run: cargo test --doc --workspace --all-features
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Unused dependencies (advisory — never blocks CI)
+  # ─────────────────────────────────────────────────────────────────────────────
+  unused-features:
+    name: Unused dependencies (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-machete
+        run: cargo install cargo-machete --locked
+
+      - name: Run cargo-machete
+        run: |
+          echo "=== Unused dependency report (advisory) ==="
+          cargo machete || true
+          echo "Note: this job is advisory only and does not block the PR."
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Typos — spell-check source code
+  # ─────────────────────────────────────────────────────────────────────────────
+  typos:
+    name: Spell check (typos)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install typos-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: typos-cli
+
+      - name: Check for typos
+        # .typos.toml at repo root controls which files and patterns are checked
+        run: typos --config .typos.toml
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build time profiling — advisory; surfaces slow crates without blocking CI
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-timing:
+    name: Build time profile
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build with timings
+        run: cargo build --workspace --timings --message-format=json 2>&1 | tee /tmp/timings.json
+      - name: Upload timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-timings-${{ github.sha }}
+          path: |
+            cargo-timing.html
+            /tmp/timings.json
+          if-no-files-found: ignore
+          retention-days: 14

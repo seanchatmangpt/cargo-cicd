@@ -1,0 +1,65 @@
+# =============================================================================
+# .dockerignore — exclude files from the Docker build context
+# Keeping the context lean speeds up `docker build` and avoids leaking secrets.
+# =============================================================================
+
+# --- Build artifacts (large, never needed in image) -------------------------
+target/
+**/target/
+
+# --- Version control ---------------------------------------------------------
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# --- Environment & secrets ---------------------------------------------------
+.env
+.env.*
+*.env
+.envrc
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Documentation (not needed at runtime) -----------------------------------
+# Keep README.md — some tooling reads it from the image layer
+*.md
+!README.md
+docs/
+CHANGELOG*
+CONTRIBUTING*
+LICENSE*
+
+# --- Editor & IDE files ------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- CI / CD config ----------------------------------------------------------
+.github/
+.gitlab-ci.yml
+.circleci/
+Jenkinsfile
+Makefile
+*.sh
+# Re-include nothing from scripts/ in the image
+
+# --- Test fixtures & data ----------------------------------------------------
+tests/fixtures/
+tests/snapshots/
+
+# --- Boilerplate subdirectory build artifacts --------------------------------
+boilerplate/target/
+
+# --- Docker files themselves (already in build context, no need to embed) ----
+Dockerfile*
+docker-compose*.yml
+docker/
+kubernetes/
+scripts/

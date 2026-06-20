@@ -1,0 +1,173 @@
+name: Binary Size
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Name of the release binary produced by the `src` crate.
+  BINARY_NAME: cargo-project
+
+jobs:
+  binary-size:
+    name: Binary size tracking
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: binary-size-${{ hashFiles('**/Cargo.lock') }}
+
+      # ── Build release binary ──────────────────────────────────────────────────
+      - name: Build release binary
+        run: cargo build --release
+
+      # ── Measure size ──────────────────────────────────────────────────────────
+      - name: Measure binary size
+        id: measure
+        run: |
+          BINARY="target/release/${{ env.BINARY_NAME }}"
+          if [ ! -f "$BINARY" ]; then
+            echo "Binary not found at $BINARY — listing target/release:"
+            ls -la target/release/ | head -30
+            exit 1
+          fi
+          SIZE_BYTES=$(stat -c '%s' "$BINARY")
+          SIZE_HUMAN=$(du -sh "$BINARY" | cut -f1)
+          echo "size_bytes=${SIZE_BYTES}" >> "${GITHUB_OUTPUT}"
+          echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          echo "Binary: $BINARY"
+          echo "Size:   ${SIZE_HUMAN} (${SIZE_BYTES} bytes)"
+          ls -la "$BINARY"
+
+      # ── cargo-bloat crate breakdown (advisory) ────────────────────────────────
+      - name: Install cargo-bloat
+        continue-on-error: true
+        run: cargo install cargo-bloat --locked
+
+      - name: Run cargo-bloat (crate breakdown)
+        id: bloat
+        continue-on-error: true
+        run: |
+          cargo bloat --release --crates 2>&1 | tee /tmp/bloat-output.txt || true
+          echo "bloat_output<<EOF" >> "${GITHUB_OUTPUT}"
+          cat /tmp/bloat-output.txt >> "${GITHUB_OUTPUT}"
+          echo "EOF" >> "${GITHUB_OUTPUT}"
+
+      # ── Restore prior size baseline ───────────────────────────────────────────
+      - name: Restore size baseline
+        id: restore-baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/binary-size-baseline.txt
+          key: binary-size-baseline-${{ github.sha }}
+          restore-keys: |
+            binary-size-baseline-
+
+      # ── Compare sizes ─────────────────────────────────────────────────────────
+      - name: Compare against baseline
+        id: size-compare
+        continue-on-error: true
+        if: steps.restore-baseline.outputs.cache-hit == 'true'
+        run: |
+          BASELINE=$(cat /tmp/binary-size-baseline.txt)
+          CURRENT=${{ steps.measure.outputs.size_bytes }}
+          python3 - <<PYEOF
+          import sys
+          baseline = int("${BASELINE}".strip())
+          current  = int("${CURRENT}".strip())
+          if baseline == 0:
+              print("Baseline is zero — cannot compute percentage.")
+              sys.exit(0)
+          pct_change = (current - baseline) / baseline * 100
+          delta_bytes = current - baseline
+          sign = "+" if delta_bytes >= 0 else ""
+          print(f"Baseline: {baseline:,} bytes")
+          print(f"Current:  {current:,} bytes")
+          print(f"Delta:    {sign}{delta_bytes:,} bytes ({sign}{pct_change:.2f}%)")
+          if pct_change > 5:
+              print(f"WARNING: binary grew by {pct_change:.2f}% (threshold: 5%)")
+              # Advisory only — exit 0 so continue-on-error still records the warning.
+          PYEOF
+
+      # ── Store new baseline on main pushes ─────────────────────────────────────
+      - name: Store new size baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ steps.measure.outputs.size_bytes }}" > /tmp/binary-size-baseline.txt
+
+      - name: Save size baseline to cache (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/binary-size-baseline.txt
+          key: binary-size-baseline-${{ github.sha }}
+
+      # ── PR comment ────────────────────────────────────────────────────────────
+      - name: Compute size delta for comment
+        if: github.event_name == 'pull_request'
+        id: delta
+        continue-on-error: true
+        run: |
+          CURRENT=${{ steps.measure.outputs.size_bytes }}
+          if [ -f /tmp/binary-size-baseline.txt ]; then
+            BASELINE=$(cat /tmp/binary-size-baseline.txt)
+            python3 - <<PYEOF
+          import sys
+          baseline = int("${BASELINE}".strip())
+          current  = int("${CURRENT}".strip())
+          if baseline == 0:
+              print("delta_line=_No prior baseline found._", end="")
+              sys.exit(0)
+          pct = (current - baseline) / baseline * 100
+          delta = current - baseline
+          sign = "+" if delta >= 0 else ""
+          status = "⚠️ >5% growth" if pct > 5 else ("✅ within threshold" if pct >= 0 else "✅ shrunk")
+          print(f"delta_line=| Delta | {sign}{delta:,} bytes ({sign}{pct:.2f}%) | {status} |")
+          PYEOF
+          else
+            echo "delta_line=| Delta | _No prior baseline_ | — |" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Post binary size comment on PR
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## Binary Size Report
+
+            | Metric | Value |
+            |--------|-------|
+            | Binary | `target/release/${{ env.BINARY_NAME }}` |
+            | Size   | **${{ steps.measure.outputs.size_human }}** (${{ steps.measure.outputs.size_bytes }} bytes) |
+            ${{ steps.delta.outputs.delta_line || '| Delta | _baseline unavailable_ | — |' }}
+
+            <details>
+            <summary>cargo-bloat crate breakdown</summary>
+
+            ```
+            ${{ steps.bloat.outputs.bloat_output || 'cargo-bloat not available or failed.' }}
+            ```
+
+            </details>
+
+            > Size regression check is **advisory** — it does not block the PR.
+          comment_tag: binary-size-report
+          mode: upsert

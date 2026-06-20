@@ -1,0 +1,35 @@
+[package]
+name = "project-mcp-server"
+version = "0.1.0"
+description = "MCP server exposing project workspace functionality to AI assistants."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "cargo-project-mcp"
+path = "src/main.rs"
+
+[lib]
+name = "project_mcp_server"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+once_cell.workspace = true
+# Model Context Protocol SDK for Rust
+rmcp = { version = "0.1", features = ["server", "transport-io", "transport-sse-server"] }
+
+[features]
+default = ["stdio"]
+stdio = []
+http = []
+
+[dev-dependencies]
+tempfile.workspace = true

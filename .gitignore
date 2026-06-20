@@ -1,3 +1,7 @@
 /target
 playground/evidence/*.log
 .claude/worktrees/
+
+# Boilerplate directory build artifacts
+boilerplate/target/
+boilerplate/Cargo.lock

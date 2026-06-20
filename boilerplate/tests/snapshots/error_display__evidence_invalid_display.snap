@@ -1,0 +1,5 @@
+---
+source: tests/snapshot/error_display.rs
+expression: format!("{}", err)
+---
+evidence invalid: XES trace is missing required attribute case_id
