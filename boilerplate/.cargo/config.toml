@@ -3,6 +3,15 @@
 # https://doc.rust-lang.org/cargo/reference/config.html
 # =============================================================================
 
+# ---------------------------------------------------------------------------
+# Reproducible builds — path remapping
+# Strip build-time absolute paths from binaries so release artifacts are
+# byte-for-byte reproducible across different machines and CI runners.
+# Set in release CI via the RUSTFLAGS env var rather than here to avoid
+# embedding developer machine paths in local debug builds.
+# See .github/workflows/release.yml (build job env: RUSTFLAGS).
+# ---------------------------------------------------------------------------
+
 [build]
 # Use all available parallelism; CI overrides this with CARGO_BUILD_JOBS.
 jobs = 0
