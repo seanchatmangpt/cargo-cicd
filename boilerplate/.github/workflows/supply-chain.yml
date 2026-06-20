@@ -116,9 +116,21 @@ jobs:
       - name: Check for unused deps
         run: cargo +nightly udeps --all-targets --workspace
 
+  vet:
+    name: Supply Chain Audit (cargo-vet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-vet
+        run: cargo install cargo-vet --locked
+      - name: Run cargo vet
+        run: cargo vet
+        continue-on-error: true   # advisory until audit baseline is established
+
   supply-chain-gate:
     name: Supply Chain Gate
-    needs: [audit, deny, licenses, secrets-scan]
+    needs: [audit, deny, licenses, secrets-scan, vet]
     runs-on: ubuntu-latest
     if: always()
     steps:

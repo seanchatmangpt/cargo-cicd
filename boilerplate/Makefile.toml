@@ -146,11 +146,14 @@ dependencies = [
 # ──────────────────────────────────────────────────────────────────────────────
 
 [tasks.feature-check]
-description = "Check feature powerset (depth 2) via cargo-hack; install hint if missing"
+description = "Check each feature in isolation then powerset depth 2 (mirrors GH Actions features job)"
 script_runner = "@shell"
 script = [
   '''
   if command -v cargo-hack >/dev/null 2>&1; then
+    echo "--- each-feature check ---"
+    cargo hack check --workspace --each-feature --no-dev-deps
+    echo "--- powerset depth-2 check ---"
     cargo hack check --workspace --feature-powerset --depth 2
   else
     echo "  [skip] cargo-hack not found."
