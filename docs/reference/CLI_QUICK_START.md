@@ -6,7 +6,7 @@ Welcome to cargo-cicd! This guide gets you up and running in 5 minutes.
 
 `cargo-cicd` is a local-first CI/CD helper for Rust workspaces. It keeps your workspace clean, fast, and push-ready by running targeted checks before you push to remote. Think of it as a local pre-flight checklist for your repository.
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ## Installation
 
@@ -18,7 +18,7 @@ Verify installation:
 
 ```sh
 cargo cicd --version
-# cargo-cicd 26.6.2
+# cargo-cicd 26.6.19
 ```
 
 If the command is not found, ensure `~/.cargo/bin` is on your `$PATH`:

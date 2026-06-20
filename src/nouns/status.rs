@@ -163,20 +163,20 @@ impl VerbCommand for StatusShowVerb {
 // ── audit verb ────────────────────────────────────────────────────────────────
 
 /// `cargo cicd status audit` — shell out to wpm to adjudicate the current
-/// evidence XES file.  Emits an `evidence:audit` event (with oracle provenance)
+/// evidence OCEL 2.0 file.  Emits an `evidence:audit` event (with oracle provenance)
 /// back into the log, then fails if the oracle refuses.
 pub struct StatusAuditVerb;
 
 impl StatusAuditVerb {
     fn execute(&self) -> anyhow::Result<()> {
         let evidence_dir = crate::evidence::evidence_dir();
-        let xes = evidence_dir.join("events.xes");
+        let ocel = evidence_dir.join("events.ocel.json");
 
-        if !xes.exists() {
+        if !ocel.exists() {
             println!(
                 "{} no evidence at {}",
                 badge::tag(Verdict::Blocked),
-                xes.display()
+                ocel.display()
             );
             return Ok(());
         }
@@ -189,18 +189,18 @@ impl StatusAuditVerb {
         };
 
         println!("{}", panel::header("wasm4pm evidence audit"));
-        let xes_disp = xes.display().to_string();
+        let ocel_disp = ocel.display().to_string();
         let wpm_path = wpm_shell.binary_path().to_string();
         println!(
             "{}",
             panel::kv(&[
-                ("evidence", theme::paint(&xes_disp, Role::Value).as_str()),
+                ("evidence", theme::paint(&ocel_disp, Role::Value).as_str()),
                 ("wpm", theme::paint(&wpm_path, Role::Value).as_str()),
             ])
         );
 
         let result = wpm_shell
-            .audit(xes.to_str().unwrap_or(""))
+            .audit(ocel.to_str().unwrap_or(""))
             .unwrap_or_else(|e| crate::integrations::WpmResult {
                 command: "wpm audit".to_string(),
                 success: false,
@@ -258,7 +258,7 @@ impl StatusAuditVerb {
         }
 
         // Append all three/four events into the main evidence log so they are
-        // included in the next XES re-build.
+        // included in the next evidence re-build.
         if let Err(e) = crate::evidence::append_events(&events_to_append, &evidence_dir) {
             eprintln!("warning: audit evidence emission failed: {}", e);
         }
@@ -275,7 +275,7 @@ impl VerbCommand for StatusAuditVerb {
         "audit"
     }
     fn about(&self) -> &'static str {
-        "Adjudicate current evidence XES file via the wasm4pm oracle"
+        "Adjudicate current evidence OCEL 2.0 file via the wasm4pm oracle"
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         self.execute()

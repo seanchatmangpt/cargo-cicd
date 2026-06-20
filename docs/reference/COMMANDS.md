@@ -2,7 +2,7 @@
 
 This is the comprehensive reference for all `cargo-cicd` commands. Commands are organized by noun, with all available verbs and options for each.
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ## Command Syntax
 
@@ -767,7 +767,7 @@ cargo cicd workspace && cargo cicd publish
 cargo cicd --version
 ```
 
-Displays the installed version (26.6.2).
+Displays the installed version (26.6.19).
 
 ### cargo cicd --help
 

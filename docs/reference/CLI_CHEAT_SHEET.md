@@ -6,7 +6,7 @@ Quick one-page reference for the most common cargo-cicd commands.
 
 ```sh
 cargo install cargo-cicd
-cargo cicd --version   # Verify: 26.6.2
+cargo cicd --version   # Verify: 26.6.19
 ```
 
 ## Status & Diagnosis
@@ -48,6 +48,14 @@ cargo cicd git close           # Verify phase can close
 cargo cicd evidence doctor     # Run receipt doctor audit
 cargo cicd evidence audit      # Alias for doctor
 cargo cicd status audit        # Audit current evidence
+```
+
+## Compliance & Supply Chain
+
+```sh
+cargo cicd certification show     # IEC 61508 / ISO 26262 / SOC2 / TOGAF summary
+cargo cicd sbom generate          # Generate CycloneDX SBOM → sbom.json
+cargo cicd sbom show              # Display generated SBOM
 ```
 
 ## Common Workflows
@@ -104,6 +112,7 @@ done
 |------|---------|
 | `cicd.toml` | Workspace state snapshot (at root) |
 | `target/cargo-cicd/evidence/` | Event logs and receipts |
+| `sbom.json` | Generated CycloneDX SBOM |
 | `Cargo.toml` | Workspace manifest (required) |
 | `rust-toolchain.toml` | Pinned Rust version (optional) |
 
@@ -139,6 +148,8 @@ Default verbs (verb can be omitted):
 
 **Phase Closure** — Git verification that tree is clean before release
 
+**SBOM** — Software Bill of Materials in CycloneDX format (`sbom.json`), generated via `cargo-cyclonedx`
+
 ## Troubleshooting Quick Links
 
 | Problem | Solution |
@@ -148,6 +159,7 @@ Default verbs (verb can be omitted):
 | Target too large | `cargo cicd target prune --apply` |
 | Git tree dirty | `git add .` and `git commit` first |
 | wpm not found | Optional; install wasm4pm for full validation |
+| sbom generate fails | `cargo install cargo-cyclonedx` |
 
 ## Environment Variables
 

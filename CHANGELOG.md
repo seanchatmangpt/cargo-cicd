@@ -6,6 +6,57 @@ Format: feat(scope): description — scope is core|cli|target|test|git|autonomic
 
 ---
 
+## [26.6.19] — 2026-06-19
+
+### Added
+
+**OCEL 2.0 Unification**
+- `events.ocel.json` is now the primary evidence format; `events.xes` is a legacy dual-write side-channel
+- `pipeline run` oracle call switched from XES to `receipt_verify_ocel2()` — no XES fallback
+- `status audit` reads `events.ocel.json` (was `events.xes`) for oracle adjudication
+- `evidence reset` now removes `events.ocel.json` alongside JSONL and XES
+- `wasm4pm_shell.audit()` parameter renamed to `path` (accepts any evidence file, not XES-only)
+
+**CLI Nouns**
+- `certification show` — Display IEC 61508, ISO 26262, SOC2 Trust Service Criteria, and TOGAF ADM coverage
+- `sbom generate` — Generate CycloneDX SBOM via `cargo cyclonedx --format json`; degrades to WARN:cyclonedx_unavailable if tool absent
+- `sbom show` — Print first 20 lines of `sbom.json` with evidence emission
+
+**Compliance & Certification**
+- IEC 61508 SIL 2 coverage: 9 clauses mapped (1, 6, 7, 7.4, 7.9, 8, 9, 10, 12)
+- ISO 26262 ASIL B coverage: Part 6 clauses mapped (5, 7, 7.4.11, 8, 9, 10)
+- SOC2 Trust Service Criteria: 6 criteria mapped (CC6.1, CC7.2, A1.1, PI1.1, PI1.4, C1.1)
+- TOGAF ADM: 6 of 9 phases covered (B, C-App, C-Data, D, G, H); A, E, F deferred
+- `src/certification/soc2.rs` — `TrustCategory` enum, 6 `Soc2Criterion` structs
+- `src/certification/togaf.rs` — 9-phase `TogafPhase` structs with covered/deferred classification
+
+**CI Gates**
+- `affidavit-gate` GitHub Actions job — builds `--features affidavit`, runs seal/verify (non-blocking)
+- `lsp-admissibility` job — builds `--features anti-llm-cheat`, runs `lsp check` (non-blocking)
+- `workspace sync` smoke step added to `check-and-test` job
+- `status audit` release gate with wpm oracle in `release.yml`
+- CI evidence upload switched from `*.xes` to `*.ocel.json`
+
+**Documentation**
+- `docs/SOC2-MAPPING.md` — SOC2 Trust Service Criteria full mapping
+- `docs/TOGAF-ADM-COVERAGE.md` — TOGAF ADM phase coverage with artifact mapping
+- `docs/IEC-61508-MAPPING.md`, `docs/ISO-26262-MAPPING.md` — updated XES → OCEL 2.0 throughout
+- `docs/XES-2.0-SPECIFICATION.md` — legacy notice added at top of file
+- `docs/reference/evidence-format.md` — rewritten to lead with OCEL 2.0 as primary format
+- `docs/explanation/evidence-emission.md` — dual-write architecture documented
+- `docs/integration-examples/CI_CD_PIPELINES.md` — Full CI Gate Stack subsection added
+- `docs/reference/commands/certification-show.md`, `sbom-generate.md` — new command reference pages
+
+### Changed
+- Evidence primary format: OCEL 2.0 (`events.ocel.json`) — XES retained as legacy side-channel only
+- `ProjectionProfile::v26_6_2()` renamed to `v26_6_19()`
+- `producer_version` in receipt JSON updated to `26.6.19`
+
+### Fixed
+- `pipeline run` no longer emits or reads XES in the oracle hot path
+
+---
+
 ## [26.6.2] — 2026-06-14
 
 ### Added

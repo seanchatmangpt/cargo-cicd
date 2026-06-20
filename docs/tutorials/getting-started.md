@@ -1,5 +1,5 @@
 <!-- BEGIN custom:full-doc -->
-# Getting Started with cargo-cicd v26.6.2
+# Getting Started with cargo-cicd v26.6.19
 
 <!-- BEGIN custom:introduction -->
 `cargo-cicd` keeps Rust workspaces clean, fast, and push-ready. It is a Cargo
@@ -30,14 +30,14 @@ with `cargo build` and `cargo test`.
 ## Step 1 — Install cargo-cicd
 
 ```sh
-cargo install cargo-cicd --version 26.6.2
+cargo install cargo-cicd --version 26.6.19
 ```
 
 Verify the install:
 
 ```sh
 cargo cicd --version
-# cargo-cicd 26.6.2
+# cargo-cicd 26.6.19
 ```
 
 If the binary is not found, ensure `~/.cargo/bin` is on your `PATH`:
@@ -105,7 +105,7 @@ Successful output:
 
 ```
 preflight: pass
-publishing my-api 26.6.2 ...
+publishing my-api 26.6.19 ...
 published: ok
 PublishRunEvent written to cicd.toml
 ```

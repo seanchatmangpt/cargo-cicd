@@ -1,134 +1,217 @@
 # Evidence Format Reference
 
 When the `process-data` feature is enabled, `cargo-cicd` emits structured
-events in XES (eXtensible Event Stream) format. This document describes the
-event schema and fields.
+process evidence on every command run. This document describes the three files
+emitted per run, the primary OCEL 2.0 schema, and the legacy XES side-channel.
 
-## XES overview
+## Primary format: OCEL 2.0
 
-XES is an IEEE-standard format for process event logs. Each event belongs to
-a trace (a sequence of events for one logical entity) and carries a set of
-typed attributes.
+The primary evidence format is **OCEL 2.0** (Object-Centric Event Log), a JSON
+format designed for process mining tools and external oracle adjudication. The
+wpm oracle reads `events.ocel.json` directly:
 
-`cargo-cicd` uses XES 2.0. Events are written as newline-delimited XML to
-the configured output path.
+```sh
+wpm audit target/cargo-cicd/evidence/events.ocel.json
+```
 
-## File location
+OCEL 2.0 was chosen over XES because it natively supports object-centric
+relationships (workspaces, crates, pipeline runs) without forcing them into a
+flat trace structure.
 
-Default: `.cicd/events.xes` relative to the workspace root.
+## Files emitted per run
 
-Configure in `cicd.toml`:
+Every call to `append_events()` writes three files to
+`target/cargo-cicd/evidence/`:
+
+| File | Role | Format |
+|------|------|--------|
+| `events.ocel.json` | **Primary** — wpm oracle audit target | OCEL 2.0 JSON |
+| `events.jsonl` | Full-fidelity journal — all events, machine-readable | JSON Lines |
+| `events.xes` | Legacy side-channel — kept for backwards compatibility | XES 2.0 XML |
+
+Configure the output directory in `cicd.toml`:
 
 ```toml
 [process_data]
-output_path = ".cicd/events.xes"
+output_dir = "target/cargo-cicd/evidence"
 ```
 
-## Trace structure
+## OCEL 2.0 schema
 
-Each workspace session is one trace. The trace ID is derived from the
-workspace root path and the session start time.
+An `OcelLog` is the root document. It wraps a map of `OcelEvent` objects, a
+map of `OcelObject` objects, and type-level metadata.
 
-```xml
-<trace>
-  <string key="concept:name" value="cargo-cicd:my-project:2026-06-02T12:00:00Z"/>
-  <string key="workspace:name" value="my-project"/>
-  <string key="workspace:root" value="/home/user/my-project"/>
-  <!-- events -->
-</trace>
+### OcelLog (root document)
+
+```json
+{
+  "ocel:version": "2.0",
+  "ocel:events": { ... },
+  "ocel:objects": { ... },
+  "ocel:event-types": [],
+  "ocel:object-types": []
+}
 ```
 
-## Event fields
+### OcelEvent
 
-Every event has these mandatory fields:
+Each event is keyed by its unique event ID:
+
+```json
+"evt-status-show-20260619134507123Z": {
+  "ocel:activity": "status:show",
+  "ocel:timestamp": "2026-06-19T13:45:07.123Z",
+  "ocel:vmap": {
+    "verdict_claimed": "PASS",
+    "duration_ms": 42,
+    "workspace_id": "cargo-cicd",
+    "trace_class": "live_workspace"
+  },
+  "ocel:typedOmap": [
+    { "objectId": "workspace:cargo-cicd", "qualifier": "executed-in" }
+  ]
+}
+```
+
+### OcelEvent fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ocel:activity` | string | Command in `noun:verb` form (e.g. `"status:show"`) |
+| `ocel:timestamp` | string | ISO-8601 UTC when the event completed |
+| `ocel:vmap` | object | Attribute map — verdict, duration, workspace context |
+| `ocel:typedOmap` | array | Object relationships (workspace, crate, pipeline run) |
+
+### Standard vmap attributes
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `concept:name` | string | Event name (e.g., `StatusShowEvent`) |
-| `time:timestamp` | date | ISO 8601 timestamp when the event completed |
-| `lifecycle:transition` | string | Always `"complete"` for cargo-cicd events |
-| `org:resource` | string | The command that produced the event |
+| `verdict_claimed` | string | `"PASS"`, `"WARN"`, or `"FAIL"` |
+| `duration_ms` | number | Elapsed milliseconds (completion events) |
+| `workspace_id` | string | Workspace identifier |
+| `trace_class` | string | `"live_workspace"` or `"pipeline_run"` |
+
+## Oracle call
+
+After events are written, `status audit` reads `events.ocel.json` and passes
+it to the wpm oracle:
+
+```sh
+wpm audit target/cargo-cicd/evidence/events.ocel.json
+# Output: Accept / Refuse / Blocked
+```
+
+`pipeline run` writes `audit-events.ocel.json` and passes it to
+`wpm receipt_verify_ocel2()`. There is no XES fallback in either path.
+
+## Event fields by command
 
 ### StatusShowEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:dirty_files` | int | Count of uncommitted files |
-| `cicd:publish_ready` | bool | Whether workspace is publish-ready |
-| `cicd:branch` | string | Current git branch |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `dirty_files` | int | Count of uncommitted files |
+| `publish_ready` | bool | Whether workspace is publish-ready |
+| `branch` | string | Current git branch |
 
 ### TargetShowEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:size_bytes` | int | Total target directory size in bytes |
-| `cicd:oldest_artefact_days` | int | Age of oldest artefact in days |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `size_bytes` | int | Total target directory size in bytes |
+| `oldest_artefact_days` | int | Age of oldest artefact in days |
 
 ### TargetPruneEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:bytes_freed` | int | Bytes removed by prune |
-| `cicd:artefacts_removed` | int | Count of removed artefacts |
-| `cicd:threshold_days` | int | Age threshold used for pruning |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `bytes_freed` | int | Bytes removed by prune |
+| `artefacts_removed` | int | Count of removed artefacts |
+| `threshold_days` | int | Age threshold used for pruning |
 
 ### TestChangedEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:changed_crates` | string | Comma-separated list of tested crates |
-| `cicd:tests_passed` | int | Count of passing tests |
-| `cicd:tests_failed` | int | Count of failing tests |
-| `cicd:verdict` | string | `"pass"` or `"fail"` |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `changed_crates` | string | Comma-separated list of tested crates |
+| `tests_passed` | int | Count of passing tests |
+| `tests_failed` | int | Count of failing tests |
+| `verdict` | string | `"pass"` or `"fail"` |
 
 ### TrybuildChangedEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:changed_crates` | string | Crates with changed fixtures |
-| `cicd:fixtures_pass` | int | Passing fixture count |
-| `cicd:fixtures_fail` | int | Failing fixture count |
-| `cicd:verdict` | string | `"pass"` or `"fail"` |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `changed_crates` | string | Crates with changed fixtures |
+| `fixtures_pass` | int | Passing fixture count |
+| `fixtures_fail` | int | Failing fixture count |
+| `verdict` | string | `"pass"` or `"fail"` |
 
 ### GitCloseEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:branch_closed` | string | Branch that was closed |
-| `cicd:trunk_branch` | string | Branch merged into |
-| `cicd:commit_hash` | string | Merge commit hash |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `branch_closed` | string | Branch that was closed |
+| `trunk_branch` | string | Branch merged into |
+| `commit_hash` | string | Merge commit hash |
 
 ### PublishRunEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:crates_published` | string | Comma-separated crate names and versions |
-| `cicd:dry_run` | bool | Whether this was a dry run |
-| `cicd:verdict` | string | `"pass"` or `"fail"` |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `crates_published` | string | Comma-separated crate names and versions |
+| `dry_run` | bool | Whether this was a dry run |
+| `verdict` | string | `"pass"` or `"fail"` |
 
 ### WorkspaceDoctorEvent
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `cicd:issues_found` | int | Count of structural issues |
-| `cicd:verdict` | string | `"pass"` or `"fail"` |
+| vmap key | Type | Description |
+|----------|------|-------------|
+| `issues_found` | int | Count of structural issues |
+| `verdict` | string | `"pass"` or `"fail"` |
 
-## Example XES document
+## Example OCEL 2.0 document
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<log xes.version="2.0" xmlns="http://www.xes-standard.org/">
-  <trace>
-    <string key="concept:name" value="cargo-cicd:my-project:2026-06-02T12:00:00Z"/>
-    <event>
-      <string key="concept:name" value="StatusShowEvent"/>
-      <date key="time:timestamp" value="2026-06-02T12:00:01Z"/>
-      <string key="lifecycle:transition" value="complete"/>
-      <string key="org:resource" value="cargo cicd status show"/>
-      <int key="cicd:dirty_files" value="0"/>
-      <boolean key="cicd:publish_ready" value="true"/>
-      <string key="cicd:branch" value="main"/>
-    </event>
-  </trace>
-</log>
+```json
+{
+  "ocel:version": "2.0",
+  "ocel:events": {
+    "evt-status-show-20260619134507123Z": {
+      "ocel:activity": "status:show",
+      "ocel:timestamp": "2026-06-19T13:45:07.123Z",
+      "ocel:vmap": {
+        "verdict_claimed": "PASS",
+        "dirty_files": 0,
+        "publish_ready": true,
+        "branch": "main",
+        "duration_ms": 42,
+        "workspace_id": "my-project",
+        "trace_class": "live_workspace"
+      },
+      "ocel:typedOmap": [
+        { "objectId": "workspace:my-project", "qualifier": "executed-in" }
+      ]
+    }
+  },
+  "ocel:objects": {
+    "workspace:my-project": {
+      "ocel:type": "workspace",
+      "ocel:ovmap": {
+        "root": "/home/user/my-project"
+      }
+    }
+  },
+  "ocel:event-types": [],
+  "ocel:object-types": []
+}
 ```
+
+## Legacy: XES side-channel
+
+`events.xes` is written on every run alongside `events.ocel.json`. It is kept
+for backwards compatibility with process mining tools that consume XES (ProM,
+Disco, Celonis) but it is **not** the oracle audit target.
+
+See [XES-2.0-SPECIFICATION.md](../XES-2.0-SPECIFICATION.md) for the full XES
+attribute contract. The primary oracle call uses `events.ocel.json`; do not
+pass `events.xes` to `wpm audit` in new integrations.

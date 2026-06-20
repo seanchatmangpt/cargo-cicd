@@ -3,14 +3,14 @@
 **Standard:** ISO 26262:2018 — Road vehicles: Functional safety  
 **Parts covered:** Part 6 (Software) and Part 8 (Safety management of the safety lifecycle)  
 **Revision:** Vision 2030 Phase 1 (2026-06-17)  
-**Binary:** `cargo-cicd` v26.6.2  
+**Binary:** `cargo-cicd` v26.6.19  
 **Oracle:** wasm4pm (`wpm` binary)
 
 ---
 
 ## Overview
 
-ISO 26262 requires systematic evidence of software safety activities across the vehicle lifecycle. cargo-cicd emits process evidence in XES format, adjudicated by the wasm4pm oracle. This document maps ISO 26262 Part 6 and Part 8 clauses to the corresponding `cargo cicd` commands and evidence attributes.
+ISO 26262 requires systematic evidence of software safety activities across the vehicle lifecycle. cargo-cicd emits process evidence in OCEL 2.0 format (`events.ocel.json`), adjudicated by the wasm4pm oracle. XES (`events.xes`) is retained as a legacy side-channel. This document maps ISO 26262 Part 6 and Part 8 clauses to the corresponding `cargo cicd` commands and evidence attributes.
 
 ---
 
@@ -18,10 +18,10 @@ ISO 26262 requires systematic evidence of software safety activities across the 
 
 | ISO 26262 Clause | Title | cargo-cicd Coverage | Evidence Attribute |
 |---|---|---|---|
-| **6.4.2** | Software safety requirements | `cargo cicd status show`, `cargo cicd workspace doctor` | `workspace_id`, `verdict_claimed` in XES; cicd.toml records crate topology as requirement baseline |
-| **6.6** | Software unit design and implementation | `cargo cicd workspace doctor` | Workspace member list, crate names, Rust edition — XES `command = "workspace doctor"` |
+| **6.4.2** | Software safety requirements | `cargo cicd status show`, `cargo cicd workspace doctor` | `workspace_id`, `verdict_claimed` in OCEL 2.0 event log; cicd.toml records crate topology as requirement baseline |
+| **6.6** | Software unit design and implementation | `cargo cicd workspace doctor` | Workspace member list, crate names, Rust edition — OCEL 2.0 `command = "workspace doctor"` |
 | **6.7** | Software unit testing | `cargo cicd test changed`, `cargo cicd trybuild changed`, `cargo cicd trybuild full` | `command` field encodes test scope; `verdict_claimed` = PASS/FAIL; changed-file list in cicd.toml |
-| **6.8** | Software integration and testing | `cargo cicd pipeline run` | `trace_class = "pipeline_run"`; aggregate verdict in XES trace spanning all integration stages |
+| **6.8** | Software integration and testing | `cargo cicd pipeline run` | `trace_class = "pipeline_run"`; aggregate verdict in OCEL 2.0 event log spanning all integration stages |
 | **6.9** | Verification of software safety requirements | `cargo cicd evidence audit` | `verdict_adjudicated` = Accept/Refuse issued by wasm4pm — satisfies independence per 6.9 |
 
 ---
@@ -40,7 +40,7 @@ ISO 26262 requires systematic evidence of software safety activities across the 
 |---|---|
 | `event_id` | Work product identifier per Part 8 CM requirements |
 | `timestamp_iso` | Temporal ordering of safety activities |
-| `case_id` | Groups work products into lifecycle phases (XES `<trace>`) |
+| `case_id` | Groups work products into lifecycle phases (OCEL 2.0 event log) |
 | `lifecycle_transition` | Marks activity start/complete per work product structure |
 | `workspace_id` | Software item identifier (Part 6 scope) |
 | `repo_path` | Configuration item identifier (Part 8.3) |
@@ -71,33 +71,33 @@ ISO 26262 requires systematic evidence of software safety activities across the 
 ```sh
 # 1. Software safety requirements baseline (ISO 26262 6.4.2)
 cargo cicd workspace doctor
-# Emits: target/cargo-cicd/evidence/evt-workspace-doctor-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 2. Unit design record (ISO 26262 6.6)
 cargo cicd status show
-# Emits: target/cargo-cicd/evidence/evt-status-show-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 3. Unit testing — changed scope (ISO 26262 6.7)
 cargo cicd test changed
-# Emits: target/cargo-cicd/evidence/evt-test-changed-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 cargo cicd trybuild changed
-# Emits: target/cargo-cicd/evidence/evt-trybuild-changed-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 4. Integration testing (ISO 26262 6.8)
 cargo cicd pipeline run
-# Emits: target/cargo-cicd/evidence/evt-pipeline-run-<ts>.xes (trace_class=pipeline_run)
+# Emits: target/cargo-cicd/evidence/events.ocel.json (trace_class=pipeline_run)
 
 # 5. Configuration management (ISO 26262 8.3)
 cargo cicd git status
-# Emits: target/cargo-cicd/evidence/evt-git-status-<ts>.xes (branch, dirty files)
+# Emits: target/cargo-cicd/evidence/events.ocel.json (branch, dirty files)
 
 cargo cicd git close
-# Emits: target/cargo-cicd/evidence/evt-git-close-<ts>.xes (phase closure)
+# Emits: target/cargo-cicd/evidence/events.ocel.json (phase closure)
 
 # 6. Verification (ISO 26262 6.9)
 cargo cicd evidence audit
-# Invokes: wpm audit target/cargo-cicd/evidence/*.xes
+# Invokes: wpm audit target/cargo-cicd/evidence/events.ocel.json
 # Produces: receipts/*.json with verdict_adjudicated = Accept
 
 # 7. Receipt integrity
@@ -105,7 +105,7 @@ wpm receipt doctor --format json --strict receipts/*.json
 # Output: Accept
 ```
 
-After this sequence, the XES files and JSON receipts satisfy the ISO 26262 ASIL B documentation requirements for clauses 6.4.2, 6.6, 6.7, 6.8, 6.9, and 8.3.
+After this sequence, the OCEL 2.0 event log (`target/cargo-cicd/evidence/events.ocel.json`) and JSON receipts satisfy the ISO 26262 ASIL B documentation requirements for clauses 6.4.2, 6.6, 6.7, 6.8, 6.9, and 8.3.
 
 ---
 
@@ -114,7 +114,7 @@ After this sequence, the XES files and JSON receipts satisfy the ISO 26262 ASIL 
 To obtain an ISO 26262 ASIL B or higher receipt:
 
 1. Run the evidence sequence above in your release pipeline.
-2. Collect all XES files from `target/cargo-cicd/evidence/`.
+2. Collect the OCEL 2.0 event log from `target/cargo-cicd/evidence/events.ocel.json`.
 3. Collect all receipts from `receipts/`.
 4. Submit to a certification body supporting ISO 26262 — see `docs/CERT-BODY-INTEGRATION.md`.
 5. Store the returned receipt in `receipts/` and register the crate in `safety-critical-registry.toml`.

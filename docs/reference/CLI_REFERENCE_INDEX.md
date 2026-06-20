@@ -2,7 +2,7 @@
 
 A comprehensive, organized reference for the cargo-cicd command-line interface.
 
-**Version:** 26.6.2  
+**Version:** 26.6.19  
 **Last Updated:** 2026-06-14
 
 ## Quick Navigation
@@ -41,10 +41,12 @@ Perfect for new users. Covers:
 **File:** [COMMANDS.md](COMMANDS.md)
 
 Comprehensive documentation of every command. Organized by noun:
+- `certification` — Display compliance-readiness summary across safety and architecture standards
 - `evidence` — Audit process evidence via wasm4pm
 - `git` — Git phase management
 - `pipeline` — Execute full manufacturing pipeline
 - `publish` — Publish state to cicd.toml
+- `sbom` — Generate or display the workspace Software Bill of Materials
 - `status` — Show workspace CI/CD status
 - `target` — Manage target directory
 - `test` — Run tests for changed files
@@ -185,10 +187,12 @@ cargo cicd <noun> [verb] [options]
 ```
 
 **Nouns** (the subject):
+- `certification` — Compliance-readiness across IEC 61508, ISO 26262, SOC2, and TOGAF ADM
 - `evidence` — Process evidence and receipts
 - `git` — Git repository operations
 - `pipeline` — Manufacturing pipeline
 - `publish` — Publishing and state
+- `sbom` — Software Bill of Materials (CycloneDX JSON)
 - `status` — Workspace status
 - `target` — Target directory
 - `test` — Test execution
@@ -222,10 +226,12 @@ Quick reference showing which verbs work with each noun:
 
 | Noun | Verbs | Description |
 |------|-------|-------------|
+| `certification` | `show` | Compliance-readiness summary (IEC 61508, ISO 26262, SOC2, TOGAF ADM) |
 | `evidence` | `doctor`, `audit` | Adjudicate runtime process evidence |
 | `git` | `status`, `close` | Git repository state management |
 | `pipeline` | `run` | Execute full manufacturing pipeline |
 | `publish` | `run` | Publish state to cicd.toml |
+| `sbom` | `generate`, `show` | Generate or display CycloneDX JSON Software Bill of Materials |
 | `status` | `show`, `audit` | Workspace CI/CD status |
 | `target` | `show`, `prune` | Manage target directory |
 | `test` | `changed` | Run tests for changed files |
@@ -398,7 +404,7 @@ cargo-cicd leverages Rust's build cache:
 
 ## Versioning
 
-Current version: **26.6.2**
+Current version: **26.6.19**
 
 Check your version:
 ```bash
@@ -573,7 +579,7 @@ cargo cicd target prune --help
 This reference guide was generated from the cargo-cicd source code and documentation.
 
 - **Last Updated:** 2026-06-14
-- **Version:** 26.6.2
+- **Version:** 26.6.19
 - **Maintainer:** cargo-cicd community
 
 For the most up-to-date documentation, visit the [GitHub repository](https://github.com/seanchatmangpt/cargo-cicd).

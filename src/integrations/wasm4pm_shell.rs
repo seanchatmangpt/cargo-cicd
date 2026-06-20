@@ -9,7 +9,7 @@
 //!
 //! | Command                        | Purpose                              |
 //! |--------------------------------|--------------------------------------|
-//! | wpm audit <input.xes>          | XES conformance audit (SIMD replay)  |
+//! | wpm audit <input.ocel.json>    | OCEL 2.0 conformance audit           |
 //! | wpm receipt doctor <file>      | Receipt forensic audit               |
 //! | wpm lean                       | Lean Six Sigma waste audit           |
 //! | wpm spc status                 | Statistical Process Control          |
@@ -29,7 +29,7 @@
 //! use cargo_cicd::integrations::Wasm4pmShell;
 //!
 //! if let Some(wpm) = Wasm4pmShell::detect() {
-//!     let result = wpm.audit("target/cargo-cicd/process/events.xes")?;
+//!     let result = wpm.audit("target/cargo-cicd/evidence/events.ocel.json")?;
 //!     println!("audit: {}", result);
 //! } else {
 //!     println!("wpm not found — skipping process audit");
@@ -131,15 +131,15 @@ impl Wasm4pmShell {
         &self.binary
     }
 
-    /// Run `wpm audit <xes_path>` — XES event log conformance audit.
+    /// Run `wpm audit <path>` — OCEL 2.0 / event log conformance audit.
     ///
-    /// Requires: a valid XES event log file at xes_path.
-    /// cargo-cicd must emit the XES file before calling this.
-    pub fn audit(&self, xes_path: &str) -> Result<WpmResult> {
-        if !Path::new(xes_path).exists() {
-            bail!("wpm audit: XES file not found at {}", xes_path);
+    /// Accepts an OCEL 2.0 JSON file (`events.ocel.json`) or legacy XES file.
+    /// cargo-cicd must emit the evidence file before calling this.
+    pub fn audit(&self, path: &str) -> Result<WpmResult> {
+        if !Path::new(path).exists() {
+            bail!("wpm audit: evidence file not found at {}", path);
         }
-        self.invoke(&["audit", xes_path], "audit")
+        self.invoke(&["audit", path], "audit")
     }
 
     /// Run `wpm lean` — Lean Six Sigma process waste and efficiency audit.

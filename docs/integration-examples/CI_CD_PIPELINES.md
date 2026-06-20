@@ -2,7 +2,7 @@
 
 Practical examples of integrating cargo-cicd into CI/CD pipelines, IDEs, and development workflows.
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ## Table of Contents
 
@@ -50,10 +50,12 @@ jobs:
 
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cargo-cicd-evidence
-          path: target/cargo-cicd/evidence/
+          # Evidence artifacts are emitted in OCEL 2.0 JSON format
+          # (events.ocel.json) — the wpm oracle accepts this directly.
+          path: target/cargo-cicd/evidence/*.ocel.json
 ```
 
 ### Modular Stages
@@ -185,6 +187,178 @@ jobs:
           draft: false
           prerelease: false
 ```
+
+### Full CI Gate Stack
+
+The production `ci.yml` runs four gates that together cover format, correctness, process evidence, cryptographic provenance, and admissibility. The job graph is:
+
+```
+fmt
+ └─► check-and-test  (includes workspace sync step)
+       ├─► evidence-gate
+       │     └─► affidavit-gate
+       └─► lsp-admissibility
+```
+
+```yaml
+# .github/workflows/ci.yml (gate stack excerpt)
+jobs:
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --all -- --check
+
+  check-and-test:
+    needs: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-cicd
+
+      - name: Lint and type-check
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run test suite
+        run: cargo test
+
+      # Workspace sync — invokes `ggen sync` if ggen.toml is present,
+      # proving the ontology pipeline is intact. Non-blocking.
+      - name: Workspace sync
+        continue-on-error: true
+        run: cargo run -- workspace sync
+
+  # Emits OCEL 2.0 process evidence and adjudicates via wpm oracle.
+  evidence-gate:
+    needs: check-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-cicd
+      - run: cargo cicd evidence doctor
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-cicd-evidence
+          # Evidence artifacts are emitted in OCEL 2.0 JSON format
+          # (events.ocel.json) — the wpm oracle accepts this directly.
+          path: target/cargo-cicd/evidence/*.ocel.json
+
+  # Seals XES/OCEL evidence into a BLAKE3 receipt, then verifies it
+  # cryptographically. continue-on-error because affi may be absent in
+  # some CI environments.
+  affidavit-gate:
+    needs: evidence-gate
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build with affidavit feature
+        run: cargo build --features affidavit
+      - name: Seal evidence
+        run: cargo run --features affidavit -- affidavit seal || true
+      - name: Verify receipt
+        run: cargo run --features affidavit -- affidavit verify || true
+
+  # Scans changed .rs files for anti-LLM admissibility violations.
+  # Requires the anti-llm-cheat feature. Non-blocking.
+  lsp-admissibility:
+    needs: check-and-test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build with anti-llm-cheat feature
+        run: cargo build --features anti-llm-cheat
+      - name: Check LSP admissibility
+        run: cargo run --features anti-llm-cheat -- lsp check
+```
+
+**What each gate provides:**
+
+| Gate | Feature flag | Purpose | Blocking? |
+|------|-------------|---------|-----------|
+| `check-and-test` (workspace sync step) | none | Proves ontology pipeline (`ggen sync`) is runnable | No (`continue-on-error`) |
+| `evidence-gate` | none | Emits OCEL 2.0 process evidence; adjudicates via wpm oracle | Yes |
+| `affidavit-gate` | `affidavit` | BLAKE3-seals evidence into a cryptographic receipt; verifies it | No (`continue-on-error`) |
+| `lsp-admissibility` | `anti-llm-cheat` | Scans changed `.rs` files for admissibility violations | No (`continue-on-error`) |
+
+> **Note:** Evidence artifacts are emitted in OCEL 2.0 JSON format (`events.ocel.json`) — the wpm oracle accepts this directly.
+
+---
+
+### Release Gate
+
+The `release.yml` workflow adds a `status audit` step that adjudicates OCEL evidence through the wpm oracle before the publish job is allowed to proceed.
+
+```yaml
+# .github/workflows/release.yml (run-gates job excerpt)
+jobs:
+
+  run-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-cicd
+
+      # Install wpm oracle if absent
+      - name: Install wpm oracle
+        run: |
+          if ! command -v wpm &>/dev/null; then
+            echo "wpm not found — install wasm4pm and add it to PATH"
+            # e.g.: cargo install wasm4pm
+          fi
+
+      # Adjudicates OCEL evidence via wpm oracle.
+      # Accept → release proceeds; Refuse → release blocked.
+      - name: Status audit (wpm adjudication)
+        run: cargo run -- status audit
+
+  publish:
+    needs: run-gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-cicd
+      - name: Publish release
+        run: |
+          cargo cicd publish run
+          cargo publish --token ${{ secrets.CARGO_TOKEN }}
+```
+
+**wpm adjudication flow for `status audit`:**
+
+```
+cargo run -- status audit
+    │
+    ├─ Emits ProcessEvent (verdict_claimed = "PASS"|"WARN"|"FAIL")
+    ├─ Serializes to OCEL 2.0 JSON (target/cargo-cicd/evidence/events.ocel.json)
+    └─ Calls: wpm audit target/cargo-cicd/evidence/events.ocel.json
+                │
+                └─ Returns: Accept  → release proceeds
+                            Refuse  → release blocked (non-zero exit)
+                            Blocked → wpm unavailable (treat as skip in local dev)
+```
+
+A `Refuse` verdict causes `cargo run -- status audit` to exit non-zero, which blocks the `publish` job via `needs: run-gates`.
+
+---
 
 ### Matrix Testing with cargo-cicd
 
@@ -959,10 +1133,10 @@ jobs:
         run: cargo cicd evidence doctor || echo "Oracle unavailable"
 
       - name: Upload Evidence
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: evidence
-          path: target/cargo-cicd/evidence/
+          path: target/cargo-cicd/evidence/*.ocel.json
 
   # Stage 4: Nightly full pipeline
   nightly-pipeline:
@@ -980,10 +1154,10 @@ jobs:
 
       - name: Upload Evidence
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nightly-evidence
-          path: target/cargo-cicd/evidence/
+          path: target/cargo-cicd/evidence/*.ocel.json
 ```
 
 ---

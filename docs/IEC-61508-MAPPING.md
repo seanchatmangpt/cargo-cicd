@@ -2,14 +2,14 @@
 
 **Standard:** IEC 61508:2010 — Functional Safety of Electrical/Electronic/Programmable Electronic Safety-Related Systems  
 **Revision:** Vision 2030 Phase 1 (2026-06-17)  
-**Binary:** `cargo-cicd` v26.6.2  
+**Binary:** `cargo-cicd` v26.6.19  
 **Oracle:** wasm4pm (`wpm` binary)
 
 ---
 
 ## Overview
 
-IEC 61508 requires that each phase of the software safety lifecycle produce documented evidence of activities performed. cargo-cicd emits process evidence in XES (XML Event Stream) format, adjudicated by the wasm4pm oracle. This document maps each IEC 61508 clause to the corresponding `cargo cicd` command and evidence attribute.
+IEC 61508 requires that each phase of the software safety lifecycle produce documented evidence of activities performed. cargo-cicd emits process evidence in OCEL 2.0 format (`events.ocel.json`), adjudicated by the wasm4pm oracle. XES (`events.xes`) is retained as a legacy side-channel. This document maps each IEC 61508 clause to the corresponding `cargo cicd` command and evidence attribute.
 
 ---
 
@@ -17,26 +17,26 @@ IEC 61508 requires that each phase of the software safety lifecycle produce docu
 
 | IEC 61508 Clause | Requirement Title | cargo-cicd Coverage | Evidence Attribute |
 |---|---|---|---|
-| **5.2.4** | Safety lifecycle documentation | `cargo cicd evidence doctor`, `cargo cicd evidence audit` | `event_id`, `timestamp_iso`, `verdict_claimed`, `verdict_adjudicated` in XES trace |
+| **5.2.4** | Safety lifecycle documentation | `cargo cicd evidence doctor`, `cargo cicd evidence audit` | `event_id`, `timestamp_iso`, `verdict_claimed`, `verdict_adjudicated` in OCEL 2.0 event log |
 | **7.4.2** | Software requirements specification | `cargo cicd status show`, `cargo cicd workspace doctor` | `workspace_id`, `command`, `verdict_claimed` — workspace name and member topology in cicd.toml |
 | **7.4.3** | Software architecture design | `cargo cicd workspace doctor` | `repo_path`, workspace member list, Rust edition in cicd.toml `[workspace]` section |
 | **7.4.5** | Software module testing | `cargo cicd test changed`, `cargo cicd trybuild changed`, `cargo cicd trybuild full` | `command` field encodes changed-file scope; `verdict_claimed` = PASS/FAIL per run |
-| **7.4.6** | Software integration testing | `cargo cicd pipeline run` | `trace_class = "pipeline_run"`, aggregate verdict across all pipeline stages in a single XES trace |
+| **7.4.6** | Software integration testing | `cargo cicd pipeline run` | `trace_class = "pipeline_run"`, aggregate verdict across all pipeline stages in a single OCEL 2.0 event log |
 | **7.4.7** | Software verification | `cargo cicd evidence audit` | `verdict_adjudicated` = Accept/Refuse issued by wasm4pm oracle — constitutes independent verification record |
 | **7.4.9** | Software validation | `cargo cicd publish run`, `cargo cicd evidence audit` | `command = "publish run"`, `verdict_adjudicated` from wasm4pm must be Accept before release |
-| **8.4.6** | Software modification | `cargo cicd test changed`, `cargo cicd git status` | `changed_files` in cicd.toml; XES events scoped to changed-file set |
+| **8.4.6** | Software modification | `cargo cicd test changed`, `cargo cicd git status` | `changed_files` in cicd.toml; OCEL 2.0 events scoped to changed-file set |
 
 ---
 
 ## Evidence Attributes Used for Compliance
 
-Each XES event emitted by cargo-cicd carries the following attributes relevant to IEC 61508:
+Each OCEL 2.0 event log entry emitted by cargo-cicd carries the following attributes relevant to IEC 61508:
 
 | Attribute | IEC 61508 Purpose |
 |---|---|
 | `event_id` | Unique activity identifier per clause 5.2.4 traceability |
 | `timestamp_iso` | Temporal ordering evidence per clause 5.2.4 |
-| `case_id` | Groups events into lifecycle phases (XES `<trace>`) per clause 5.2.4 |
+| `case_id` | Groups events into lifecycle phases (OCEL 2.0 event log) per clause 5.2.4 |
 | `lifecycle_transition` | Marks `start` and `complete` boundaries per clause 5.2.4 |
 | `workspace_id` | Identifies the software item under assessment per clause 7.4.2 |
 | `repo_path` | Configuration item identifier per clause 8.4.6 |
@@ -70,31 +70,31 @@ The following shows a complete sequence producing SIL 2-compliant evidence:
 ```sh
 # 1. Workspace health (IEC 61508 7.4.2, 5.2.4)
 cargo cicd status show
-# Emits: target/cargo-cicd/evidence/evt-status-show-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 2. Architecture record (IEC 61508 7.4.3)
 cargo cicd workspace doctor
-# Emits: target/cargo-cicd/evidence/evt-workspace-doctor-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 3. Module testing — changed files only (IEC 61508 7.4.5, 8.4.6)
 cargo cicd test changed
-# Emits: target/cargo-cicd/evidence/evt-test-changed-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 4. Trybuild: compiler error snapshot tests (IEC 61508 7.4.5)
 cargo cicd trybuild changed
-# Emits: target/cargo-cicd/evidence/evt-trybuild-changed-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 5. Integration pipeline (IEC 61508 7.4.6)
 cargo cicd pipeline run
-# Emits: target/cargo-cicd/evidence/evt-pipeline-run-<ts>.xes (trace_class=pipeline_run)
+# Emits: target/cargo-cicd/evidence/events.ocel.json (trace_class=pipeline_run)
 
 # 6. Publish gate (IEC 61508 7.4.9)
 cargo cicd publish run
-# Emits: target/cargo-cicd/evidence/evt-publish-run-<ts>.xes
+# Emits: target/cargo-cicd/evidence/events.ocel.json
 
 # 7. Evidence adjudication (IEC 61508 7.4.7)
 cargo cicd evidence audit
-# Invokes: wpm audit target/cargo-cicd/evidence/*.xes
+# Invokes: wpm audit target/cargo-cicd/evidence/events.ocel.json
 # Produces: receipts/*.json with verdict_adjudicated = Accept
 
 # 8. Receipt integrity check (IEC 61508 5.2.4)
@@ -102,7 +102,7 @@ wpm receipt doctor --format json --strict receipts/*.json
 # Output: Accept (all receipts valid)
 ```
 
-After this sequence, the XES files in `target/cargo-cicd/evidence/` and the JSON receipts in `receipts/` collectively satisfy the IEC 61508 SIL 2 documentation requirements for clauses 5.2.4, 7.4.2, 7.4.3, 7.4.5, 7.4.6, 7.4.7, 7.4.9, and 8.4.6.
+After this sequence, the OCEL 2.0 event log (`target/cargo-cicd/evidence/events.ocel.json`) and the JSON receipts in `receipts/` collectively satisfy the IEC 61508 SIL 2 documentation requirements for clauses 5.2.4, 7.4.2, 7.4.3, 7.4.5, 7.4.6, 7.4.7, 7.4.9, and 8.4.6.
 
 ---
 
@@ -111,7 +111,7 @@ After this sequence, the XES files in `target/cargo-cicd/evidence/` and the JSON
 To obtain an IEC 61508 SIL 2 receipt from a certification body:
 
 1. Run the evidence sequence above in your release pipeline.
-2. Collect all XES files from `target/cargo-cicd/evidence/`.
+2. Collect the OCEL 2.0 event log from `target/cargo-cicd/evidence/events.ocel.json`.
 3. Collect all receipts from `receipts/`.
 4. Submit to a certification body — see `docs/CERT-BODY-INTEGRATION.md` for the list of supported providers.
 5. Store the returned receipt in `receipts/` and register the crate in `safety-critical-registry.toml`.

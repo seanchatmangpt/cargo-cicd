@@ -2,7 +2,7 @@
 
 Detailed integration guides for popular IDEs and editors.
 
-**Version:** 26.6.2
+**Version:** 26.6.19
 
 ## Table of Contents
 

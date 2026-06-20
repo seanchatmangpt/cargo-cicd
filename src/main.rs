@@ -6,6 +6,7 @@ mod adapters;
 #[cfg(feature = "advanced")]
 mod advanced;
 mod autonomic;
+mod certification;
 mod cicd_toml;
 mod engine;
 pub mod evidence;
@@ -36,6 +37,8 @@ fn inject_default_verbs(mut args: Vec<String>) -> Vec<String> {
             "publish" => Some("run"),
             "workspace" => Some("doctor"),
             "evidence" => Some("doctor"),
+            "certification" => Some("show"),
+            "sbom" => Some("generate"),
             #[cfg(feature = "affidavit")]
             "affidavit" => Some("verify"),
             _ => None,
@@ -67,7 +70,7 @@ fn main() -> Result<()> {
     let is_help_flag = matches!(verb_arg.as_str(), "--help" | "-h");
     let needs_default = matches!(
         noun.as_str(),
-        "status" | "publish" | "workspace" | "evidence"
+        "status" | "publish" | "workspace" | "evidence" | "certification" | "sbom"
     ) && (verb_arg.is_empty() || (verb_arg.starts_with('-') && !is_help_flag));
 
     // Inject default verbs into local args (used only for reference, not for cli.run()).
@@ -75,7 +78,7 @@ fn main() -> Result<()> {
 
     let cli = CliBuilder::new()
         .name("cargo-cicd")
-        .version("26.6.2")
+        .version("26.6.19")
         .about("Local-first CI/CD helpers for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml.");
 
     if needs_default {
@@ -84,6 +87,8 @@ fn main() -> Result<()> {
             "publish" => return nouns::publish::PublishNoun::run_direct(),
             "workspace" => return nouns::workspace::WorkspaceNoun::run_doctor(),
             "evidence" => return nouns::evidence::EvidenceNoun::run_direct(),
+            "certification" => return nouns::certification::CertificationNoun::run_direct(),
+            "sbom" => return nouns::sbom::SbomNoun::run_direct(),
             _ => {}
         }
     }
@@ -94,6 +99,7 @@ fn main() -> Result<()> {
     let mut cli = cli
         .noun(nouns::evidence::EvidenceNoun::new())
         .noun(nouns::pipeline::PipelineNoun::new())
+        .noun(nouns::sbom::SbomNoun::new())
         .noun(nouns::status::StatusNoun::new())
         .noun(nouns::target::TargetNoun::new())
         .noun(nouns::test::TestNoun::new())
@@ -101,7 +107,8 @@ fn main() -> Result<()> {
         .noun(nouns::git::GitNoun::new())
         .noun(nouns::publish::PublishNoun::new())
         .noun(nouns::workspace::WorkspaceNoun::new())
-        .noun(nouns::ui::UiNoun::new());
+        .noun(nouns::ui::UiNoun::new())
+        .noun(nouns::certification::CertificationNoun::new());
 
     #[cfg(feature = "lsp")]
     {

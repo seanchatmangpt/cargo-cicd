@@ -10,7 +10,7 @@ cargo-cicd uses **semantic versioning**: `MAJOR.MINOR.PATCH`
 - **MINOR** — new nouns/verbs, new state dimensions, new adapters (backward compatible)
 - **PATCH** — bug fixes, internal refactoring, documentation (backward compatible)
 
-Current version: **26.6.2** (see `Cargo.toml`)
+Current version: **26.6.19** (see `Cargo.toml`)
 
 ### Version Bumping
 
@@ -49,7 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Deprecated
 - `target prune --dry-run` flag (use `target show` instead)
 
-## [26.6.2] — 2026-06-14
+## [26.6.19] — 2026-06-14
 
 ### Added
 - Initial release: `status`, `target`, `test`, `git`, `publish` nouns
@@ -69,7 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## wasm4pm Validation Gates
 
-**For v26.6.2 and later**, releases are gated by wasm4pm evidence validation. No release is complete without wasm4pm sign-off.
+**For v26.6.19 and later**, releases are gated by wasm4pm evidence validation. No release is complete without wasm4pm sign-off.
 
 ### Prerequisites
 
@@ -251,7 +251,7 @@ If a critical bug is found after release:
 1. **Create a hotfix branch from the tag:**
 
 ```bash
-git checkout -b hotfix/26.6.3-critical v26.6.2
+git checkout -b hotfix/26.6.3-critical v26.6.19
 ```
 
 2. **Fix the bug and test:**
