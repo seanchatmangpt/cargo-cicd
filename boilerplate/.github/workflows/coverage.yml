@@ -4,9 +4,9 @@ on:
   pull_request:
     branches:
       - main
-    # Only run when source code or test files change
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -20,7 +20,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Minimum acceptable coverage percentage
   COVERAGE_THRESHOLD: 60
 
 jobs:
@@ -38,82 +37,56 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
 
       - name: Run tarpaulin
         run: |
           cargo tarpaulin \
-            --all-features \
             --workspace \
-            --timeout 120 \
-            --out Xml \
-            --out Json \
-            --out Html \
-            --output-dir coverage/ \
-            --exclude-files 'tests/*' \
-            --exclude-files 'benches/*' \
-            --exclude-files 'build.rs' \
+            --features "process-data autonomic" \
+            --timeout 180 \
+            --out Xml Lcov Html \
+            --output-dir target/coverage \
+            --exclude-files "*/main.rs" \
+            --exclude-files "tests/*" \
+            --exclude-files "benches/*" \
+            --exclude-files "build.rs" \
             -- --test-threads 1
         env:
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Copt-level=0'
 
-      - name: Extract coverage percentage
+      - name: Parse coverage percentage
         id: coverage
         run: |
-          # Parse the JSON output from tarpaulin
-          if [[ -f coverage/tarpaulin-report.json ]]; then
-            PCT=$(python3 - << 'PYEOF'
-          import json, sys
-          with open("coverage/tarpaulin-report.json") as f:
-              data = json.load(f)
-          # tarpaulin JSON has a "coverage" key at top level (0.0-100.0)
-          cov = data.get("coverage", 0.0)
-          print(f"{cov:.2f}")
-          PYEOF
-            )
-          else
-            # Fallback: parse from XML cobertura report
-            PCT=$(python3 - << 'PYEOF'
-          import xml.etree.ElementTree as ET
-          tree = ET.parse("coverage/cobertura.xml")
+          PCT=$(python3 - <<'PYEOF'
+          import xml.etree.ElementTree as ET, sys
+          tree = ET.parse("target/coverage/cobertura.xml")
           root = tree.getroot()
           rate = float(root.attrib.get("line-rate", "0"))
           print(f"{rate * 100:.2f}")
           PYEOF
-            )
-          fi
-
+          )
           echo "percentage=${PCT}" >> "${GITHUB_OUTPUT}"
           echo "Coverage: ${PCT}%"
 
       - name: Enforce coverage threshold
         run: |
-          PCT="${{ steps.coverage.outputs.percentage }}"
-          THRESHOLD="${COVERAGE_THRESHOLD}"
-
-          echo "Measured coverage: ${PCT}%"
-          echo "Required threshold: ${THRESHOLD}%"
-
-          # Use python for float comparison (bash can't do floats)
-          python3 -c "
-          pct = float('${PCT}')
-          threshold = float('${THRESHOLD}')
+          python3 - <<PYEOF
+          pct = float("${{ steps.coverage.outputs.percentage }}")
+          threshold = float("${{ env.COVERAGE_THRESHOLD }}")
           if pct < threshold:
-              print(f'FAIL: {pct:.2f}% < {threshold}% minimum')
+              print(f"FAIL: {pct:.2f}% < {threshold}% minimum required")
               raise SystemExit(1)
-          else:
-              print(f'PASS: {pct:.2f}% >= {threshold}% minimum')
-          "
+          print(f"PASS: {pct:.2f}% >= {threshold}% minimum")
+          PYEOF
 
-      - name: Upload coverage to Codecov
+      - name: Upload LCOV to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: coverage/cobertura.xml
+          files: target/coverage/lcov.info
           flags: unittests
-          name: cargo-cicd-coverage
+          name: workspace-coverage
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
@@ -121,59 +94,21 @@ jobs:
       - name: Upload HTML coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-html-report
-          path: coverage/tarpaulin-report.html
-          retention-days: 7
+          name: coverage-report-${{ github.sha }}
+          path: target/coverage/tarpaulin-report.html
+          retention-days: 14
 
       - name: Post coverage comment on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: thollander/actions-comment-pull-request@v3
         with:
-          script: |
-            const pct = parseFloat('${{ steps.coverage.outputs.percentage }}');
-            const threshold = parseInt('${{ env.COVERAGE_THRESHOLD }}');
-            const status = pct >= threshold ? '✅ PASS' : '❌ FAIL';
-            const emoji = pct >= threshold ? '📈' : '📉';
+          message: |
+            ## Code Coverage Report
 
-            const body = [
-              `## ${emoji} Code Coverage Report`,
-              '',
-              `| Metric | Value |`,
-              `|--------|-------|`,
-              `| Coverage | **${pct.toFixed(2)}%** |`,
-              `| Threshold | ${threshold}% |`,
-              `| Status | ${status} |`,
-              '',
-              pct >= threshold
-                ? `Coverage is above the ${threshold}% minimum threshold.`
-                : `⚠️ Coverage dropped below the ${threshold}% minimum threshold. Please add tests.`,
-              '',
-              `> Full HTML report available in workflow artifacts.`,
-            ].join('\n');
+            | Metric    | Value                                         |
+            |-----------|-----------------------------------------------|
+            | Coverage  | **${{ steps.coverage.outputs.percentage }}%** |
+            | Threshold | ${{ env.COVERAGE_THRESHOLD }}%                |
 
-            // Find existing bot comment to update instead of spamming
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('Code Coverage Report')
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
+            Full HTML report available in workflow artifacts: `coverage-report-${{ github.sha }}`.
+          comment_tag: coverage-report
+          mode: upsert

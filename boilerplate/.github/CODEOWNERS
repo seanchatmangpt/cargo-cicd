@@ -1,0 +1,15 @@
+# Default owners for all files
+* @seanchatmangpt
+
+# CI/CD configuration
+.github/workflows/ @seanchatmangpt
+Makefile.toml @seanchatmangpt
+deny.toml @seanchatmangpt
+
+# Core crates
+crates/core/ @seanchatmangpt
+crates/domain/ @seanchatmangpt
+
+# Security-sensitive files
+.cargo/config.toml @seanchatmangpt
+release-plz.toml @seanchatmangpt

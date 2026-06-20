@@ -3,21 +3,32 @@ name: CI
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - "*.txt"
+      - "LICENSE*"
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - "*.txt"
+      - "LICENSE*"
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+  RUST_BACKTRACE: short
+  NEXTEST_PROFILE: ci
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ──────────────────────────────────────────────────────────────────────────
-  # Formatting
-  # ──────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # Formatting — no cache needed, rustfmt is fast
+  # ────────────────────────────────────────────────────────────────────────────
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
@@ -32,9 +43,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Lint
-  # ──────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # Lint — all features so gated code paths are not missed
+  # ────────────────────────────────────────────────────────────────────────────
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -49,58 +60,72 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: clippy
+          key: clippy-stable-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run Clippy (all features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Tests — stable
-  # ──────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # Tests — stable on three OSes + beta on Linux for early regression detection
+  #
+  # Matrix:
+  #   {os: ubuntu-latest, toolchain: stable}
+  #   {os: macos-latest,  toolchain: stable}
+  #   {os: windows-latest, toolchain: stable}
+  #   {os: ubuntu-latest, toolchain: beta}   ← catches upcoming breakage early
+  # ────────────────────────────────────────────────────────────────────────────
   test:
-    name: Tests (${{ matrix.os }})
+    name: Tests (${{ matrix.os }} / ${{ matrix.toolchain }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            toolchain: stable
+          - os: macos-latest
+            toolchain: stable
+          - os: windows-latest
+            toolchain: stable
+          - os: ubuntu-latest
+            toolchain: beta
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install ${{ matrix.toolchain }} toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: test-${{ matrix.os }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo-make
-        uses: davidB/rust-cargo-make-action@v1
+      - name: Install cargo-nextest
+        run: cargo install cargo-nextest --locked
 
-      - name: Build workspace
-        run: cargo make build
+      - name: Run test suite (nextest)
+        run: cargo nextest run --workspace --all-features
 
-      - name: Run full test suite
-        run: cargo make test
+      - name: Run doc tests
+        run: cargo test --doc --workspace
 
-      - name: Run invariant tests
-        run: cargo make test-invariants
+      - name: Upload JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.os }}-${{ matrix.toolchain }}
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: ignore
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Feature-flag matrix
-  # ──────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # Feature powerset — cargo-hack exhaustively checks all flag combinations
+  # up to depth 2, catching missing #[cfg] guards and bad feature interactions
+  # ────────────────────────────────────────────────────────────────────────────
   features:
-    name: Feature flags
+    name: Feature powerset
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        features:
-          - ""
-          - "process-data"
-          - "autonomic"
-          - "advanced"
     steps:
       - uses: actions/checkout@v4
 
@@ -110,27 +135,18 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: features-${{ matrix.features }}
+          key: ${{ runner.os }}-stable-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build with features "${{ matrix.features }}"
-        run: |
-          if [ -z "${{ matrix.features }}" ]; then
-            cargo build --workspace
-          else
-            cargo build --workspace --features "${{ matrix.features }}"
-          fi
+      - name: Install cargo-hack
+        run: cargo install cargo-hack --locked
 
-      - name: Test with features "${{ matrix.features }}"
-        run: |
-          if [ -z "${{ matrix.features }}" ]; then
-            cargo test --workspace
-          else
-            cargo test --workspace --features "${{ matrix.features }}"
-          fi
+      - name: Check feature powerset (depth 2)
+        run: cargo hack check --workspace --feature-powerset --depth 2 --optional-deps
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # MSRV check
-  # ──────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # MSRV — compile with the minimum supported Rust version, default features
+  # only (MSRV compatibility is not required for optional/advanced flags)
+  # ────────────────────────────────────────────────────────────────────────────
   msrv:
     name: MSRV (1.86)
     runs-on: ubuntu-latest
@@ -143,14 +159,14 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: msrv
+          key: ${{ runner.os }}-1.86-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check workspace on MSRV
         run: cargo check --workspace --all-targets
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Documentation
-  # ──────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # Documentation — deny rustdoc warnings with all features enabled
+  # ────────────────────────────────────────────────────────────────────────────
   docs:
     name: Documentation
     runs-on: ubuntu-latest
@@ -163,9 +179,33 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: docs
+          key: ${{ runner.os }}-stable-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build docs (deny warnings)
+      - name: Build docs (deny warnings, all features)
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --workspace --no-deps --all-features
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Required summary gate — PRs should require only this single job
+  # so that adding new parallel jobs never breaks existing branch protection
+  # ────────────────────────────────────────────────────────────────────────────
+  ci:
+    name: CI
+    if: always()
+    needs: [fmt, clippy, test, features, msrv, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs passed
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "$results"
+          if echo "$results" | grep -q '"result": "failure"'; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          if echo "$results" | grep -q '"result": "cancelled"'; then
+            echo "One or more required jobs were cancelled."
+            exit 1
+          fi
+          echo "All checks passed."

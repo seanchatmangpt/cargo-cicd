@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# prepare-commit-msg — auto-inject a conventional commit scope hint
+#
+# If the commit message is blank, infer the appropriate scope prefix from
+# the set of staged files and inject it as a template line, followed by
+# a commented-out reminder of the scope convention.
+#
+# NOTE: After writing via the Write tool, make this executable:
+#   chmod +x .git-hooks/prepare-commit-msg
+
+COMMIT_MSG_FILE="${1}"
+COMMIT_SOURCE="${2:-}"  # "message", "template", "merge", "squash", "commit"
+
+# ---------------------------------------------------------------------------
+# Only act on blank commits (no -m message, no template, no amend)
+# ---------------------------------------------------------------------------
+if [[ "${COMMIT_SOURCE}" == "message" ]] ||
+   [[ "${COMMIT_SOURCE}" == "merge" ]] ||
+   [[ "${COMMIT_SOURCE}" == "squash" ]]; then
+  exit 0
+fi
+
+# If the message file already has non-comment, non-blank content, leave it.
+EXISTING=$(grep -v '^#' "${COMMIT_MSG_FILE}" | tr -d '[:space:]')
+if [[ -n "${EXISTING}" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Classify staged files to pick the best scope
+# ---------------------------------------------------------------------------
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+if [[ -z "${STAGED}" ]]; then
+  TEMPLATE="feat: "
+else
+  # Determine which directories are touched (mutually exclusive, in priority order)
+  HAS_SRC_NOUNS=$(echo "${STAGED}"    | grep -q '^src/nouns/'    && echo 1 || echo 0)
+  HAS_SRC=$(echo "${STAGED}"          | grep -q '^src/'          && echo 1 || echo 0)
+  HAS_CORE=$(echo "${STAGED}"         | grep -q '^crates/core/'  && echo 1 || echo 0)
+  HAS_TESTS=$(echo "${STAGED}"        | grep -q '^tests/'        && echo 1 || echo 0)
+  HAS_GITHUB=$(echo "${STAGED}"       | grep -q '^\.github/'     && echo 1 || echo 0)
+  HAS_DOCS=$(echo "${STAGED}"         | grep -q '^\(docs/\|README\|CONTRIBUTING\)' && echo 1 || echo 0)
+  HAS_SCRIPTS=$(echo "${STAGED}"      | grep -q '^scripts/'      && echo 1 || echo 0)
+
+  # Count distinct top-level buckets with files
+  BUCKET_COUNT=$(( HAS_SRC + HAS_CORE + HAS_TESTS + HAS_GITHUB + HAS_DOCS + HAS_SCRIPTS ))
+
+  if [[ "${BUCKET_COUNT}" -gt 1 ]]; then
+    # Mixed — use a generic prefix and let the developer choose
+    TEMPLATE="feat: "
+  elif [[ "${HAS_GITHUB}" == "1" ]]; then
+    TEMPLATE="ci: "
+  elif [[ "${HAS_TESTS}" == "1" ]]; then
+    TEMPLATE="test(cli): "
+  elif [[ "${HAS_CORE}" == "1" ]]; then
+    TEMPLATE="feat(core): "
+  elif [[ "${HAS_SRC}" == "1" ]]; then
+    TEMPLATE="feat(cli): "
+  elif [[ "${HAS_DOCS}" == "1" ]]; then
+    TEMPLATE="docs: "
+  elif [[ "${HAS_SCRIPTS}" == "1" ]]; then
+    TEMPLATE="chore: "
+  else
+    TEMPLATE="feat: "
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Write the template into the commit message file
+# ---------------------------------------------------------------------------
+ORIGINAL_CONTENT=$(cat "${COMMIT_MSG_FILE}")
+
+cat > "${COMMIT_MSG_FILE}" <<EOF
+${TEMPLATE}
+# ---------------------------------------------------------------------------
+# Conventional commit scope reminder:
+#
+#   feat(cli):  new feature in src/nouns/ or CLI grammar
+#   feat(core): new feature in crates/core/
+#   fix(cli):   bug fix in the CLI layer
+#   fix(core):  bug fix in the core crate
+#   test(cli):  new or updated tests
+#   ci:         changes to .github/ workflows or scripts/
+#   docs:       documentation only
+#   chore:      build, deps, tooling — no production code change
+#   refactor:   code change with no behaviour change
+#
+# Keep the subject line under 72 characters.
+# ---------------------------------------------------------------------------
+${ORIGINAL_CONTENT}
+EOF

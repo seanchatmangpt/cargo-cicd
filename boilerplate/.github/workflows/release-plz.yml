@@ -1,0 +1,33 @@
+name: Release PLZ
+
+# Runs on every push to main.  release-plz inspects conventional commits since
+# the last tag and either opens a "chore(release): vX.Y.Z" PR or updates an
+# existing one.  Merging that PR creates the tag, which fires release.yml.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  # Create and update release PRs.
+  pull-requests: write
+  # Commit CHANGELOG and Cargo.toml version bumps, push tags.
+  contents: write
+
+jobs:
+  release-plz:
+    name: Release PLZ
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history required for tag inspection)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run release-plz
+        uses: MarcoIeni/release-plz-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
