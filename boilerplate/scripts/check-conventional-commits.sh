@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+# check-conventional-commits.sh — Validate commit messages follow Conventional Commits spec
+#
+# Usage:
+#   ./scripts/check-conventional-commits.sh                   # Check HEAD commit
+#   ./scripts/check-conventional-commits.sh HEAD~5..HEAD      # Check a range
+#   ./scripts/check-conventional-commits.sh <sha>             # Check a single commit
+#   ./scripts/check-conventional-commits.sh --help
+#
+# Valid format:
+#   <type>(<optional-scope>): <description>
+#   <blank line>
+#   <optional body>
+#   <optional footer>
+#
+# Valid types: feat fix chore docs style refactor test ci perf build revert
+#
+# Returns:
+#   0 — all checked commits are valid
+#   1 — one or more commits failed validation
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Color helpers (TTY-aware)
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  CYAN='\033[0;36m'
+  BOLD='\033[1m'
+  DIM='\033[2m'
+  RESET='\033[0m'
+else
+  RED='' GREEN='' YELLOW='' CYAN='' BOLD='' DIM='' RESET=''
+fi
+
+info()    { echo -e "${CYAN}[conv-commits]${RESET} $*"; }
+success() { echo -e "${GREEN}[conv-commits]${RESET} $*"; }
+warn()    { echo -e "${YELLOW}[conv-commits] WARN:${RESET} $*" >&2; }
+error()   { echo -e "${RED}[conv-commits] ERROR:${RESET} $*" >&2; }
+
+# ---------------------------------------------------------------------------
+# Valid commit types (per Conventional Commits + common extensions)
+# ---------------------------------------------------------------------------
+VALID_TYPES=(
+  feat
+  fix
+  chore
+  docs
+  style
+  refactor
+  test
+  ci
+  perf
+  build
+  revert
+  deps
+  security
+  release
+  wip
+)
+
+# Build the regex alternation string
+TYPES_REGEX="$(IFS='|'; echo "${VALID_TYPES[*]}")"
+
+# Full subject-line pattern:
+#   type(optional-scope)!: description
+#   type: description
+#   type!: description  (breaking change marker)
+SUBJECT_PATTERN="^(${TYPES_REGEX})(\([a-zA-Z0-9_/-]+\))?(!)?: .{1,}"
+
+# ---------------------------------------------------------------------------
+# Usage
+# ---------------------------------------------------------------------------
+usage() {
+  cat << EOF
+${BOLD}Usage:${RESET}
+  $(basename "$0") [<range>|<sha>]
+
+${BOLD}Arguments:${RESET}
+  (none)           Check the HEAD commit message
+  <range>          Git log range, e.g. HEAD~5..HEAD or main..HEAD
+  <sha>            A single commit SHA
+
+${BOLD}Valid types:${RESET}
+  ${VALID_TYPES[*]}
+
+${BOLD}Format:${RESET}
+  <type>(<optional-scope>): <description>
+  <type>!: <breaking-change-description>
+
+${BOLD}Examples of valid messages:${RESET}
+  feat(cli): add --dry-run flag to release command
+  fix: handle missing Cargo.lock gracefully
+  chore(release): v1.2.3
+  docs: update README with new install steps
+  feat!: redesign CLI grammar (breaking change)
+
+${BOLD}Exit codes:${RESET}
+  0   All commits passed
+  1   One or more commits failed validation
+
+${BOLD}As a git hook:${RESET}
+  Place in .git-hooks/commit-msg or configure:
+  git config core.hooksPath .git-hooks
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Parse args
+# ---------------------------------------------------------------------------
+if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+TARGET="${1:-HEAD}"
+
+# ---------------------------------------------------------------------------
+# Collect commit subjects to check
+# ---------------------------------------------------------------------------
+declare -a SUBJECTS=()
+declare -a SHAS=()
+
+if [[ "${TARGET}" =~ \.\. ]]; then
+  # Range: e.g. main..HEAD or HEAD~5..HEAD
+  while IFS= read -r line; do
+    SHA="${line%% *}"
+    SUBJECT="${line#* }"
+    SHAS+=("${SHA}")
+    SUBJECTS+=("${SUBJECT}")
+  done < <(git log --pretty=format:"%H %s" "${TARGET}")
+else
+  # Single SHA or HEAD
+  SHA=$(git rev-parse "${TARGET}" 2>/dev/null) || {
+    error "Cannot resolve '${TARGET}' as a git ref."
+    exit 1
+  }
+  SUBJECT=$(git log -1 --pretty=format:"%s" "${SHA}")
+  SHAS+=("${SHA}")
+  SUBJECTS+=("${SUBJECT}")
+fi
+
+if [[ ${#SUBJECTS[@]} -eq 0 ]]; then
+  warn "No commits found for '${TARGET}'."
+  exit 0
+fi
+
+info "Checking ${#SUBJECTS[@]} commit(s) for conventional format..."
+echo ""
+
+# ---------------------------------------------------------------------------
+# Validate each commit
+# ---------------------------------------------------------------------------
+PASS_COUNT=0
+FAIL_COUNT=0
+
+for idx in "${!SUBJECTS[@]}"; do
+  SHA="${SHAS[${idx}]}"
+  SUBJECT="${SUBJECTS[${idx}]}"
+  SHORT_SHA="${SHA:0:7}"
+
+  # Skip merge commits
+  PARENT_COUNT=$(git cat-file -p "${SHA}" | grep -c '^parent ' || true)
+  if [[ "${PARENT_COUNT}" -gt 1 ]]; then
+    echo -e "  ${DIM}${SHORT_SHA}${RESET}  ${DIM}(merge commit, skipped)${RESET}"
+    (( PASS_COUNT++ )) || true
+    continue
+  fi
+
+  # Skip revert commits generated by git (they start with 'Revert "')
+  if [[ "${SUBJECT}" =~ ^Revert\ \" ]]; then
+    echo -e "  ${DIM}${SHORT_SHA}${RESET}  ${DIM}(git revert commit, skipped)${RESET}"
+    (( PASS_COUNT++ )) || true
+    continue
+  fi
+
+  if echo "${SUBJECT}" | grep -qP "${SUBJECT_PATTERN}"; then
+    echo -e "  ${GREEN}PASS${RESET}  ${DIM}${SHORT_SHA}${RESET}  ${SUBJECT}"
+    (( PASS_COUNT++ )) || true
+  else
+    echo -e "  ${RED}FAIL${RESET}  ${DIM}${SHORT_SHA}${RESET}  ${SUBJECT}"
+    (( FAIL_COUNT++ )) || true
+  fi
+done
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+TOTAL=$(( PASS_COUNT + FAIL_COUNT ))
+
+if [[ "${FAIL_COUNT}" -eq 0 ]]; then
+  success "All ${TOTAL} commit(s) follow Conventional Commits format."
+  exit 0
+else
+  error "${FAIL_COUNT}/${TOTAL} commit(s) do NOT follow Conventional Commits format."
+  echo ""
+  echo -e "${BOLD}Expected format:${RESET}"
+  echo "  <type>(<optional-scope>): <description>"
+  echo ""
+  echo -e "${BOLD}Valid types:${RESET}"
+  echo "  ${VALID_TYPES[*]}"
+  echo ""
+  echo -e "${BOLD}Examples:${RESET}"
+  echo "  feat(cli): add --dry-run flag"
+  echo "  fix: handle missing Cargo.lock gracefully"
+  echo "  chore(release): v1.2.3"
+  exit 1
+fi

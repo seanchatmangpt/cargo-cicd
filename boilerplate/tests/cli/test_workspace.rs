@@ -2,7 +2,7 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
-use crate::temp_workspace;
+use super::temp_workspace;
 
 fn cmd() -> Command {
     Command::cargo_bin("cargo-project").expect("binary must exist")

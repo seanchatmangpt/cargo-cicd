@@ -59,7 +59,7 @@ impl Style {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::caps::{Caps, PLAIN};
+    use crate::ui::caps::PLAIN;
 
     fn with_plain_caps<F: FnOnce()>(f: F) {
         // Tests run in a non-TTY environment so caps detection returns PLAIN

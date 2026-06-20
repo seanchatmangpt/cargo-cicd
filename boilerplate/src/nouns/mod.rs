@@ -21,3 +21,9 @@
 
 pub mod status;
 pub mod workspace;
+
+// Optional nouns — compiled only when the matching feature is enabled.
+#[cfg(feature = "completions")]
+pub mod completions;
+pub mod dashboard;
+pub mod help_extra;

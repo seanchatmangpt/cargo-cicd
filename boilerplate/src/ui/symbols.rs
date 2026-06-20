@@ -12,7 +12,9 @@ use crate::ui::caps::Caps;
 /// A glyph that has both a Unicode and an ASCII representation.
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph {
+    /// The Unicode representation, used when the terminal supports it.
     pub unicode: &'static str,
+    /// The ASCII fallback, used in plain/pipe mode.
     pub ascii: &'static str,
 }
 

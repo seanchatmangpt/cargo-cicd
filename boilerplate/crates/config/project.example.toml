@@ -1,0 +1,114 @@
+# project.example.toml
+# ──────────────────────────────────────────────────────────────────────────────
+# Copy this file to `project.toml` (or whatever path you pass to ConfigLoader)
+# and customise each section.
+#
+# Priority note: values in this file are overridden by APP_* environment
+# variables, which are in turn overridden by programmatic `with_overrides()`
+# calls.  The compiled-in defaults (shown in comments) apply when a key is
+# absent.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# [project] — identity and environment
+# ──────────────────────────────────────────────────────────────────────────────
+[project]
+
+# Human-readable name for this project.
+# Default: "" (empty string — must be overridden before validation passes)
+# Env: APP_PROJECT_NAME
+name = "my-project"
+
+# Semver version string.
+# Default: value of CARGO_PKG_VERSION at compile time
+# Env: APP_PROJECT_VERSION
+version = "0.1.0"
+
+# Deployment environment.
+# Accepted values: "development" | "staging" | "production"
+# Default: "development"
+# Env: APP_ENV or ENVIRONMENT (read by Environment::from_env())
+#      or APP_PROJECT_ENVIRONMENT for the layered config path
+environment = "development"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# [logging] — tracing subscriber configuration
+# ──────────────────────────────────────────────────────────────────────────────
+[logging]
+
+# Tracing filter directive.  Supports the usual `tracing` subscriber syntax:
+#   "info"                  — global info level
+#   "debug"                 — global debug level
+#   "warn,hyper=error"      — warn globally, error only for hyper
+#   "my_crate=trace"        — trace for one crate only
+# Default: "info"
+# Env: APP_LOGGING_LEVEL
+level = "info"
+
+# Output format.
+# Accepted values: "text" (human-readable, default) | "json" (structured)
+# Default: "text"
+# Env: APP_LOGGING_FORMAT
+format = "text"
+
+# Force JSON output regardless of `format`.
+# Setting this to `true` is equivalent to `format = "json"`.
+# Default: false
+# Env: APP_LOGGING_JSON
+json = false
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# [database] — optional database connection pool
+# ──────────────────────────────────────────────────────────────────────────────
+# Omit this entire section if your service does not use a database.
+# When present, all sub-keys default to the values shown below.
+[database]
+
+# Connection URL (any SQLx-compatible scheme).
+# Default: "sqlite://project.db"
+# Env: APP_DATABASE_URL
+url = "sqlite://project.db"
+
+# Maximum number of pooled connections.
+# Default: 5
+# Env: APP_DATABASE_MAX_CONNECTIONS
+max_connections = 5
+
+# Timeout (seconds) to wait when acquiring a connection from the pool.
+# Default: 30
+# Env: APP_DATABASE_TIMEOUT_SECS
+timeout_secs = 30
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# [service] — optional HTTP service listener
+# ──────────────────────────────────────────────────────────────────────────────
+# Omit this entire section if your binary does not expose an HTTP server.
+[service]
+
+# Bind address.
+# Default: "127.0.0.1"  (loopback only)
+# Use "0.0.0.0" to listen on all interfaces.
+# Env: APP_SERVICE_HOST
+host = "127.0.0.1"
+
+# Bind port.  Must be > 0.
+# Default: 8080
+# Env: APP_SERVICE_PORT
+port = 8080
+
+# Allowed CORS origins.  Empty list disables cross-origin requests.
+# Default: [] (empty)
+# Env: not supported via single env var — use the config file or overrides
+cors_origins = [
+    # "https://app.example.com",
+    # "https://staging.example.com",
+]
+
+# Per-request timeout in seconds.  Requests exceeding this are aborted.
+# Default: 30
+# Env: APP_SERVICE_REQUEST_TIMEOUT_SECS
+request_timeout_secs = 30

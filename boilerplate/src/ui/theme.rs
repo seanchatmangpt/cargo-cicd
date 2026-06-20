@@ -2,7 +2,7 @@
 
 use crate::ui::caps::Caps;
 
-/// ANSI colour codes used by the design system.
+/// An ANSI escape-code colour value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Color(pub &'static str);
 
@@ -10,12 +10,19 @@ pub struct Color(pub &'static str);
 // Palette constants
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// ANSI green (success).
 pub const GREEN: Color = Color("\x1b[32m");
+/// ANSI yellow (warning).
 pub const YELLOW: Color = Color("\x1b[33m");
+/// ANSI red (error/failure).
 pub const RED: Color = Color("\x1b[31m");
+/// ANSI cyan (informational).
 pub const CYAN: Color = Color("\x1b[36m");
+/// ANSI bold text.
 pub const BOLD: Color = Color("\x1b[1m");
+/// ANSI dim/faint text.
 pub const DIM: Color = Color("\x1b[2m");
+/// ANSI reset — returns text attributes to default.
 pub const RESET: Color = Color("\x1b[0m");
 
 /// The active colour theme for the current process.

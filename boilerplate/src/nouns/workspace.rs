@@ -6,6 +6,7 @@ use clap::{Args, Subcommand};
 /// Workspace-wide diagnostics.
 #[derive(Debug, Args)]
 pub struct WorkspaceArgs {
+    /// The sub-verb to execute.  Defaults to `doctor` when omitted.
     #[command(subcommand)]
     pub verb: Option<WorkspaceVerb>,
 }

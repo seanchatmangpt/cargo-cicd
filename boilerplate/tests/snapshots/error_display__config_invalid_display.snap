@@ -1,0 +1,5 @@
+---
+source: tests/snapshot/error_display.rs
+expression: format!("{}", err)
+---
+config invalid: field `git.base_ref`: must be a non-empty branch name, got empty string

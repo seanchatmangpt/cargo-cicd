@@ -1,0 +1,16 @@
+---
+source: tests/snapshot/cli_output.rs
+expression: help_output
+---
+PROJECT keeps your Rust workspace clean, fast, and push-ready.
+
+Usage: cargo project <COMMAND>
+
+Commands:
+  status     Workspace health snapshot
+  workspace  Workspace-wide diagnostics
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version

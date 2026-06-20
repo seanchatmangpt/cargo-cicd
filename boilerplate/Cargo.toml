@@ -3,6 +3,11 @@ resolver = "2"
 members = [
     "src",
     "crates/core",
+    "crates/domain",
+    "crates/service",
+    "crates/sqlite",
+    "crates/mcp-server",
+    "crates/config",
 ]
 
 [workspace.package]
@@ -18,6 +23,8 @@ categories = []
 [workspace.dependencies]
 # Core crate (this workspace)
 project-core = { path = "crates/core", version = "0.1.0" }
+project-domain = { path = "crates/domain", version = "0.1.0" }
+project-config = { path = "crates/config", version = "0.1.0" }
 
 # Error handling
 anyhow = "1"
@@ -47,13 +54,36 @@ rayon = "1"
 
 # Utilities
 uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP service
+axum = { version = "0.8", features = ["macros", "json", "tokio"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip", "request-id", "timeout"] }
+hyper = { version = "1", features = ["full"] }
+
+# Database
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "uuid", "chrono", "json"] }
+
+# Performance / advanced
+blake3 = "1"
+moka = { version = "0.12", features = ["sync"] }
+dashmap = "6"
+
+# Shell completions
+clap_complete = "4"
+
+# TUI (optional — activated by `tui` feature in the CLI crate)
+ratatui = "0.29"
+crossterm = "0.28"
 
 # Testing
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
-insta = { version = "1", features = ["json"] }
-proptest = "1"
+insta = { version = "1", features = ["json", "redactions"] }
+proptest = { version = "1", features = ["std"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 
 # Observability
 tracing = "0.1"

@@ -1,0 +1,10 @@
+---
+source: tests/snapshot/cli_output.rs
+expression: status_show_help
+---
+Show workspace health snapshot
+
+Usage: cargo project status show [OPTIONS]
+
+Options:
+  -h, --help  Print help

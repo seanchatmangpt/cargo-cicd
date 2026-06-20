@@ -7,12 +7,15 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use tempfile::TempDir;
 
+pub mod test_status;
+pub mod test_workspace;
+
 fn cmd() -> Command {
     Command::cargo_bin("cargo-project").expect("binary must exist")
 }
 
 /// Create a minimal Cargo workspace in a temp dir.
-fn minimal_workspace() -> TempDir {
+pub fn minimal_workspace() -> TempDir {
     let dir = TempDir::new().expect("tempdir");
     std::fs::write(
         dir.path().join("Cargo.toml"),
@@ -26,6 +29,11 @@ edition = "2021"
     std::fs::create_dir_all(dir.path().join("src")).unwrap();
     std::fs::write(dir.path().join("src/lib.rs"), b"").unwrap();
     dir
+}
+
+/// Alias for [`minimal_workspace`] — used by submodule tests.
+pub fn temp_workspace() -> TempDir {
+    minimal_workspace()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -18,11 +18,19 @@ pub type Result<T, E = CoreError> = std::result::Result<T, E>;
 pub enum CoreError {
     /// The workspace root could not be located or is not a Cargo workspace.
     #[error("workspace not found: {reason}")]
-    WorkspaceNotFound { reason: String },
+    WorkspaceNotFound {
+        /// Human-readable explanation of why the workspace was not found.
+        reason: String,
+    },
 
     /// A required configuration field is missing or has an invalid value.
     #[error("configuration error in `{field}`: {reason}")]
-    ConfigInvalid { field: &'static str, reason: String },
+    ConfigInvalid {
+        /// The name of the invalid configuration field.
+        field: &'static str,
+        /// Human-readable explanation of the validation failure.
+        reason: String,
+    },
 
     /// An I/O operation failed.  Wraps `std::io::Error`.
     #[error("I/O error: {0}")]
@@ -34,11 +42,19 @@ pub enum CoreError {
 
     /// An external process (git, rustc, cargo) returned a non-zero exit code.
     #[error("external process `{command}` failed with exit code {code}")]
-    ProcessFailed { command: String, code: i32 },
+    ProcessFailed {
+        /// The command that was invoked.
+        command: String,
+        /// The non-zero exit code returned by the process.
+        code: i32,
+    },
 
     /// An external process was not found on `PATH`.
     #[error("required program `{program}` not found on PATH")]
-    ProgramNotFound { program: String },
+    ProgramNotFound {
+        /// The name of the program that could not be found.
+        program: String,
+    },
 
     /// A verdict that was expected has not been received.
     #[error("verdict required but oracle is unavailable")]
@@ -46,7 +62,12 @@ pub enum CoreError {
 
     /// A public-boundary invariant was violated.
     #[error("invariant `{name}` violated: {details}")]
-    InvariantViolated { name: &'static str, details: String },
+    InvariantViolated {
+        /// The name of the invariant that was violated.
+        name: &'static str,
+        /// A detailed description of the violation.
+        details: String,
+    },
 }
 
 impl CoreError {

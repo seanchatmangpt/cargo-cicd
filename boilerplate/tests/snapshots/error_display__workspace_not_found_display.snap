@@ -1,0 +1,5 @@
+---
+source: tests/snapshot/error_display.rs
+expression: format!("{}", err)
+---
+workspace not found: no Cargo.toml in /home/user/project or any parent directory

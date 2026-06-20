@@ -2,7 +2,7 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
-use crate::{minimal_workspace, temp_workspace};
+use super::{minimal_workspace, temp_workspace};
 
 fn cmd() -> Command {
     Command::cargo_bin("cargo-project").expect("binary must exist")
@@ -68,4 +68,11 @@ fn status_show_json_flag_produces_json() {
     // In minimal (non-process-data) mode, the flag may be silently ignored;
     // the test therefore only checks the exit code.
     assert!(output.status.success(), "status show --json must exit 0");
+}
+
+// Suppress unused import warning for minimal_workspace — it is available for
+// callers who prefer that name.
+#[allow(dead_code)]
+fn _use_minimal_workspace() {
+    let _ = minimal_workspace;
 }
