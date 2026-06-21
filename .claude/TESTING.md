@@ -114,6 +114,17 @@ a smoke test over the manufactured grammar.
 **`verb_registry.rs`** — Verifies that every verb registered in a noun has a callable handler.
 Catches grammar/implementation drift introduced after `ggen` regeneration.
 
+> **Missing CLI smoke tests** — The following nouns have no corresponding `tests/cli/` file.
+> CLI smoke tests must be created for each before they can be considered fully covered:
+>
+> | Missing file | Noun | What it should validate |
+> |---|---|---|
+> | `tests/cli/test_analyze.rs` | `analyze` | `analyze` verb invocations, exit codes, output shape |
+> | `tests/cli/test_autoarch.rs` | `autoarch` | `autoarch` verb invocations, exit codes, output shape |
+> | `tests/cli/test_certification.rs` | `certification` | `certification` verb invocations, exit codes, output shape |
+> | `tests/cli/test_sbom.rs` | `sbom` | `sbom` verb invocations, exit codes, output shape |
+> | `tests/cli/test_ui.rs` | `ui` | `ui demo` and `ui dashboard` output, no-TTY fallback |
+
 ### State and Serialization Tests
 
 **`tests/cicd_toml_truth.rs`** — Round-trip serialization: builds an `EngineState`, serializes

@@ -76,6 +76,7 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
@@ -84,44 +85,51 @@
         ]
       }
     ],
-    "session_start": [
+    "PreToolUse": [
       {
-        "command": "bash .claude/hooks/session-start.sh",
-        "description": "Initialize session: verify wpm oracle, show workspace health, confirm forbidden terms gate"
-      }
-    ],
-    "pre_tool_use": [
-      {
-        "tool": "Bash",
-        "matcher": "git (reset --hard|push --force|push -f|clean -f|checkout -- |branch -D)",
-        "action": "warn",
-        "message": "DESTRUCTIVE GIT OPERATION DETECTED. This command may permanently destroy work. Confirm this is intentional before proceeding. Consider: git stash, git branch backup/<name>, or a dry-run alternative."
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-check.sh"
+          }
+        ]
       },
       {
-        "tool": "Bash",
-        "matcher": "rm -rf",
-        "action": "warn",
-        "message": "Destructive rm -rf detected. Verify path is correct and does not include source files, evidence, or receipts."
-      },
-      {
-        "tool": "Bash",
-        "matcher": "cargo publish",
-        "action": "warn",
-        "message": "cargo publish will upload a crate to crates.io. Ensure the evidence gate has passed (wpm audit) and all invariants are green before proceeding."
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/pre-tool-use.sh"
+          }
+        ]
       }
     ],
-    "post_tool_use": [
+    "PostToolUse": [
       {
-        "tool": "Bash",
-        "matcher": "cargo (build|make|test)",
-        "description": "After builds and tests, evidence may be emitted to target/cargo-cicd/evidence/. Check for new .xes/.jsonl files if the evidence gate is relevant."
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/public-boundary-guard.sh"
+          }
+        ]
       }
     ]
   },
 
   "notes": {
-    "project": "cargo-cicd v26.6.2 — Rust workspace CI/CD helper with noun-verb CLI grammar",
-    "branch": "claude/eloquent-cray-evgdo8",
+    "project": "cargo-cicd v26.6.19 — Rust workspace CI/CD helper with noun-verb CLI grammar",
+    "branch": "main",
     "forbidden_terms": [
       "ALIVE",
       "Inspection Gate",

@@ -26,6 +26,10 @@ This guide documents the recurring architectural patterns used throughout cargo-
 - `src/nouns/git.rs` — implements git noun with verbs: status, phase, closure
 - `src/nouns/test.rs` — implements test noun with verbs: run, plan
 - `src/nouns/target.rs` — implements target noun with verbs: scan, validate
+- `src/nouns/ui.rs` — implements ui noun with verbs: demo, dashboard
+- `src/nouns/sbom.rs` — implements sbom noun with verbs: generate, show
+
+> **Note:** The noun list has grown beyond the original set. The authoritative list of all nouns is `src/nouns/` — inspect that directory directly rather than relying on any enumeration in this doc. As of 2026-06-21 the nouns include: evidence, pipeline, status, target, test, trybuild, git, publish, workspace, lsp, analyze, autoarch, certification, sbom, ui (plus affidavit when the `affidavit` feature is enabled).
 
 **When to add a new noun:**
 - You have 2+ related commands that operate on a shared domain

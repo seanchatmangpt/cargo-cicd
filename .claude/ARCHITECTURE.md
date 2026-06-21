@@ -323,6 +323,28 @@ The CLI exposes a **noun-verb grammar** via `clap-noun-verb`. Each noun is a mod
 │    ├─ run — execute full CI/CD pipeline                         │
 │    └─ dry-run — show pipeline steps without executing           │
 │                                                                  │
+│  analyze (module: src/nouns/analyze.rs)                         │
+│    ├─ deps — analyze dependency graph                           │
+│    ├─ complexity — code complexity metrics                      │
+│    └─ coverage — test coverage summary                          │
+│                                                                  │
+│  autoarch (module: src/nouns/autoarch.rs)                       │
+│    ├─ show — display auto-architecture suggestions              │
+│    └─ apply — apply architecture recommendations                │
+│                                                                  │
+│  certification (module: src/nouns/certification.rs)             │
+│    ├─ check — verify certification requirements                 │
+│    ├─ sign — sign a release artifact                            │
+│    └─ verify — verify a signed artifact                         │
+│                                                                  │
+│  sbom (module: src/nouns/sbom.rs)                               │
+│    ├─ generate — produce a Software Bill of Materials           │
+│    └─ verify — validate SBOM against workspace                  │
+│                                                                  │
+│  ui (module: src/nouns/ui.rs)                                   │
+│    ├─ demo — showcase terminal UI components                    │
+│    └─ dashboard — display workspace dashboard                   │
+│                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 
 Default Verb Injection (main.rs::inject_default_verbs)
@@ -978,7 +1000,12 @@ timestamp = "2026-06-14T10:35:32Z"
 │   │   ├── trybuild.rs            # trybuild noun
 │   │   ├── evidence.rs            # evidence noun
 │   │   ├── lsp.rs                 # lsp noun
-│   │   └── pipeline.rs            # pipeline noun
+│   │   ├── pipeline.rs            # pipeline noun
+│   │   ├── analyze.rs             # analyze noun
+│   │   ├── autoarch.rs            # autoarch noun
+│   │   ├── certification.rs       # certification noun
+│   │   ├── sbom.rs                # sbom noun
+│   │   └── ui.rs                  # ui noun
 │   │
 │   ├── policies/                  # Autonomic policy implementations
 │   │   ├── mod.rs

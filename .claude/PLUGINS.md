@@ -1,4 +1,10 @@
-# MCP Plugin Documentation for cargo-cicd
+# MCP Server Documentation for cargo-cicd
+
+> **Scope note:** This document covers **MCP servers** declared in `.claude/mcp-servers.json`
+> (both active and hypothetical). It is *not* the plugin bundle reference. For the YAML
+> plugin bundle (`.claude/plugins/cargo-advanced-tools.yaml`), see the dedicated section
+> [YAML Plugin Bundle](#yaml-plugin-bundle-cargo-advanced-toolsyaml) near the end of this
+> file, or consult the distributable toolkit at `plugins/cargo-cicd-kit/`.
 
 This document is the authoritative reference for all Model Context Protocol (MCP) server
 integrations used by cargo-cicd. It covers configured servers, hypothetical domain-specific
@@ -1021,6 +1027,205 @@ git rev-list --count HEAD ^origin/main && git rev-list --count origin/main ^HEAD
 # list_changed_rs_files equivalent
 git diff origin/main --name-only | grep '\.rs$'
 ```
+
+---
+
+## YAML Plugin Bundle: `cargo-advanced-tools.yaml`
+
+**File:** `.claude/plugins/cargo-advanced-tools.yaml`
+
+**Type:** YAML plugin bundle definition (not an MCP server process)
+
+**Purpose:**
+`cargo-advanced-tools.yaml` is a declarative plugin bundle that defines structured tool
+signatures for direct cargo command integration. Unlike the MCP filesystem and process
+servers described above, this file is a **static YAML definition** — it declares tool
+names, parameter schemas, return shapes, and feature compatibility metadata that the
+cargo-cicd plugin toolkit (`plugins/cargo-cicd-kit/`) uses to generate or configure
+typed tool wrappers.
+
+The distinction from MCP servers is important:
+
+| Aspect | MCP Servers (`.claude/mcp-servers.json`) | YAML Plugin Bundle (`cargo-advanced-tools.yaml`) |
+|--------|------------------------------------------|--------------------------------------------------|
+| Runtime model | Active server process or builtin | Static definition consumed by toolkit at build/load time |
+| Protocol | MCP (Model Context Protocol) over stdio/HTTP | YAML parsed by plugin loader or code generator |
+| Invocation | Claude calls tools via MCP protocol | Tools are registered as named wrappers around `cargo` CLI |
+| Scope | Data access, external systems, oracle interfacing | Direct cargo command execution with typed parameters |
+| Configuration | Declared in `mcp-servers.json` | Consumed by `plugins/cargo-cicd-kit/` bundle |
+
+**Version:** 1.0.0 (matches cargo-cicd 26.6.2)
+
+**MCP Namespace:** `cargo` (tool calls are prefixed `cargo.*` in the protocol namespace)
+
+---
+
+### Tools Exposed
+
+The bundle declares eight tools under the `cargo` namespace:
+
+#### `build_with_features`
+
+Builds the workspace with specified feature flags. Supports individual features and
+combinations (e.g., `"process-data,autonomic"`). Returns structured output including
+success status, compiler warnings, errors, and duration.
+
+**Key parameters:**
+- `features` (required) — comma-separated feature list
+- `release` — build in release mode (default: `false`)
+- `all_targets` — build all targets (default: `false`)
+- `workspace` — build all workspace members (default: `true`)
+
+**Equivalent Bash:** `cargo build --features <features> [--release] [--all-targets]`
+
+---
+
+#### `test_with_filter`
+
+Runs tests with optional scope and name filtering. Supports `all`, `lib`, `integration`,
+`doc`, and `unit` scopes. Returns pass/fail counts, failed test details, and full output.
+
+**Key parameters:**
+- `scope` (required) — one of `all | lib | integration | doc | unit`
+- `test_name` — optional substring filter for specific test names
+- `features` — comma-separated features to enable
+- `nocapture` — show test stdout/stderr (default: `false`)
+
+**Equivalent Bash:** `cargo test [--test <name>] [--features <features>] [-- --nocapture]`
+
+---
+
+#### `check_all`
+
+Runs `cargo check` across all workspace members and targets without producing binaries.
+Faster than `build_with_features` for lint-only passes. Returns warning and error counts
+with file/line locations.
+
+**Key parameters:**
+- `features` — optional feature selection
+- `all_targets` — check all targets (default: `true`)
+- `workspace` — check all members (default: `true`)
+- `fix` — apply automatic fixes (default: `false`)
+
+**Equivalent Bash:** `cargo check --workspace --all-targets [--features <features>]`
+
+---
+
+#### `analyze_workspace`
+
+Extracts comprehensive workspace metadata including the full dependency graph, crate
+structure, edition, build targets per crate, and the feature matrix across all members.
+Takes no parameters; queries the workspace root automatically.
+
+**Returns:** workspace root path, members list (name/path/version/edition/targets),
+dependency graph, feature matrix per crate, resolver version.
+
+**Equivalent Bash:** `cargo metadata --format-version 1`
+
+---
+
+#### `validate_features`
+
+Validates that a specific feature combination compiles without conflicts. Resolves
+transitive feature implications (e.g., `autonomic` implies `process-data`) and reports
+compatibility notes. Performs a real compile check, not just a static graph walk.
+
+**Key parameters:**
+- `feature_combo` (required) — comma-separated features to validate
+- `check_conflicts` — detect feature conflicts (default: `true`)
+
+**Returns:** `valid` boolean, enabled features (including transitive), conflicts list,
+implied features, compatibility notes, and compile test result.
+
+**Feature implication map (from bundle):**
+- `autonomic` → implies `process-data`
+- `wasm4pm` → implies `process-data`
+- `contrib` → implies `process-data`
+- `advanced` → implies `process-data`
+
+**Equivalent Bash:** `cargo check --features <feature_combo> 2>&1`
+
+---
+
+#### `clippy_suggestions`
+
+Runs `cargo clippy` and returns lint suggestions organized by severity (`allow`, `warn`,
+`deny`). Each suggestion includes lint name, file, line number, message, and fix hint.
+
+**Key parameters:**
+- `features` — features to enable during analysis
+- `all_targets` — check all targets (default: `true`)
+- `all_features` — enable all features (default: `false`)
+- `fix` — apply fixes automatically (default: `false`)
+
+**Equivalent Bash:** `cargo clippy --all-targets [--features <features>] [--fix]`
+
+---
+
+#### `doc_generation`
+
+Generates rustdoc HTML documentation for the workspace. Supports feature-gated
+documentation and optional inclusion of private items.
+
+**Key parameters:**
+- `features` — features to include in generated docs
+- `all_features` — document with all features enabled (default: `false`)
+- `document_private_items` — include private items (default: `false`)
+- `open_browser` — open docs in browser after generation (default: `false`)
+
+**Returns:** success status, output path to doc root, list of documented crates,
+documentation warnings, duration.
+
+**Equivalent Bash:** `cargo doc [--features <features>] [--document-private-items]`
+
+---
+
+#### `metadata_extraction`
+
+Extracts detailed cargo metadata in structured form with an optional format selector
+(`json`, `tree`, `compact`). Returns package information, dependency tree, and a
+summary of total crates, dependencies, and workspace members.
+
+**Key parameters:**
+- `format` — output format: `json | tree | compact` (default: `json`)
+- `include_dependencies` — include full dependency tree (default: `true`)
+
+**Equivalent Bash:** `cargo metadata --format-version 1 [--no-deps]`
+
+---
+
+### How It Differs from MCP Servers
+
+**MCP servers** (declared in `mcp-servers.json`) run as active processes or use Claude
+Code builtins. They communicate over the MCP protocol and are invoked at runtime during
+a Claude Code session.
+
+**`cargo-advanced-tools.yaml`** is a static bundle definition. It does not run as a
+server process. Instead, it serves as:
+
+1. **A schema registry** — the YAML declares parameter types, required fields, and return
+   shapes that the `plugins/cargo-cicd-kit/` toolkit uses to generate type-safe wrappers.
+2. **A feature compatibility manifest** — the `features.available` and
+   `features.recommended_combinations` sections document the cargo-cicd feature flag
+   matrix in machine-readable form for validation tooling.
+3. **An integration declaration** — the `integration.adapters` and `integration.nouns`
+   sections declare which cargo-cicd internal adapters and noun modules are touched by
+   each tool, enabling the plugin toolkit to generate correct dependency graphs.
+4. **A performance configuration source** — rate limits, timeouts, caching TTLs, and
+   parallelism limits are declared here and consumed by the plugin loader rather than
+   hardcoded in individual tool implementations.
+
+**When to reference this file:**
+- Adding a new cargo tool wrapper to the plugin bundle: add a new entry under `tools:`
+- Updating feature flag compatibility after adding a new feature: update
+  `features.available` and `features.recommended_combinations`
+- Diagnosing plugin rate limit or timeout issues: check the `performance:` and
+  `error_handling:` sections
+- Verifying which adapters a tool touches: see `integration.adapters`
+
+**Plugin bundle location:** `.claude/plugins/cargo-advanced-tools.yaml`
+**Distributable toolkit:** `plugins/cargo-cicd-kit/` — this YAML is the bundle seed for
+the distributable toolkit intended for use in other Rust workspaces.
 
 ---
 

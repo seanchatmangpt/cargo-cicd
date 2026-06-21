@@ -1,32 +1,76 @@
 {
   "subagents": [
     {
-      "name": "evidence-auditor",
+      "name": "evidence-gate-runner",
+      "file": ".claude/agents/evidence-gate-runner.md",
       "description": "Specialized agent for analyzing XES evidence files and wasm4pm receipts. Use when debugging evidence gate failures, verifying receipt integrity, or understanding adjudication verdicts.",
       "capabilities": ["Read XES files", "Parse JSONL evidence", "Invoke wpm oracle", "Validate receipt schema"],
       "tools": ["Read", "Bash", "Grep"],
       "context": "Focus on files in target/cargo-cicd/evidence/ and receipts/. Look for verdict_claimed vs verdict_adjudicated discrepancies."
     },
     {
-      "name": "policy-analyzer",
+      "name": "rust-reviewer",
+      "file": ".claude/agents/rust-reviewer.md",
       "description": "Specialized agent for evaluating autonomic policies and diagnosing workspace state. Use when investigating policy verdicts, adding new policies, or debugging policy false positives.",
       "capabilities": ["Read EngineState", "Evaluate PolicyResult", "Diagnose workspace signals"],
       "tools": ["Read", "Bash", "Grep"],
       "context": "Focus on src/policies/, src/autonomic/, and the 7 policy modules. PolicyVerdict: Pass, Warn, Suggest."
     },
     {
-      "name": "test-validator",
-      "description": "Specialized agent for running targeted tests and validating test coverage. Use when a specific test suite is failing, when adding regression tests, or verifying test isolation.",
+      "name": "invariant-guardian",
+      "file": ".claude/agents/invariant-guardian.md",
+      "description": "Verifies the 7 public-boundary invariants and output-substring contracts before a commit lands. Scans source files, README, and docs for forbidden terms, then runs the invariants and cli test suites. Use before committing to confirm the public surface is clean.",
+      "capabilities": ["Scan for forbidden terms", "Run invariant tests", "Verify CLI output contracts"],
+      "tools": ["Read", "Grep", "Glob", "Bash"],
+      "context": "Run cargo test --test invariants and cargo test --test cli. Check all forbidden terms from CLAUDE.md against public output and help text."
+    },
+    {
+      "name": "test-author",
+      "file": ".claude/agents/test-author.md",
+      "description": "Writes integration tests for cargo-cicd commands using assert_cmd + tempfile + fixture workspaces, following the style of tests/cli/command_projection.rs. Use when asked to add tests for a noun-verb command, cover a new public output contract, or extend the CLI test suite.",
       "capabilities": ["Run cargo test", "Identify coverage gaps", "Write test fixtures"],
       "tools": ["Bash", "Read", "Write"],
       "context": "Tests in tests/ directory. Integration tests use assert_cmd + tempfile. Always check tests/invariants.rs first — it gates everything."
     },
     {
-      "name": "architecture-reviewer",
-      "description": "Specialized agent for verifying code follows cargo-cicd patterns: noun-verb CLI, evidence emission, adapter pattern, EngineState as aggregate root.",
-      "capabilities": ["Read source files", "Check pattern compliance", "Identify anti-patterns"],
-      "tools": ["Read", "Grep", "Glob"],
-      "context": "See .claude/PATTERNS.md for all patterns. Key invariants: adapters never call each other, policies only read, evidence always emitted as start+complete pairs with case_id."
+      "name": "ggen-regenerator",
+      "file": ".claude/agents/ggen-regenerator.md",
+      "description": "Regenerates noun modules, CLI scaffolding, and reference docs from the ggen ontology pipeline (ggen.toml + ontology/public/cargo-cicd-capabilities.ttl + queries/*.rq + templates/*.tera). Use when the ontology, SPARQL queries, or Tera templates change and generated files need to be brought back in sync, or when a new noun/verb is added to the TTL source.",
+      "capabilities": ["Run ggen pipeline", "Regenerate noun modules", "Sync docs from ontology"],
+      "tools": ["Read", "Grep", "Glob", "Bash", "Edit"],
+      "context": "Pipeline: ontology/cargo-cicd-capabilities.ttl -> ggen -> src/nouns/*.rs + tests/cli/* + docs/. Never hand-edit generated files; fix the TTL/query/template source."
+    },
+    {
+      "name": "governance-auditor",
+      "definition": ".claude/subagents/governance-auditor.yaml",
+      "description": "Validates workspace artifacts and changed files against governance rules, detects policy violations via Aho-Corasick pattern scanning, renders miette diagnostics, and generates remediation recommendations.",
+      "capabilities": ["Pattern Matching", "Policy Violation Detection", "Governance Rule Enforcement", "Artifact Compliance", "Configuration Auditing", "Diagnostic Rendering", "Recommendation Generation", "Snapshot Comparison"],
+      "tools": ["Read", "Bash", "Grep"],
+      "context": "Focus on src/adapters/governance_patterns.rs, src/advanced/pattern.rs, src/advanced/diagnostics.rs, and cicd.toml. Deny-list scanning of changed files and artifact location compliance."
+    },
+    {
+      "name": "performance-profiler",
+      "definition": ".claude/subagents/performance-profiler.yaml",
+      "description": "Profiles cargo-cicd command latency and adapter performance, identifies bottlenecks in EngineState population, and recommends caching or parallelism improvements.",
+      "capabilities": ["Latency Profiling", "Adapter Benchmarking", "EngineState Population Analysis", "Cache Effectiveness", "Bottleneck Identification"],
+      "tools": ["Bash", "Read", "Grep"],
+      "context": "Focus on src/adapters/ (especially TargetScannerAdapter which is slow), src/engine/, and cicd.toml cache fields. Use cargo bench and hyperfine where applicable."
+    },
+    {
+      "name": "release-coordinator",
+      "definition": ".claude/subagents/release-coordinator.yaml",
+      "description": "Orchestrates the cargo-cicd release checklist: lint, test, forbidden-term scan, wpm receipt validation, version bump, CHANGELOG update, and tag creation.",
+      "capabilities": ["Release Gate Execution", "Version Validation", "CHANGELOG Verification", "Receipt Auditing", "Tag Management"],
+      "tools": ["Bash", "Read", "Write"],
+      "context": "Follow the Release Checklist in CLAUDE.md exactly. Requires wpm for receipt doctor. Blocks release if any invariant test fails or forbidden terms detected."
+    },
+    {
+      "name": "test-coordinator",
+      "definition": ".claude/subagents/test-coordinator.yaml",
+      "description": "Coordinates the full test matrix across all tiers: invariants, CLI integration, feature projection, evidence gate, mutation, and refusal cases. Diagnoses failures and suggests targeted fixes.",
+      "capabilities": ["Test Matrix Coordination", "Tier 1 Unit Tests", "Tier 2 Evidence Gate Tests", "Failure Diagnosis", "Coverage Gap Analysis"],
+      "tools": ["Bash", "Read", "Write"],
+      "context": "Test tiers defined in CLAUDE.md. Tier 2 requires wpm oracle; use ExpectedWpmVerdict::Blocked when unavailable. Always run tests/invariants.rs first as the gate."
     }
   ]
 }

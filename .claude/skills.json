@@ -30,5 +30,37 @@
       "command": "cargo make test && cargo test --test invariants && cargo test --test wasm4pm_evidence_gate && cargo cicd workspace doctor && cargo cicd evidence doctor",
       "trigger": "When user wants to verify the workspace is ready for a version release, or to check all gates before tagging"
     }
+  ],
+  "directory_skills": [
+    {
+      "name": "evidence-audit",
+      "path": ".claude/skills/evidence-audit/SKILL.md",
+      "description": "Explains and runs the process-evidence adjudication pipeline for cargo-cicd. Checks that XES event files exist under target/cargo-cicd/evidence/, invokes the receipt doctor via `cargo cicd evidence doctor`, runs `cargo cicd status audit`, and interprets the Accept or Refuse verdict from the wpm oracle. Notes that a missing wpm oracle exits non-zero with a BLOCKED diagnostic (expected in local dev environments).",
+      "trigger": "When the user says 'audit evidence', 'check receipts', 'adjudicate', or asks whether process evidence was accepted"
+    },
+    {
+      "name": "invariant-audit",
+      "path": ".claude/skills/invariant-audit/SKILL.md",
+      "description": "Verifies the public-boundary invariants and output-substring contracts for cargo-cicd. Greps source, README, and docs for forbidden terms, runs the invariants/cli/feature_projection test suites, and confirms that each command prints the required output substrings.",
+      "trigger": "When the user says 'check invariants', 'public boundary audit', 'verify contracts', or 'make sure the CLI output is correct' before a release or after changing a noun module"
+    },
+    {
+      "name": "noun-scaffold",
+      "path": ".claude/skills/noun-scaffold/SKILL.md",
+      "description": "Scaffolds a new `cargo cicd <noun>` command with NounCommand + VerbCommand implementations, mod registration, main.rs wiring, UI output, evidence emission, and a projection test.",
+      "trigger": "When the user says 'add a noun', 'new command', 'scaffold <noun>', or asks to extend the CLI with a new top-level subcommand"
+    },
+    {
+      "name": "release-checklist",
+      "path": ".claude/skills/release-checklist/SKILL.md",
+      "description": "Runs a thorough pre-release gate for cargo-cicd: lint, type-check, full test suite, forbidden-term scan across source and docs, workspace doctor, status check, clean working tree verification, and commit-message format validation. Produces a go/no-go summary table.",
+      "trigger": "When the user says 'release', 'ship', 'pre-release checklist', or asks whether the workspace is ready to publish"
+    },
+    {
+      "name": "ui-component",
+      "path": ".claude/skills/ui-component/SKILL.md",
+      "description": "Adds a new component to the `src/ui/` zero-dependency terminal design system, wires it into `src/ui/mod.rs`, enforces the color/glyph/width rules, adds `#[cfg(test)]` tests with caps overrides, and showcases it in `cargo cicd ui demo`.",
+      "trigger": "When the user says 'add a UI component', 'new widget', 'add a <name> component to the design system', or needs a new terminal rendering primitive"
+    }
   ]
 }

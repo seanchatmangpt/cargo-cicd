@@ -15,6 +15,7 @@ FORBIDDEN_TERMS=(
     "Field8"
     "Instinct8"
     "Cargo Court"
+    "AGI"
     "Truex"
     "CONSTRUCT8"
 )
@@ -57,7 +58,8 @@ fi
 is_public_surface=0
 
 # Strip repo root prefix for pattern matching (works even without $REPO_ROOT).
-rel="${FILE_PATH#/home/user/cargo-cicd/}"
+REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git -C "$(dirname "$FILE_PATH")" rev-parse --show-toplevel 2>/dev/null || dirname "$(dirname "$FILE_PATH")")}"
+rel="${FILE_PATH#${REPO_ROOT}/}"
 
 case "${rel}" in
     CLAUDE.md)             is_public_surface=0 ;;
@@ -81,9 +83,10 @@ for term in "${FORBIDDEN_TERMS[@]}"; do
     fi
 done
 
-# Also check "wall" as a whole-word match to avoid false positives on common prose.
-if grep -qw "wall" "${FILE_PATH}" 2>/dev/null; then
-    echo "WARNING: forbidden public-boundary term \"wall\" found in ${FILE_PATH}" >&2
+# Check for the uppercase sentinel "WALL" only (whole-word). Lowercase "wall" is
+# too common in English prose (firewall, brick wall, wall clock) to match broadly.
+if grep -qw "WALL" "${FILE_PATH}" 2>/dev/null; then
+    echo "WARNING: forbidden public-boundary term \"WALL\" found in ${FILE_PATH}" >&2
     found_any=1
 fi
 

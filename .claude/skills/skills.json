@@ -1,0 +1,64 @@
+{
+  "skills": [
+    {
+      "name": "release-checklist",
+      "path": "release-checklist",
+      "type": "directory",
+      "description": "Runs a thorough pre-release gate for cargo-cicd: lint, type-check, full test suite, forbidden-term scan across source and docs, workspace doctor, status check, clean working tree verification, and commit-message format validation. Produces a go/no-go summary table."
+    },
+    {
+      "name": "evidence-audit",
+      "path": "evidence-audit",
+      "type": "directory",
+      "description": "Run the evidence doctor and status audit, explain the verdict, and point at the evidence directory."
+    },
+    {
+      "name": "noun-scaffold",
+      "path": "noun-scaffold",
+      "type": "directory",
+      "description": "Scaffolds a new cargo cicd <noun> command with NounCommand + VerbCommand implementations, mod registration, main.rs wiring, UI output, evidence emission, and a projection test."
+    },
+    {
+      "name": "ui-component",
+      "path": "ui-component",
+      "type": "directory",
+      "description": "Adds a new component to the src/ui/ zero-dependency terminal design system, wires it into src/ui/mod.rs, enforces the color/glyph/width rules, adds #[cfg(test)] tests with caps overrides, and showcases it in cargo cicd ui demo."
+    },
+    {
+      "name": "invariant-audit",
+      "path": "invariant-audit",
+      "type": "directory",
+      "description": "Verifies the public-boundary invariants and output-substring contracts for cargo-cicd. Greps source, README, and docs for forbidden terms, runs the invariants/cli/feature_projection test suites, and confirms that each command prints the required output substrings."
+    },
+    {
+      "name": "benchmark-pipeline",
+      "path": "benchmark-pipeline.json",
+      "type": "json",
+      "description": "Benchmark cargo-cicd pipeline performance with structured latency metrics. Collects p50/p90/p99 latency percentiles per stage and supports baseline comparison for regression tracking."
+    },
+    {
+      "name": "metrics-report",
+      "path": "metrics-report.json",
+      "type": "json",
+      "description": "Analyzes and reports on pipeline metrics collected by MetricsCollector during cargo-cicd execution. Extracts stage latencies, generates formatted performance reports, and tracks trends over time."
+    },
+    {
+      "name": "run-advanced-tests",
+      "path": "run-advanced-tests.json",
+      "type": "json",
+      "description": "Run cargo-cicd tests with the advanced feature flag enabled."
+    },
+    {
+      "name": "snapshot-state-manager",
+      "path": "snapshot-state-manager.json",
+      "type": "json",
+      "description": "Manage engine state checkpoints for quick recovery and comparison. Save, load, list, compare, and clean engine state snapshots via StateSnapshotAdapter."
+    },
+    {
+      "name": "validate-advanced-build",
+      "path": "validate-advanced-build.json",
+      "type": "json",
+      "description": "Validates that advanced build features work correctly across multiple feature flag combinations. Tests cargo check, cargo test, and cargo clippy with different feature combinations to identify compatibility issues."
+    }
+  ]
+}

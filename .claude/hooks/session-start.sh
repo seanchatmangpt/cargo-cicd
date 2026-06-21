@@ -5,7 +5,7 @@ set -uo pipefail
 WD="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$WD" 2>/dev/null || true
 
-echo "cargo-cicd v26.6.2 — Claude Code Session Started"
+echo "cargo-cicd v26.6.19 — Claude Code Session Started"
 echo "Workspace: $WD"
 echo ""
 

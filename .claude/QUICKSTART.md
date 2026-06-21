@@ -172,7 +172,7 @@ Consequence: if you add a new verb to the ontology and run `ggen`, the module st
 
 ### Noun-Verb CLI Grammar
 
-The binary exposes a strict noun-verb grammar. Every command is `cargo cicd <noun> <verb> [flags]`. There are 10 nouns:
+The binary exposes a strict noun-verb grammar. Every command is `cargo cicd <noun> <verb> [flags]`. There are 15 nouns:
 
 | Noun | Default verb | Purpose |
 |------|-------------|---------|
@@ -186,6 +186,11 @@ The binary exposes a strict noun-verb grammar. Every command is `cargo cicd <nou
 | `evidence` | `doctor` | Process evidence emission and adjudication |
 | `pipeline` | — | Sequential execution of all CI/CD activities |
 | `lsp` | — | Language server for IDE integration |
+| `analyze` | — | Dependency order and workspace analysis |
+| `autoarch` | — | Automated architecture tuning |
+| `certification` | `show` | Certification status and compliance reporting |
+| `sbom` | — | Software bill of materials generation and display |
+| `ui` | — | Terminal UI demo and dashboard rendering |
 
 Default verb injection means bare nouns work as shortcuts:
 
@@ -824,34 +829,111 @@ Source: `.claude/commands/release.md`
 
 ---
 
-### Operations Without Dedicated Command Files
+**`/check`** — Run lint and type-checking across the workspace
 
-These operations do not have command files yet. Run them directly:
+Runs `cargo make check` (clippy + type-check), interprets the output, and reports a summary with actionable next steps.
 
-**Check** (lint + type-check):
+Source: `.claude/commands/check.md`
+
+---
+
+**`/evidence`** — Evidence Gate Workflow
+
+Guides through the full evidence gate: emit process evidence, adjudicate with the wasm4pm oracle, and interpret `Accept`/`Refuse`/`Blocked` verdicts.
+
+Source: `.claude/commands/evidence.md`
+
+---
+
+**`/status`** — Workspace health snapshot
+
+Runs a complete workspace health check across all dimensions (git phase, toolchain, target, changed files, policies). Collects all output before reporting.
+
+Source: `.claude/commands/status.md`
+
+---
+
+**`/workspace`** — Workspace diagnostics
+
+Guides through interpreting `workspace doctor` output, validating workspace structure, checking `cicd.toml` freshness, and diagnosing adapter failures.
+
+Source: `.claude/commands/workspace.md`
+
+---
+
+**`/audit-evidence`** — Run the evidence doctor and status audit
+
+Runs the evidence doctor and status audit, explains the verdict, and points at the evidence directory.
+
+Source: `.claude/commands/audit-evidence.md`
+
+---
+
+**`/check-invariants`** — Public-boundary invariant audit
+
+Runs the public-boundary invariant suites and reports which hold, with remediation tips on failure.
+
+Source: `.claude/commands/check-invariants.md`
+
+---
+
+**`/clean-target`** — Inspect and prune build artifacts
+
+Inspects build artifacts with `target show`, previews what `target prune` would free, and explains the `--apply` flag.
+
+Source: `.claude/commands/clean-target.md`
+
+---
+
+**`/new-noun`** — Scaffold a new CLI noun
+
+Guides adding a new CLI noun: module scaffold, registration, UI rendering, process-event emission, and projection test. Accepts the noun name as an argument.
+
+Source: `.claude/commands/new-noun.md`
+
+---
+
+**`/phase-close`** — Git phase closure
+
+Runs `git status` then `git close`, explaining the clean-tree requirement and the refusal to hide dirty files.
+
+Source: `.claude/commands/phase-close.md`
+
+---
+
+**`/ui-demo`** — Terminal UI demo and design system walkthrough
+
+Builds and runs the UI demo and dashboard, then explains the design-system modules under `src/ui/`.
+
+Source: `.claude/commands/ui-demo.md`
+
+---
+
+### Claude Code Hooks
+
+`.claude/settings.json` registers three PascalCase lifecycle hooks that the Claude Code harness executes automatically — not Claude itself. Their shell implementations live in `.claude/hooks/`.
+
+| Hook name | When it fires | Implementation |
+|-----------|--------------|----------------|
+| `SessionStart` | Once when a Claude Code session begins | `.claude/hooks/session-start.sh` |
+| `PreToolUse` | Before every Bash tool call | `.claude/hooks/pre-tool-use.sh` |
+| `PostToolUse` | After every Bash tool call completes | `.claude/hooks/post-tool-use.sh` |
+
+**What each hook does:**
+
+- **`session-start.sh`** — Runs environment setup tasks at the start of a session (e.g., verifying that required tools such as `cargo-make` and `wpm` are on PATH, printing a workspace health summary).
+- **`pre-tool-use.sh`** — Runs before each Bash invocation. Typically used for pre-flight checks, such as preventing destructive commands from running without `--confirm`, or enforcing the forbidden-term guard.
+- **`post-tool-use.sh`** — Runs after each Bash invocation. Typically used for lightweight post-action logging or evidence emission triggers.
+
+If a hook is missing or not executable, Claude Code logs a warning and continues. Hooks never block the session unless they exit non-zero and the `on_failure` key in `settings.json` is set to `block`.
+
+To inspect or edit the hooks:
+
 ```bash
-cargo make check
-```
-
-**Evidence** (run evidence gate):
-```bash
-cargo test --test wasm4pm_evidence_gate -- --nocapture
-cargo test --test wasm4pm_evidence_mutation
-cargo test --test wasm4pm_refusal_cases
-```
-
-**Status** (workspace health snapshot):
-```bash
-cargo cicd status show
-# or just:
-cargo cicd status
-```
-
-**Workspace** (full workspace diagnostics with policies):
-```bash
-cargo cicd workspace doctor
-# or just:
-cargo cicd workspace
+ls -la .claude/hooks/
+cat .claude/hooks/session-start.sh
+cat .claude/hooks/pre-tool-use.sh
+cat .claude/hooks/post-tool-use.sh
 ```
 
 ---
@@ -883,6 +965,11 @@ All noun implementations live in `src/nouns/`. Each file = one noun.
 | `src/nouns/evidence.rs` | `evidence` | `doctor` (default), `audit` |
 | `src/nouns/pipeline.rs` | `pipeline` | `run` |
 | `src/nouns/lsp.rs` | `lsp` | `explain` |
+| `src/nouns/analyze.rs` | `analyze` | `dep-order` |
+| `src/nouns/autoarch.rs` | `autoarch` | `tune` |
+| `src/nouns/certification.rs` | `certification` | `show` (default) |
+| `src/nouns/sbom.rs` | `sbom` | `generate`, `show` |
+| `src/nouns/ui.rs` | `ui` | `demo`, `dashboard` |
 | `src/nouns/mod.rs` | — | Noun registry; registers all nouns with clap |
 
 ### Engine State
@@ -1006,7 +1093,7 @@ The invariant `invariant_public_boundary_no_forbidden_terms_in_all_help` in `tes
 
 1. Find which noun/verb produced the leak:
    ```bash
-   for noun in status git test trybuild target workspace publish evidence pipeline lsp; do
+   for noun in status git test trybuild target workspace publish evidence pipeline lsp analyze autoarch certification sbom ui; do
      cargo run -- $noun --help 2>&1 | grep -E "ALIVE|Inspection Gate|Nehemiah|Field8|Instinct8|Cargo Court|AGI|Truex|CONSTRUCT8"
    done
    ```
