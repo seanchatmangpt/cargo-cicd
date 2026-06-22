@@ -1,167 +1,63 @@
 # /git — Git Phase Management
 
-Manage git phase state in the cargo-cicd workspace. This command guides through
-checking phase status, understanding git state dimensions, and safely closing phases.
+Trigger: user requests git phase status, phase transition, or safe close.
 
-## Quick Start
-
-Run the full git phase workflow:
+## Canonical sequence
 
 ```bash
 cargo cicd git status
 cargo cicd git phase
+cargo cicd git close  # only after status shows clean
 ```
 
-## Step 1: Check Current Git Status
-
-```bash
-cargo cicd git status
-```
-
-This reads `GitPhaseState` from the engine and displays:
+## `git status` output fields
 
 | Field | Meaning |
 |---|---|
 | `branch` | Current branch name |
 | `dirty_files` | Unstaged modified files |
 | `staged_files` | Files staged for commit |
-| `untracked` | New files not yet tracked |
+| `untracked` | Untracked files |
 | `ahead` | Commits ahead of upstream |
 | `behind` | Commits behind upstream |
 
-The verdict is `PASS` when the workspace is clean (no dirty, staged, or untracked
-files). It is `WARN` when any of those lists are non-empty.
+Verdict `PASS` = all lists empty. Verdict `WARN` = any list non-empty.
 
-## Step 2: Check Current Phase
+## Phases
 
-```bash
-cargo cicd git phase
-```
-
-Phases reflect the lifecycle position of the branch:
-
-| Phase | Meaning |
+| Phase | Condition |
 |---|---|
-| `development` | Active work; dirty or staged files present |
-| `staged` | All changes committed; not yet pushed |
-| `clean` | Branch is even with upstream, no local changes |
-| `published` | Evidence adjudicated and receipt issued by wasm4pm |
+| `development` | dirty or staged files present |
+| `staged` | all committed, not pushed |
+| `clean` | even with upstream, no local changes |
+| `published` | evidence adjudicated by wasm4pm |
 
-## Step 3: Safe Git Close Workflow
+## Safe close invariant
 
-**Safety invariant: `git close` NEVER runs on a dirty workspace.**
+`git close` NEVER runs on a dirty workspace. Preconditions:
+- `dirty_files=[]`, `staged_files=[]`, `untracked=[]`
+- phase is `clean` or `staged`
 
-The `close` verb enforces this unconditionally. Before attempting close, confirm
-the workspace is clean:
+On failure: exits non-zero with refusal message.
 
-```bash
-# 1. Verify clean state
-cargo cicd git status
-# Output must show: dirty_files=[], staged_files=[], untracked=[]
+## Evidence emission pattern
 
-# 2. Confirm phase is ready
-cargo cicd git phase
-# Output must show phase: "clean" or "staged"
-
-# 3. Close the phase
-cargo cicd git close
+Each git verb emits to `target/cargo-cicd/evidence/`:
 ```
-
-If the workspace is not clean, `git close` will refuse and exit non-zero.
-
-## Evidence Emission for Git Operations
-
-Each git verb emits a `ProcessEvent` to `target/cargo-cicd/evidence/`. The pattern:
-
+start event → work (git adapter queries) → complete event → [optional wpm audit]
 ```
-start event  →  work (git adapter queries)  →  complete event  →  [optional wpm audit]
-```
+`verdict_claimed`: `PASS` (clean) or `WARN` (dirty/staged/untracked).
 
-Example XES event for `git status`:
+## Failure modes
 
-```xml
-<event>
-  <string key="event_id" value="evt-git-status-20260614134507123Z"/>
-  <string key="lifecycle_transition" value="complete"/>
-  <string key="verdict_claimed" value="WARN"/>
-  <string key="trace_class" value="live_workspace"/>
-</event>
-```
+| Symptom | Fix |
+|---------|-----|
+| Merge conflicts in `dirty_files` | `git status --porcelain \| grep "^UU"` → resolve → `git add` → re-check |
+| `ahead>0` AND `behind>0` | `git fetch origin && git rebase origin/main` |
+| Empty/SHA-only branch name (detached HEAD) | `git checkout -b recovery-branch` before close |
+| Close blocked by dirty state | `git commit` staged, then `git stash` or `git checkout .` for dirty |
 
-`verdict_claimed` is `PASS` for a clean workspace, `WARN` for dirty/staged/untracked
-state. The wasm4pm oracle (`wpm`) adjudicates the final verdict.
-
-## Common Issues
-
-### Merge Conflicts
-
-If `git status` shows conflict markers in `dirty_files`:
-
-```bash
-# Identify conflicted files
-git status --porcelain | grep "^UU"
-
-# Resolve conflicts, then stage
-git add <resolved-file>
-
-# Re-check cargo-cicd state
-cargo cicd git status
-```
-
-### Diverged Branch (ahead AND behind > 0)
-
-When both `ahead` and `behind` are non-zero, the branch has diverged from upstream:
-
-```bash
-# Option A: rebase onto upstream
-git fetch origin
-git rebase origin/main
-
-# Option B: merge upstream
-git merge origin/main
-
-# Verify after
-cargo cicd git status
-```
-
-The autonomic `branch_behind` policy (when `--features autonomic` is enabled)
-will emit a `Warn` recommendation if `behind > 0`.
-
-### Detached HEAD
-
-`cargo cicd git status` will show an empty or SHA-only branch name when HEAD is
-detached. Reattach before attempting `git close`:
-
-```bash
-# Reattach to a branch
-git checkout -b recovery-branch
-
-# Verify branch is set
-cargo cicd git status
-```
-
-### Close Blocked by Dirty State
-
-If `git close` refuses:
-
-```bash
-# See exactly what is dirty
-cargo cicd git status
-
-# Commit all staged files
-git commit -m "feat(core): ..."
-
-# Stash or discard untracked/dirty files
-git stash        # to save
-git checkout .   # to discard
-
-# Retry close
-cargo cicd git close
-```
-
-## EngineState Fields (git_phase_state)
-
-The `GitPhaseState` struct populated by `GitStatusAdapter`:
+## GitPhaseState struct
 
 ```rust
 pub struct GitPhaseState {
@@ -174,11 +70,6 @@ pub struct GitPhaseState {
 }
 ```
 
-`GitStatusAdapter` runs `git status --porcelain` and parses each status line.
-It silently returns defaults on failure — partial state is preferred over a crash.
+`GitStatusAdapter` runs `git status --porcelain`, parses each line, silently returns defaults on failure.
 
-## Related Commands
-
-- `/workspace` — Full workspace health including git phase
-- `cargo cicd evidence doctor` — Check evidence from past git operations
-- `cargo cicd pipeline run` — Runs all CI/CD activities in sequence (includes git checks)
+Autonomic `branch_behind` policy (feature `autonomic`): emits `Warn` when `behind > 0`.

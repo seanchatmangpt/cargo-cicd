@@ -5,29 +5,21 @@ description: Verifies the public-boundary invariants and output-substring contra
 
 # Invariant Audit
 
-Follow these steps in order to audit cargo-cicd's public-boundary invariants.
+Trigger: "check invariants", "public boundary audit", "verify contracts", or "make sure the CLI output is correct".
 
-## Step 1 — Scan for forbidden terms
+## Step 1 — Forbidden Term Scan
 
-These terms must never appear in `src/`, `README.md`, or `docs/`. Run each grep and confirm zero matches.
+Zero matches required across `src/`, `README.md`, `docs/`.
 
 ```sh
-# Grep source files
-grep -r "ALIVE" src/ README.md docs/ 2>/dev/null || true
-grep -r "Inspection Gate" src/ README.md docs/ 2>/dev/null || true
-grep -r "\bwall\b" src/ README.md docs/ 2>/dev/null || true
-grep -r "Nehemiah" src/ README.md docs/ 2>/dev/null || true
-grep -r "Field8" src/ README.md docs/ 2>/dev/null || true
-grep -r "Instinct8" src/ README.md docs/ 2>/dev/null || true
-grep -r "Cargo Court" src/ README.md docs/ 2>/dev/null || true
-grep -r "\bAGI\b" src/ README.md docs/ 2>/dev/null || true
-grep -r "Truex" src/ README.md docs/ 2>/dev/null || true
-grep -r "CONSTRUCT8" src/ README.md docs/ 2>/dev/null || true
+grep -rn -e "ALIVE" -e "Inspection Gate" -e "\bwall\b" -e "Nehemiah" \
+     -e "Field8" -e "Instinct8" -e "Cargo Court" -e "\bAGI\b" \
+     -e "Truex" -e "CONSTRUCT8" src/ README.md docs/ 2>/dev/null
 ```
 
-If any match is found: locate the file and line, remove or replace the term with public-safe language, and re-run the grep to confirm zero matches before continuing.
+Any match → **NO-GO**. Remove term; re-run to confirm zero.
 
-## Step 2 — Run the three invariant test suites
+## Step 2 — Run Test Suites
 
 ```sh
 cargo test --test invariants
@@ -35,78 +27,58 @@ cargo test --test cli
 cargo test --test feature_projection
 ```
 
-All three must exit 0. If any test fails:
-1. Read the failure output carefully — it will name the specific assertion and command.
-2. Identify whether the breakage is in source (`src/nouns/*.rs`) or in the test fixture.
-3. Fix the source; do not loosen the test contract without team approval.
+All must exit 0. On failure: read failure output, fix `src/nouns/*.rs` (do not loosen test contracts), re-run.
 
-## Step 3 — Verify output-substring contracts
-
-The following contracts are enforced by `tests/cli/command_projection.rs` and `tests/invariants.rs`. Verify each manually after any noun output change:
-
-| Command | Required output substring(s) |
-|---|---|
-| `cargo cicd status show` | `"cargo-cicd workspace status"` |
-| `cargo cicd target show` | `"target directory"` and `"GB"` |
-| `cargo cicd workspace doctor` | `"workspace doctor"` and `"Cargo.toml"` |
-| `cargo cicd git status` | `"git status"` |
-| `cargo cicd evidence doctor` | verdict line from `wpm receipt doctor` |
-
-Run each command in a subshell and confirm the substring is present:
+## Step 3 — Output-Substring Contracts
 
 ```sh
-cargo cicd status show 2>&1 | grep -q "cargo-cicd workspace status" && echo "PASS" || echo "FAIL"
-cargo cicd target show 2>&1 | grep -q "target directory" && echo "PASS" || echo "FAIL"
-cargo cicd target show 2>&1 | grep -q "GB" && echo "PASS" || echo "FAIL"
-cargo cicd workspace doctor 2>&1 | grep -q "workspace doctor" && echo "PASS" || echo "FAIL"
-cargo cicd workspace doctor 2>&1 | grep -q "Cargo.toml" && echo "PASS" || echo "FAIL"
-cargo cicd git status 2>&1 | grep -q "git status" && echo "PASS" || echo "FAIL"
+cargo cicd status show 2>&1    | grep -q "cargo-cicd workspace status" && echo PASS || echo FAIL
+cargo cicd target show 2>&1    | grep -q "target directory"            && echo PASS || echo FAIL
+cargo cicd target show 2>&1    | grep -q "GB"                          && echo PASS || echo FAIL
+cargo cicd workspace doctor 2>&1 | grep -q "workspace doctor"          && echo PASS || echo FAIL
+cargo cicd workspace doctor 2>&1 | grep -q "Cargo.toml"               && echo PASS || echo FAIL
+cargo cicd git status 2>&1     | grep -q "git status"                 && echo PASS || echo FAIL
 ```
 
-## Step 4 — Check plain-mode output (piped)
+Any FAIL → noun output changed. Fix output string in `src/nouns/<noun>.rs`.
 
-Color must be absent and all glyphs must be ASCII when output is piped. Run:
+## Step 4 — Plain-Mode (Piped) Check
 
 ```sh
-cargo cicd status show | cat | grep -P "\\x1b" && echo "FAIL: ANSI escape in plain mode" || echo "PASS: plain mode clean"
-cargo cicd target show | cat | grep -P "\\x1b" && echo "FAIL: ANSI escape in plain mode" || echo "PASS: plain mode clean"
-cargo cicd workspace doctor | cat | grep -P "\\x1b" && echo "FAIL: ANSI escape in plain mode" || echo "PASS: plain mode clean"
+cargo cicd status show     | cat | grep -P "\x1b" && echo FAIL || echo PASS
+cargo cicd target show     | cat | grep -P "\x1b" && echo FAIL || echo PASS
+cargo cicd workspace doctor | cat | grep -P "\x1b" && echo FAIL || echo PASS
 ```
 
-If ANSI escapes appear in piped output, the offending noun is using raw escape strings instead of `crate::ui::style::Style::paint()` or `crate::ui::theme::paint()`. Fix by replacing any hard-coded `\x1b[...m` sequences with `Style::paint` calls.
+Any FAIL → replace hard-coded `\x1b[...m` with `Style::paint` / `theme::paint` calls.
 
-## Step 5 — Feature flag surface contract
-
-Run the feature-projection test to confirm that gated APIs are not accidentally exposed in the default build:
+## Step 5 — Feature Flag Surface
 
 ```sh
 cargo test --test feature_projection
 ```
 
-If the test fails, read `tests/feature_projection.rs` for the exact surface contract that was violated, and fix the feature-gate (`#[cfg(feature = "...")]`) in the affected source file.
+Failure → fix `#[cfg(feature = "...")]` gate in affected source file per `tests/feature_projection.rs`.
 
-## Step 6 — Report and fix
-
-After completing all steps, produce a brief report:
+## Summary Report Format
 
 ```
-Forbidden terms: PASS / FAIL (list any matches)
-invariants suite: PASS / FAIL
-cli suite:        PASS / FAIL
-feature_projection: PASS / FAIL
-status show contract: PASS / FAIL
-target show contract: PASS / FAIL
-workspace doctor contract: PASS / FAIL
-git status contract: PASS / FAIL
-plain-mode output: PASS / FAIL
+Forbidden terms:       PASS / FAIL
+invariants suite:      PASS / FAIL
+cli suite:             PASS / FAIL
+feature_projection:    PASS / FAIL
+status show contract:  PASS / FAIL
+target show contract:  PASS / FAIL
+workspace contract:    PASS / FAIL
+git status contract:   PASS / FAIL
+plain-mode output:     PASS / FAIL
 ```
 
-For each FAIL, state the file and line, the fix applied, and re-run the affected test or grep to confirm the fix.
+For each FAIL: state file + line, fix applied, re-run confirmation.
 
-## Reference: test files
+## Reference Files
 
-- `tests/invariants.rs` — 7 non-negotiable public boundary invariants.
-- `tests/cli/command_projection.rs` — per-noun projection tests asserting parse + output.
-- `tests/feature_projection.rs` — feature flag surface contract.
-- `src/nouns/*.rs` — noun implementations; output must use only `crate::ui` primitives.
-- `src/ui/caps.rs` — color/unicode capability detection; `Style::paint` reads this.
+- `tests/invariants.rs` — 7 public boundary invariants
+- `tests/cli/command_projection.rs` — per-noun projection tests
+- `tests/feature_projection.rs` — feature flag surface contract
+- `src/ui/caps.rs` — `Style::paint` reads color/unicode capability here

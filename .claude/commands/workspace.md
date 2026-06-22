@@ -1,268 +1,147 @@
 # /workspace — Workspace Diagnostics
 
-Run a full workspace health assessment for the cargo-cicd workspace. This command
-guides through interpreting `workspace doctor` output, validating structure,
-checking cicd.toml freshness, and diagnosing adapter failures.
+Trigger: user asks about workspace health, adapter failures, cicd.toml, or policy verdicts.
+Action: run `cargo cicd workspace doctor`, interpret output, remediate WARNs.
 
-## Quick Start
-
-```bash
-cargo cicd workspace doctor
-```
-
-This is the primary health check. It populates all `EngineState` dimensions and
-reports on each one.
-
-## Step 1: Run Workspace Doctor
+## Canonical Pattern
 
 ```bash
 cargo cicd workspace doctor
 ```
 
-`workspace doctor` queries every adapter in sequence and emits a summary. Expect
-output grouped by dimension:
+## Dimensions Checked
 
-| Dimension | What it checks |
+| Dimension | Checks |
 |---|---|
-| `workspace` | Name, root path, members list, Rust edition |
-| `toolchain` | Active toolchain, `rustc` version |
-| `target` | Target directory path, total size in bytes |
-| `changed_files` | Base ref, changed `.rs` files, test files, trybuild fixtures |
-| `test_plan` | Estimated test count, conservative mode flag |
-| `trybuild` | Fixture sets, changed fixtures, projection profile |
-| `git_phase` | Branch, dirty/staged/untracked files, ahead/behind counts |
-| `process_events` | Previously emitted `ProcessEvent` structs |
-| `artifacts` | Artifact manifests, registry metadata |
-| `policies` | Policy verdicts (requires `--features autonomic`) |
+| `workspace` | name, root path, members, Rust edition |
+| `toolchain` | active toolchain, rustc version |
+| `target` | directory path, total size bytes |
+| `changed_files` | base ref, changed .rs files, test files, trybuild fixtures |
+| `test_plan` | estimated test count, conservative mode flag |
+| `trybuild` | fixture sets, changed fixtures, projection profile |
+| `git_phase` | branch, dirty/staged/untracked, ahead/behind counts |
+| `process_events` | emitted ProcessEvent structs |
+| `artifacts` | manifests, registry metadata |
+| `policies` | policy verdicts (requires `--features autonomic`) |
 
-Verdicts: `PASS` (all healthy), `WARN` (attention needed), `FAIL` (blocking issue).
+Verdicts: `PASS` · `WARN` · `FAIL`
 
-## Step 2: Check Cargo.toml Workspace Structure
-
-For a workspace root the `[workspace]` section must be present:
-
-```toml
-[workspace]
-members = [".", "crates/cargo-cicd-core", "crates/cargo-cicd-lsp"]
-resolver = "2"
-```
-
-Validate manually:
+## cicd.toml Freshness
 
 ```bash
-grep -A 5 '\[workspace\]' Cargo.toml
-```
-
-Each member listed must have its own `Cargo.toml`. `CargoMetadataAdapter` scans
-member paths by reading `Cargo.toml` line-by-line (no `cargo metadata` invocation).
-Missing members cause silent adapter failure — the member list will be shorter than
-expected, not an error.
-
-## Step 3: Validate Each Workspace Member
-
-Each member crate should have:
-
-```
-crates/<name>/
-├── Cargo.toml        # [package] with name, version, edition
-└── src/
-    └── lib.rs        # or main.rs
-```
-
-Check a member:
-
-```bash
-cat crates/cargo-cicd-core/Cargo.toml
-ls crates/cargo-cicd-core/src/
-```
-
-`ManifestParser` reads each member's `Cargo.toml` for `name`, `version`, and
-`edition`. Missing fields are silently defaulted to empty strings.
-
-## Step 4: Check cicd.toml Freshness
-
-`cicd.toml` is the persistent state carrier. It should be updated after each
-major verb run:
-
-```bash
-# Check it exists and when it was last written
-ls -la cicd.toml
-
-# Inspect contents
-cat cicd.toml
-```
-
-Expected sections:
-
-```toml
-[workspace]
-name = "cargo-cicd"
-root_path = "/home/user/cargo-cicd"
-members = [".", "crates/cargo-cicd-core", "crates/cargo-cicd-lsp"]
-
-[state]
-git_phase = "clean"
-target_size_bytes = 524288000
-
-[target]
-total_size_bytes = 524288000
-pruned_bytes = 0
-
-[[events]]
-event_id = "evt-status-show-20260614134507123Z"
-command = "status show"
-verdict_claimed = "PASS"
-verdict_adjudicated = "Accept"
-```
-
-If `cicd.toml` is absent or stale (no recent `[[events]]`), re-run any execution
-verb to refresh it:
-
-```bash
-cargo cicd workspace doctor
 ls -la cicd.toml
 ```
 
-`CicdTomlWriter` serializes the full `EngineState` to TOML after each major
-operation. Read-only verbs like `status show` may not write it.
+Required sections: `[workspace]` · `[state]` · `[target]` · `[[events]]`
 
-## Step 5: Autonomic Policy Verdicts
-
-When built with `--features autonomic`, `workspace doctor` also runs all policies
-and reports their verdicts:
-
+If absent or stale (no recent `[[events]]`):
 ```bash
-cargo build --features autonomic
-cargo cicd workspace doctor
+cargo cicd workspace doctor   # triggers CicdTomlWriter
 ```
 
-Policies and their triggers:
+Read-only verbs (`status show`) do not write cicd.toml.
+
+## Autonomic Policies
+
+```bash
+cargo build --features autonomic && cargo cicd workspace doctor
+```
 
 | Policy | Trigger | Verdict |
 |---|---|---|
-| `target_pressure` | Target dir exceeds size threshold | `Warn` |
-| `toolchain_mismatch` | `rustc` version differs from lockfile expectation | `Warn` |
-| `trybuild_changed` | Trybuild fixtures changed but not run | `Warn` |
-| `branch_behind` | Local branch behind upstream by N commits | `Warn` |
-| `evidence_stale` | Last evidence emission exceeds age threshold | `Warn` |
-| `publish_not_adjudicated` | Publish ran but no wpm verdict recorded | `Warn` |
-| `git_phase_dirty` | Dirty or staged files detected | `Warn` |
+| `target_pressure` | target dir exceeds size threshold | Warn |
+| `toolchain_mismatch` | rustc version differs from lockfile expectation | Warn |
+| `trybuild_changed` | trybuild fixtures changed but not run | Warn |
+| `branch_behind` | local branch behind upstream by N commits | Warn |
+| `evidence_stale` | last evidence emission exceeds age threshold | Warn |
+| `publish_not_adjudicated` | publish ran but no wpm verdict recorded | Warn |
+| `git_phase_dirty` | dirty or staged files detected | Warn |
 
-All policies run in **suggest mode** — they emit recommendations only, never
-take action.
+All policies are suggest-mode only — never destructive.
 
-## Step 6: Remediate Warn Verdicts
-
-### target_pressure
+## Warn Remediation
 
 ```bash
-# See current target size
-cargo cicd target show
-
-# Dry-run prune to see what would be removed
+# target_pressure
 cargo cicd target prune --dry-run
-
-# Execute prune
 cargo cicd target prune --confirm
+
+# toolchain_mismatch
+rustup update stable && rustup override set stable
+
+# branch_behind
+git fetch origin && git merge origin/main
+
+# evidence_stale
+cargo cicd status show && ls -la target/cargo-cicd/evidence/
+
+# git_phase_dirty
+git add -A && git commit -m "fix(core): ..."
 ```
 
-### toolchain_mismatch
+## Adapter Failure Diagnosis
 
-```bash
-# Check active toolchain
-rustc --version
-rustup show
-
-# Update if needed
-rustup update stable
-rustup override set stable
-```
-
-### branch_behind
-
-```bash
-git fetch origin
-git rebase origin/main
-cargo cicd git status
-```
-
-### evidence_stale
-
-```bash
-# Re-run any verb to emit fresh evidence
-cargo cicd status show
-ls -la target/cargo-cicd/evidence/
-```
-
-### git_phase_dirty
-
-```bash
-cargo cicd git status
-git add -A && git commit -m "feat(core): ..."
-# or
-git stash
-```
-
-## Diagnosing Adapter Failures
-
-Adapters fail silently — partial state is preferred over crashes. To surface
-failures, enable debug logging:
+Adapters fail silently — partial state is preferred over crashes.
 
 ```bash
 RUST_LOG=debug cargo cicd workspace doctor 2>&1 | grep -i adapter
 ```
 
-Common silent failures:
+| Adapter | Silent Symptom | Root Cause | Verify With |
+|---|---|---|---|
+| `CargoMetadataAdapter` | `workspace.members` empty | Malformed `[workspace]` in Cargo.toml | `grep -A5 '\[workspace\]' Cargo.toml` |
+| `GitStatusAdapter` | `git_phase.*` empty | Not in git repo or `git` not on PATH | `git status --porcelain` |
+| `ToolchainDetector` | `toolchain.rust_version` empty | `rustc` not on PATH | `rustc --version` |
+| `TargetScannerAdapter` | `target.total_size_bytes = 0` | Target dir missing (`cargo build` not run) | `du -sh target/` |
+| `ChangedFileDetector` | `changed_files` empty | `origin/main` ref absent | `git diff origin/main --name-only` |
+| `TrybuildDetector` | `trybuild.fixture_sets` empty | `tests/ui/` does not exist | `ls tests/ui/` |
 
-| Adapter | Silent failure symptom | Root cause |
-|---|---|---|
-| `CargoMetadataAdapter` | `workspace.members` is empty | Malformed `[workspace]` in Cargo.toml |
-| `GitStatusAdapter` | `git_phase.*` fields are empty | Not inside a git repo, or `git` not on PATH |
-| `ToolchainDetector` | `toolchain.rust_version` is empty | `rustc` not on PATH |
-| `TargetScannerAdapter` | `target.total_size_bytes = 0` | Target dir does not exist yet (`cargo build` not run) |
-| `ChangedFileDetector` | `changed_files` list is empty | `origin/main` ref not present (fresh clone, no remote) |
-| `TrybuildDetector` | `trybuild.fixture_sets` is empty | `tests/ui/` directory does not exist |
-
-To confirm an adapter is the issue, run its underlying command directly:
-
-```bash
-# GitStatusAdapter
-git status --porcelain
-
-# ToolchainDetector
-rustc --version
-
-# ChangedFileDetector
-git diff origin/main --name-only
-
-# TargetScannerAdapter
-du -sh target/
-```
-
-## EngineState Dimensions Reference
+## EngineState Fields
 
 ```rust
 pub struct EngineState {
-    pub workspace: WorkspaceState,       // name, root_path, members, edition
-    pub toolchain: ToolchainState,       // active toolchain, rust_version
-    pub target: TargetState,             // path, total_size_bytes
-    pub changed_files: ChangedFileState, // base_ref, changed .rs files
-    pub test_plan: TestPlanState,        // estimated test count, conservative
-    pub trybuild: TrybuildState,         // fixture sets, changed fixtures
-    pub git_phase: GitPhaseState,        // branch, dirty/staged/untracked, ahead/behind
-    pub process_events: ProcessEventState, // emitted ProcessEvent list
-    pub artifacts: ArtifactState,        // manifests, registry metadata
-    pub policies: PolicyState,           // PolicyEntry vec (autonomic only)
-    pub projection: ProjectionProfile,   // feature flag surface contract
+    pub workspace: WorkspaceState,
+    pub toolchain: ToolchainState,
+    pub target: TargetState,
+    pub changed_files: ChangedFileState,
+    pub test_plan: TestPlanState,
+    pub trybuild: TrybuildState,
+    pub git_phase: GitPhaseState,
+    pub process_events: ProcessEventState,
+    pub artifacts: ArtifactState,
+    pub policies: PolicyState,           // autonomic only
+    pub projection: ProjectionProfile,
 }
 ```
 
-`EngineState::from_workspace()` calls all adapters in sequence. Each failure is
-swallowed; the next adapter still runs. The resulting state may be partial.
+`EngineState::from_workspace()` runs all adapters in sequence; each failure is swallowed.
 
-## Related Commands
+## wasm4pm Evidence (when emitting workspace evidence)
 
-- `/git` — Git phase status and close workflow
-- `cargo cicd evidence doctor` — Inspect emitted process evidence
-- `cargo cicd status show` — Quick workspace snapshot
-- `cargo cicd pipeline run` — Sequential execution of all CI/CD activities
+FORBIDDEN: hand-rolling `OcelLog`, `OcelEvent`, `OcelObject` structs.
+FORBIDDEN: adjudicating inside cargo-cicd (invariant E1).
+
+```rust
+use wasm4pm_compat::ocel::{OCEL, OCELEvent, OCELObject, OCELRelationship};
+use wasm4pm_compat::evidence::{Evidence, RawOcelEvidence};
+use wasm4pm_compat::state::Raw;
+use wasm4pm_compat::witness::Ocel20;
+
+// 1. Build OCEL
+let log = OCEL { event_types, object_types, events, objects };
+// 2. Wrap
+let evidence = Evidence::<OCEL, Raw, Ocel20>::raw(log);
+// 3. Serialize
+serde_json::to_writer(file, &evidence.inner())?;
+// 4. Adjudicate (shell-out only)
+// wpm audit <file.ocel.json>  → Accept | Refuse | Blocked
+```
+
+Object types in domain: `Workspace` · `Crate` · `TestRun` · `GitCommit` · `Release` · `Receipt` · `EvidenceFile` · `Policy` · `Toolchain`
+
+## Related
+
+- `cargo cicd git status` — git phase
+- `cargo cicd evidence doctor` — emitted process evidence
+- `cargo cicd status show` — quick snapshot
+- `cargo cicd pipeline run` — full CI/CD execution

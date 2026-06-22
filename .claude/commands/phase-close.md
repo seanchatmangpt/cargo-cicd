@@ -1,99 +1,57 @@
 ---
-description: Run git status then git close, explaining the clean-tree requirement and refusal to hide dirty files.
+description: Run git status then git close; enforce clean-tree requirement; refuse to proceed over dirty files.
 allowed-tools: Bash, Read
 ---
 
-You are helping the user close the current git phase in cargo-cicd. Phase closure is a deliberate, audited operation — it requires an honest view of the working tree and refuses to proceed if unrelated dirty files would be hidden. Work through the steps below in order.
+Trigger: user says "close phase", "phase close", or runs `/phase-close`.
 
----
+## 1 — Inspect git state
 
-## Step 1 — Inspect current git state
-
-Run the git noun's status verb:
-
-```
+```bash
 cargo cicd git status
 ```
 
-This reads `GitPhaseState` from the engine and reports:
-- The current branch and HEAD commit
-- Staged files (ready to commit)
-- Modified but unstaged files
-- Untracked files
-- Whether the working tree is clean
+Capture full output. Required fields: branch, HEAD SHA, staged/modified/untracked counts, clean flag.
 
-Capture the full output and display it.
+## 2 — Pre-flight: dirty tree blocks closure
 
----
+**Tree clean** → proceed to step 3.
 
-## Step 2 — Understand what "phase close" means
+**Tree dirty** → STOP. Do not run `git close`.
 
-Before proceeding, explain the concept to the user:
+Dirty-tree resolution:
 
-A **phase close** in cargo-cicd marks the boundary between two units of work. It is recorded as a `ProcessEvent` in `target/cargo-cicd/evidence/` and written as a structured entry in `cicd.toml`. The close event captures:
-- The branch name and HEAD SHA at the moment of closure
-- The list of files changed during this phase
-- A timestamp
+| Dirty files belong to this phase? | Action |
+|-----------------------------------|--------|
+| Yes | `git add <files> && git commit -m "feat(...): ..."` then re-run `/phase-close` |
+| No | `git stash` unrelated changes, then re-run `/phase-close` |
 
-Phase closure is **not** a substitute for `git commit`. It is an audit-trail marker that sits on top of the normal git workflow.
+Closing over unrelated dirty files corrupts the audit trail (wrong-phase attribution in `cicd.toml`).
 
----
+## 3 — Close the phase
 
-## Step 3 — Pre-flight check
-
-Before running `git close`, examine the output from Step 1:
-
-**If the tree is clean (no modified, staged, or untracked files):**
-Proceed to Step 4.
-
-**If the tree is dirty:**
-Explain the refusal logic: `cargo cicd git close` will refuse to close a phase when there are uncommitted modifications to files that are *not* part of the current phase's change set. This is intentional — closing over unrelated dirty files would corrupt the audit trail by attributing changes to the wrong phase.
-
-Tell the user what they need to do:
-1. Commit or stash all unrelated changes first.
-2. If the dirty files *are* part of this phase, stage and commit them (`git add <file> && git commit -m "feat(...): ..."`) and then re-run `/phase-close`.
-3. Only proceed with `cargo cicd git close` once `cargo cicd git status` reports a clean tree.
-
----
-
-## Step 4 — Close the phase
-
-Once the tree is clean, run:
-
-```
+```bash
 cargo cicd git close
 ```
 
-This command:
-1. Writes a closure record to `cicd.toml` under `[[events]]`.
-2. Emits an XES process event to `target/cargo-cicd/evidence/`.
-3. Confirms the closed phase by printing the HEAD SHA and timestamp.
+Writes to: `cicd.toml [[events]]`, `target/cargo-cicd/evidence/` (XES ProcessEvent).
+Prints: HEAD SHA + timestamp on success.
 
-Capture and display the full output.
+## 4 — Verify
 
----
-
-## Step 5 — Verify closure
-
-Confirm closure succeeded by re-running git status:
-
-```
+```bash
 cargo cicd git status
 ```
 
-The output should now show the phase as closed. Also verify that a new `.xes` event file was written to `target/cargo-cicd/evidence/` and that `cicd.toml` contains the new `[[events]]` entry.
+Confirm:
+- Phase shown as closed.
+- New `.xes` file in `target/cargo-cicd/evidence/`.
+- `cicd.toml` contains new `[[events]]` entry.
 
----
+## 5 — Commit reminder
 
-## Step 6 — Commit message reminder
-
-Phase closure does not create a git commit automatically. If the user still needs to commit the `cicd.toml` update (which now contains the closure event), remind them to use the correct format:
+`git close` does not auto-commit. If `cicd.toml` is dirty after closure:
 
 ```
 feat(git): close phase <short-description>
-```
-
-For example:
-```
-feat(git): close phase add-target-prune-verb
 ```

@@ -1,65 +1,38 @@
 ---
-description: Guide adding a new CLI noun: module scaffold, registration, UI rendering, process-event emission, and projection test.
+description: Scaffold a new CLI noun: module, registration, UI output, OCEL evidence emission, projection test.
 argument-hint: [noun-name]
 allowed-tools: Bash, Read, Grep, Edit, Write
 ---
 
-You are adding the CLI noun **$ARGUMENTS** to cargo-cicd. Work through every step below in order. After each step, confirm the change is in place before moving to the next.
+Trigger: user says "add noun", "new command", or "scaffold $ARGUMENTS".
 
-The noun name is: `$ARGUMENTS`
-Use it verbatim (snake_case for the module, kebab-case for the CLI name if they differ).
+Noun name: `$ARGUMENTS` (snake_case module, kebab-case CLI).
 
----
-
-## Step 0 — Understand the existing pattern
-
-Read an existing noun module to understand the required structure:
+## 0 — Read canonical pattern before writing
 
 ```
-Read: src/nouns/status.rs      ← canonical example
-Read: src/nouns/mod.rs         ← registration
-Read: src/main.rs              ← inject_default_verbs + noun routing
+Read: src/nouns/status.rs
+Read: src/nouns/mod.rs
+Read: src/main.rs
 ```
 
-Note the imports, trait impls, and how the noun calls `crate::ui` for output.
+## 1 — Create `src/nouns/$ARGUMENTS.rs`
 
----
+Failure mode: using `ProcessEvent` without OCEL emission skips wpm adjudication — tests will fail at Tier 2.
 
-## Step 1 — Create `src/nouns/$ARGUMENTS.rs`
-
-Create `src/nouns/$ARGUMENTS.rs` implementing the noun. The file must:
-
-1. Import the `NounCommand` and `VerbCommand` traits from `clap_noun_verb`.
-2. Define a primary verb (e.g. `Show`) that implements `VerbCommand`:
-   - `fn name() -> &'static str` — returns the verb name.
-   - `fn run(&self, state: &EngineState) -> anyhow::Result<()>` — reads from `state` and renders via `crate::ui`.
-3. Define the noun struct implementing `NounCommand`:
-   - `fn name() -> &'static str` — returns `"$ARGUMENTS"`.
-   - `fn verbs() -> Vec<Box<dyn VerbCommand>>` — returns all verbs for this noun.
-4. Emit a `ProcessEvent` so the noun's activity is recorded in evidence:
-   ```rust
-   use crate::evidence::ProcessEvent;
-   let event = ProcessEvent::new("$ARGUMENTS:show");
-   state.emit_event(event)?;
-   ```
-5. Render output using `crate::ui`:
-   ```rust
-   use crate::ui::{panel, text, badge};
-   panel::render_panel("$ARGUMENTS", &content)?;
-   ```
-
-Skeleton template:
+Canonical template:
 
 ```rust
 //! Noun: $ARGUMENTS
 
 use anyhow::Result;
 use clap_noun_verb::{NounCommand, VerbCommand};
+use wasm4pm_compat::ocel::{OCEL, OCELEvent, OCELObject, OCELRelationship, OCELType, OCELAttributeValue};
+use wasm4pm_compat::evidence::{Evidence, RawOcelEvidence};
+use wasm4pm_compat::state::Raw;
+use wasm4pm_compat::witness::Ocel20;
 use crate::engine::EngineState;
-use crate::evidence::ProcessEvent;
 use crate::ui;
-
-// ── verbs ────────────────────────────────────────────────────────────────────
 
 pub struct Show;
 
@@ -67,105 +40,94 @@ impl VerbCommand for Show {
     fn name(&self) -> &'static str { "show" }
 
     fn run(&self, state: &EngineState) -> Result<()> {
-        let event = ProcessEvent::new(concat!("$ARGUMENTS", ":show"));
-        state.emit_event(event)?;
+        // 1. Build OCEL
+        let log = OCEL {
+            event_types: vec![OCELType { name: "$ARGUMENTS:show".into(), attributes: vec![] }],
+            object_types: vec![],
+            events: vec![OCELEvent {
+                id: uuid::Uuid::new_v4().to_string(),
+                event_type: "$ARGUMENTS:show".into(),
+                time: chrono::Utc::now().to_rfc3339(),
+                attributes: vec![],
+                relationships: vec![],
+            }],
+            objects: vec![],
+        };
+        // 2. Wrap
+        let evidence = Evidence::<OCEL, Raw, Ocel20>::raw(log);
+        // 3. Serialize
+        let path = state.evidence_path("$ARGUMENTS-show");
+        let f = std::fs::File::create(&path)?;
+        serde_json::to_writer(f, &evidence.inner())?;
+        // 4. Shell out (wpm audit path) — verdict is Accept|Refuse|Blocked
+        // cargo-cicd never adjudicates itself (invariant E1); wpm issues verdicts
 
         ui::panel::render_panel("$ARGUMENTS", &format!("{:?}", state))?;
         Ok(())
     }
 }
 
-// ── noun ─────────────────────────────────────────────────────────────────────
+pub struct ${ARGUMENTS_PASCAL}Noun;
 
-pub struct $ARGUMENTS_pascal_case_Noun;
-
-impl NounCommand for $ARGUMENTS_pascal_case_Noun {
+impl NounCommand for ${ARGUMENTS_PASCAL}Noun {
     fn name(&self) -> &'static str { "$ARGUMENTS" }
-
-    fn verbs(&self) -> Vec<Box<dyn VerbCommand>> {
-        vec![Box::new(Show)]
-    }
+    fn verbs(&self) -> Vec<Box<dyn VerbCommand>> { vec![Box::new(Show)] }
 }
 ```
 
-Replace `$ARGUMENTS_pascal_case_Noun` with the PascalCase version of the noun name (e.g. `my-noun` → `MyNounNoun`).
+Replace `${ARGUMENTS_PASCAL}` with PascalCase of noun name (e.g. `my-noun` → `MyNoun`).
 
----
+FORBIDDEN: hand-rolling `OcelLog`/`OcelEvent`/`OcelObject` structs. Import from `wasm4pm_compat`.
+FORBIDDEN: raw `println!` for output. Use `crate::ui`.
 
-## Step 2 — Register in `src/nouns/mod.rs`
+## 2 — Register in `src/nouns/mod.rs`
 
-Add a `pub mod $ARGUMENTS;` line in `src/nouns/mod.rs` alongside the existing noun modules. Keep the list alphabetically sorted.
-
----
-
-## Step 3 — Register in `src/main.rs`
-
-In `main.rs`, locate the noun-routing block (the `match` or `register_nouns` call) and add:
-
+Add alphabetically:
 ```rust
-nouns.push(Box::new(crate::nouns::$ARGUMENTS::$ARGUMENTS_pascal_case_Noun));
+pub mod $ARGUMENTS;
 ```
 
-Then, in `inject_default_verbs()`, map the bare noun to its default verb:
+## 3 — Register in `src/main.rs`
 
+In noun list:
+```rust
+nouns.push(Box::new(crate::nouns::$ARGUMENTS::${ARGUMENTS_PASCAL}Noun));
+```
+
+In `inject_default_verbs()`:
 ```rust
 "$ARGUMENTS" => Some("show"),
 ```
 
-This ensures `cargo cicd $ARGUMENTS` (with no verb) routes to `cargo cicd $ARGUMENTS show`.
+## 4 — Verify (read-only, no `cargo build`)
 
----
+- `src/nouns/mod.rs`: `pub mod $ARGUMENTS` present.
+- `src/main.rs`: noun in list + `inject_default_verbs` entry.
+- `src/nouns/$ARGUMENTS.rs`: both `NounCommand` and `VerbCommand` implemented.
 
-## Step 4 — Verify registration compiles (read-only check)
+## 5 — Add projection test
 
-Do NOT run `cargo build` (other agents may be editing source). Instead:
-
-- Read `src/nouns/mod.rs` and confirm the new `pub mod` line is present.
-- Read `src/main.rs` and confirm the noun is registered in both the noun list and `inject_default_verbs`.
-- Read `src/nouns/$ARGUMENTS.rs` and confirm `NounCommand` and `VerbCommand` are both implemented.
-
----
-
-## Step 5 — Add a CLI projection test
-
-Open `tests/feature_projection.rs` (or the closest equivalent projection test file). Add a test that:
-
-1. Invokes `cargo cicd $ARGUMENTS show` (using `assert_cmd::Command`).
-2. Asserts exit code 0.
-3. Asserts the output contains something noun-specific (the panel header, for instance).
-
-Example:
+Append to `tests/feature_projection.rs` (fallback: `tests/cli.rs`):
 
 ```rust
 #[test]
 fn test_$ARGUMENTS_show_exits_clean() {
-    let mut cmd = assert_cmd::Command::cargo_bin("cargo-cicd").unwrap();
-    cmd.args(["$ARGUMENTS", "show"])
-       .assert()
-       .success();
+    assert_cmd::Command::cargo_bin("cargo-cicd").unwrap()
+        .args(["$ARGUMENTS", "show"])
+        .assert().success();
 }
 ```
 
-If `tests/feature_projection.rs` already has a projection scaffold, add the new test alongside the existing ones. If the file is owned by another agent, add the test to `tests/cli.rs` instead.
-
----
-
-## Step 6 — Commit-message suggestion
-
-When all changes are in place, suggest the commit message:
+## 6 — Commit message
 
 ```
-feat(cli): add $ARGUMENTS noun with show verb, ProcessEvent emission, and projection test
+feat(cli): add $ARGUMENTS noun with show verb, OCEL evidence emission, and projection test
 ```
-
----
 
 ## Checklist
 
-- [ ] `src/nouns/$ARGUMENTS.rs` created with `NounCommand` + `VerbCommand` impls
-- [ ] `ProcessEvent` emitted in the verb's `run()` method
-- [ ] Output rendered via `crate::ui` (not raw `println!`)
-- [ ] `pub mod $ARGUMENTS;` added to `src/nouns/mod.rs`
-- [ ] Noun registered in `src/main.rs` noun list
-- [ ] Default verb wired in `inject_default_verbs()`
-- [ ] Projection test added in `tests/`
+- [ ] `src/nouns/$ARGUMENTS.rs`: `NounCommand` + `VerbCommand` + OCEL emission via `wasm4pm_compat`
+- [ ] Output via `crate::ui`, not `println!`
+- [ ] `pub mod $ARGUMENTS` in `src/nouns/mod.rs` (alphabetical)
+- [ ] Noun + default verb in `src/main.rs`
+- [ ] Projection test passing

@@ -3,108 +3,95 @@ name: release-checklist
 description: Runs a thorough pre-release gate for cargo-cicd: lint, type-check, full test suite, forbidden-term scan across source and docs, workspace doctor, status check, clean working tree verification, and commit-message format validation. Produces a go/no-go summary table. Use when the user says "release", "ship", "pre-release checklist", or asks whether the workspace is ready to publish.
 ---
 
-# Release Checklist — cargo-cicd Pre-Release Gate
+# Release Checklist
 
-Work through every step in order. Do not mark the gate as **GO** unless all steps pass. Report each step's result inline, then produce a final summary table.
+Trigger: "release", "ship", "pre-release checklist", or "is the workspace ready to publish".
 
----
+Run all steps in order. Any NO-GO stops the release.
 
 ## Step 1 — Lint and Type-Check
 
-Run the check step. This must exit zero before anything else is meaningful.
-
-```
+```sh
 cargo make check
 ```
 
-If it fails: surface the compiler diagnostics, stop, and report **NO-GO**.
-
----
+Non-zero exit → surface diagnostics → **NO-GO**.
 
 ## Step 2 — Full Test Suite
 
-Run all tests. Pay special attention to the three mandatory integration suites.
-
-```
+```sh
 cargo test
+cargo test --test invariants
+cargo test --test cli
+cargo test --test feature_projection
+cargo build --features autonomic,wasm4pm
+cargo test --test wasm4pm_evidence_gate
 ```
 
-Key suites to call out explicitly in the report:
-
-- `invariants` — the seven non-negotiable public-boundary invariants
-- `cli` — noun/verb surface contract
-- `feature_projection` — feature-flag surface contract
-
-If any suite fails: show the failure output, stop, and report **NO-GO**.
-
----
+Any failure → show failure output → **NO-GO**.
 
 ## Step 3 — Forbidden-Term Scan
 
-Scan `src/`, `README.md`, and `docs/` for terms that must never appear in the public boundary. The definitive list of forbidden terms is in the **FORBIDDEN in public docs/CLI/help text** section of `/home/user/cargo-cicd/CLAUDE.md`. Read that section now and use each listed term as a search pattern.
+```sh
+grep -rn -e "ALIVE" -e "Inspection Gate" -e "\bwall\b" -e "Nehemiah" \
+     -e "Field8" -e "Instinct8" -e "Cargo Court" -e "\bAGI\b" \
+     -e "Truex" -e "CONSTRUCT8" src/ README.md docs/ 2>/dev/null
+```
 
-Use the Grep tool with `output_mode: "content"` across `src/`, `README.md`, and `docs/`, running one search per term. Any hit — regardless of context, comments, or strings — is a **NO-GO**. Note the file path and line number for each match found.
-
----
+Any match → **NO-GO** (file + line required).
 
 ## Step 4 — Workspace Doctor
 
-Run the workspace health check to validate the workspace state and surface any structural issues.
-
-```
+```sh
 cargo cicd workspace doctor
 ```
 
-Review the output for any ERROR or WARNING lines. Warnings are noted; errors are **NO-GO**.
-
----
+ERROR lines → **NO-GO**. WARNING lines → note only.
 
 ## Step 5 — Status Check
 
-Display the current engine state summary.
-
-```
+```sh
 cargo cicd status show
 ```
 
-Confirm the reported state is consistent with a clean, releasable workspace (no pending changes flagged as blockers, toolchain resolved, targets valid).
-
----
+Confirm: no blockers, toolchain resolved, targets valid.
 
 ## Step 6 — Clean Working Tree
 
-Verify the working tree has no uncommitted changes and no untracked files that belong to the release.
-
-Read the output of `git status` (via the Bash tool or by reading `.git/` state if available). The working tree and index must be clean. Staged but uncommitted changes are a **NO-GO**.
-
----
-
-## Step 7 — Commit Message Format
-
-Inspect the most recent commit message. It must match the project commit format:
-
-```
-feat(core|cli|target|test|git|autonomic|docs|receipts): <description>
+```sh
+git status
 ```
 
-Accepted scope tokens: `core`, `cli`, `target`, `test`, `git`, `autonomic`, `docs`, `receipts`.
+Staged or uncommitted changes → **NO-GO**.
 
-If the HEAD commit message does not match this pattern, flag it as **NO-GO** with the actual message shown.
+## Step 7 — Receipt Doctor
 
----
+```sh
+wpm receipt doctor --format json --strict receipts/*.json
+```
 
-## Step 8 — Go / No-Go Summary Table
+Any `"verdict": "Refuse"` → **NO-GO**.
 
-After all steps, produce a table:
+## Step 8 — Commit Message Format
+
+HEAD commit must match:
+```
+feat|fix|docs|test|chore(core|cli|target|test|git|autonomic|docs|receipts): <description>
+```
+
+Mismatch → **NO-GO** (show actual message).
+
+## Summary Table
 
 | # | Gate | Status | Notes |
 |---|------|--------|-------|
 | 1 | `cargo make check` | GO / NO-GO | |
-| 2 | Full test suite (`invariants`, `cli`, `feature_projection`) | GO / NO-GO | |
-| 3 | Forbidden-term scan | GO / NO-GO | List any hits |
-| 4 | `cargo cicd workspace doctor` | GO / NO-GO | List any errors |
+| 2 | Test suites (invariants, cli, feature_projection, wasm4pm_evidence_gate) | GO / NO-GO | |
+| 3 | Forbidden-term scan | GO / NO-GO | List hits |
+| 4 | `cargo cicd workspace doctor` | GO / NO-GO | List errors |
 | 5 | `cargo cicd status show` | GO / NO-GO | |
 | 6 | Clean working tree | GO / NO-GO | |
-| 7 | Commit message format | GO / NO-GO | Show actual message if wrong |
+| 7 | Receipt doctor | GO / NO-GO | |
+| 8 | Commit message format | GO / NO-GO | Show actual if wrong |
 
 **Final verdict:** GO (all rows green) or NO-GO (any row red).

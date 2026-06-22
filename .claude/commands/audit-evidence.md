@@ -3,46 +3,31 @@ description: Run the evidence doctor and status audit, explain the verdict, and 
 allowed-tools: Bash, Read
 ---
 
-You are auditing the process-evidence produced by cargo-cicd. Work through the steps below, show all command output verbatim, then explain what the verdict means.
-
----
+Trigger: user asks to audit evidence, check receipts, adjudicate, or verify process evidence was accepted.
 
 ## Step 1 — Evidence doctor
 
-Run the built-in evidence health check:
-
-```
+```bash
 cargo cicd evidence doctor
 ```
 
-This command inspects receipts and XES event streams under `target/cargo-cicd/evidence/`. Record the full output including any Accept / Refuse / Warn lines.
-
----
+Record full output including Accept / Refuse / Warn lines.
 
 ## Step 2 — Status audit
 
-Run the audit sub-verb of the status noun:
-
-```
+```bash
 cargo cicd status audit
 ```
 
-This surfaces any policy-level issues the engine has flagged since the last run. Note every diagnostic at ERROR or WARN severity.
+Note every ERROR or WARN diagnostic.
 
----
-
-## Step 3 — Inspect the evidence directory
-
-List the contents of the evidence directory so the user can see what was emitted:
+## Step 3 — Inspect evidence directory
 
 ```bash
 ls -lh target/cargo-cicd/evidence/ 2>/dev/null || echo "directory not found — run at least one cargo cicd command first"
 ```
 
-For each `.xes` file found, show its name, size, and modification time. XES (XML Event Stream) files are the canonical process-evidence format.
-
-For each `.json` receipt file found, show a one-line summary of its `verdict` field:
-
+For each `.json` receipt:
 ```bash
 for f in target/cargo-cicd/evidence/*.json; do
   [ -f "$f" ] || continue
@@ -51,24 +36,19 @@ for f in target/cargo-cicd/evidence/*.json; do
 done
 ```
 
----
+## Step 4 — Verdict interpretation
 
-## Step 4 — Explain the verdict
+| Verdict | Meaning | Action |
+|---------|---------|--------|
+| `Accept` | Evidence satisfies process-data contract; gate is open | None |
+| `Refuse` | Receipt malformed, missing required fields, or XES unparseable | List failing files, re-run emitting command |
+| `Blocked` | `wpm` binary unavailable | Expected in local dev; not an error |
 
-Based on the output from steps 1–3, explain:
+Required receipt fields: `trace_id`, `case_id`, `concept:name`, timestamps.
 
-1. **What the doctor found** — whether receipts are well-formed, whether required fields (`trace_id`, `case_id`, `concept:name`, timestamps) are present.
-2. **What "Accept" means** — the evidence satisfies the process-data contract; the gate is open.
-3. **What "Refuse" means** — one or more receipts are malformed, missing required fields, or the XES stream is not parseable. List which receipts failed and why.
-4. **Where to look next** — if a refusal was issued, point at the specific file(s) under `target/cargo-cicd/evidence/` that need attention, and suggest which `cargo cicd` command should be re-run to regenerate clean evidence.
+## Step 5 — Remediation (on Refuse)
 
----
-
-## Step 5 — Remediation tips (if needed)
-
-If any step produced an error or refusal:
-
-- Re-run the command that should have emitted the receipt (e.g. `cargo cicd workspace doctor`, `cargo cicd status show`).
-- Check that the `process-data` feature flag is compiled in: `cargo build --features process-data`.
-- Verify the `[evidence]` section in `cicd.toml` points at `target/cargo-cicd/evidence/`.
-- If `.xes` files are present but empty, the adapter may have failed to flush — check the `[[events]]` table in `cicd.toml` for the last emitted event.
+1. Re-run the emitting command (e.g. `cargo cicd workspace doctor`, `cargo cicd status show`)
+2. Verify feature flag: `cargo build --features process-data`
+3. Check `[evidence]` section in `cicd.toml` points at `target/cargo-cicd/evidence/`
+4. If `.xes` files are empty: check `[[events]]` table in `cicd.toml` for last emitted event

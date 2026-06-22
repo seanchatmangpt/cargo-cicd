@@ -1,76 +1,48 @@
 ---
-description: Build and run the UI demo and dashboard, then explain the design-system modules under src/ui/.
+description: Run UI demo and dashboard; map src/ui/ modules; annotate output with source module.
 allowed-tools: Bash, Read, Glob
 ---
 
-You are exploring and demonstrating the cargo-cicd terminal UI design system.
+Trigger: user says "ui demo", "show UI", or runs `/ui-demo`.
 
----
+## 1 — Run demo and dashboard
 
-## Step 1 — Run the UI demo
-
-```
+```bash
 cargo cicd ui demo
-```
-
-Capture the full output. This exercises all design-system primitives: panels, badges, progress bars, tables, trees, and charts.
-
----
-
-## Step 2 — Run the dashboard
-
-```
 cargo cicd ui dashboard
 ```
 
-The dashboard is a composed view that lays out multiple UI components in a single terminal frame. Capture its output.
+Capture full output of both commands.
 
----
-
-## Step 3 — Map the design-system modules
-
-List every file under `src/ui/`:
+## 2 — Map design-system modules
 
 ```bash
 find src/ui -type f -name '*.rs' | sort
 ```
 
-Then read each module's top-level doc comment (the first `//!` block) to understand its role. Summarise the purpose of each module:
+Read `//!` doc comment from each file. Produce table:
 
 | Module | File | Purpose |
 |--------|------|---------|
-| `style` | `src/ui/style.rs` | … |
-| `symbols` | `src/ui/symbols.rs` | … |
-| `text` | `src/ui/text.rs` | … |
-| `table` | `src/ui/table.rs` | … |
-| `panel` | `src/ui/panel.rs` | … |
-| `badge` | `src/ui/badge.rs` | … |
-| `progress` | `src/ui/progress.rs` | … |
-| `chart` | `src/ui/chart.rs` | … |
-| `tree` | `src/ui/tree.rs` | … |
-| `theme` | `src/ui/theme.rs` | … |
-| `layout` | `src/ui/layout.rs` | … |
-| `diagnostics` | `src/ui/diagnostics.rs` | … |
-| `dashboard` | `src/ui/dashboard.rs` | … |
+| `style` | `src/ui/style.rs` | ANSI colour codes, `Style::paint` |
+| `symbols` | `src/ui/symbols.rs` | box-drawing + glyph constants |
+| `text` | `src/ui/text.rs` | `display_width`, truncation |
+| `table` | `src/ui/table.rs` | columnar layout |
+| `panel` | `src/ui/panel.rs` | bordered panels via `render_panel()` |
+| `badge` | `src/ui/badge.rs` | inline status badges |
+| `progress` | `src/ui/progress.rs` | progress bar |
+| `chart` | `src/ui/chart.rs` | sparkline/bar chart |
+| `tree` | `src/ui/tree.rs` | hierarchical tree |
+| `theme` | `src/ui/theme.rs` | colour palette switching |
+| `layout` | `src/ui/layout.rs` | multi-column composition |
+| `diagnostics` | `src/ui/diagnostics.rs` | error/warning surfaces |
+| `dashboard` | `src/ui/dashboard.rs` | composed full-frame view |
 
-Fill in any missing rows by reading the actual files.
+Fill any missing rows from actual file content.
 
----
+## 3 — Annotate demo output
 
-## Step 4 — Design-system architecture
-
-After reading the modules, explain:
-
-1. **Layering** — how the modules depend on each other (e.g. `panel` uses `style` + `symbols`; `dashboard` uses `layout` + `panel` + `table`).
-2. **Zero-dependency constraint** — the UI system has no external crate dependencies; describe how that shapes the implementation (e.g. ANSI codes written by hand in `style`, box-drawing characters in `symbols`).
-3. **Theme system** — how `theme.rs` allows switching between colour palettes without touching individual components.
-4. **Adding a new component** — the steps a developer would take to add, e.g., a `spinner` component: create `src/ui/spinner.rs`, export from `src/ui/mod.rs`, and exercise it in the `ui demo` command path.
-
----
-
-## Step 5 — Live output annotation
-
-Return the captured output from Step 1 (`ui demo`) and annotate which design-system module produced each visible section. For example:
+Return captured `ui demo` output with inline annotations:
 
 ```
 ╔══════════════════════╗   ← panel::render_panel()
@@ -79,3 +51,12 @@ Return the captured output from Step 1 (`ui demo`) and annotate which design-sys
   ● PASS  3 targets    ← badge::render_badge()
   [████░░░░] 60%       ← progress::render_bar()
 ```
+
+## 4 — Adding a new component
+
+1. Create `src/ui/<name>.rs` with `//!` doc comment.
+2. Export from `src/ui/mod.rs`.
+3. Add a demo case to the `ui demo` command path.
+4. All colour via `Style::paint`. All glyphs via `symbols::*`. Width via `text::display_width`.
+5. Plain output when not TTY (no ANSI escapes).
+6. No external crate dependencies.
