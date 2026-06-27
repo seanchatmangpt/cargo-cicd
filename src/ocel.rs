@@ -1129,3 +1129,99 @@ mod tests {
         assert!(!results[1], "non-matching E2O predicate must be false");
     }
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OcelEventRecord {
+    pub event_id: String,
+    pub event_type: String,
+    pub timestamp: String,
+    pub objects: serde_json::Value,
+    pub git_delta: String,
+    pub prev_hash: String,
+    pub event_hash: String,
+}
+
+pub fn append_ocel_event(repo_dir: &str, event_type: &str, objects: serde_json::Value, git_delta: &str) -> Result<OcelEventRecord, String> {
+    use std::fs::{OpenOptions, File};
+    use std::io::{Write, BufRead, BufReader};
+    use std::path::Path;
+
+    let ocel_dir = Path::new(repo_dir).join(".cargo-cicd").join("ocel");
+    std::fs::create_dir_all(&ocel_dir).map_err(|e| e.to_string())?;
+    let events_file = ocel_dir.join("events.jsonl");
+    
+    let mut prev_hash = "genesis".to_string();
+    if events_file.exists() {
+        let file = File::open(&events_file).map_err(|e| e.to_string())?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            if let Ok(l) = line {
+                if let Ok(last_event) = serde_json::from_str::<OcelEventRecord>(&l) {
+                    prev_hash = last_event.event_hash;
+                }
+            }
+        }
+    }
+    
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let event_id = format!("evt-{}-{}", now, std::process::id());
+    let timestamp = format!("{}", now);
+    
+    let mut record = OcelEventRecord {
+        event_id,
+        event_type: event_type.to_string(),
+        timestamp,
+        objects,
+        git_delta: git_delta.to_string(),
+        prev_hash,
+        event_hash: String::new(),
+    };
+    
+    let mut to_hash = serde_json::to_value(&record).unwrap();
+    to_hash.as_object_mut().unwrap().remove("event_hash");
+    
+    let cjson = canonical_json(&to_hash);
+    record.event_hash = blake3_hex(cjson.as_bytes());
+    
+    let mut file = OpenOptions::new().create(true).append(true).open(&events_file).map_err(|e| e.to_string())?;
+    writeln!(file, "{}", serde_json::to_string(&record).unwrap()).map_err(|e| e.to_string())?;
+    
+    Ok(record)
+}
+
+pub fn replay_events(repo_dir: &str) -> Result<(), String> {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+    use std::path::Path;
+
+    let events_file = Path::new(repo_dir).join(".cargo-cicd").join("ocel").join("events.jsonl");
+    if !events_file.exists() {
+        return Ok(());
+    }
+    
+    let file = File::open(&events_file).map_err(|e| e.to_string())?;
+    let reader = BufReader::new(file);
+    let mut expected_prev_hash = "genesis".to_string();
+    
+    for (i, line) in reader.lines().enumerate() {
+        let l = line.map_err(|e| e.to_string())?;
+        let record: OcelEventRecord = serde_json::from_str(&l).map_err(|e| e.to_string())?;
+        
+        if record.prev_hash != expected_prev_hash {
+            return Err(format!("Hash chain broken at event idx {}: expected prev_hash {}, got {}", i, expected_prev_hash, record.prev_hash));
+        }
+        
+        let mut to_hash = serde_json::to_value(&record).unwrap();
+        to_hash.as_object_mut().unwrap().remove("event_hash");
+        let cjson = canonical_json(&to_hash);
+        let computed_hash = blake3_hex(cjson.as_bytes());
+        
+        if computed_hash != record.event_hash {
+            return Err(format!("Invalid event_hash at event idx {}: expected {}, got {}", i, computed_hash, record.event_hash));
+        }
+        
+        expected_prev_hash = record.event_hash;
+    }
+    
+    Ok(())
+}

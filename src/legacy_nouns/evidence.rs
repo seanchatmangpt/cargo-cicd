@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::evidence::{
+pub use crate::evidence::{
     emit_events_jsonl, emit_receipt_json, evidence_dir, ProcessEvent, ReceiptDoctor,
     ReceiptDoctorVerdict,
 };

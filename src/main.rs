@@ -12,6 +12,8 @@ pub mod evidence;
 mod integrations;
 pub mod legacy_nouns;
 pub mod nouns;
+pub mod barrier;
+pub mod ocel;
 mod policies;
 pub mod session;
 mod state;

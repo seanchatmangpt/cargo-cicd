@@ -59,6 +59,7 @@ pub mod evidence_xes_v2;
 pub mod integrations;
 pub mod legacy_nouns;
 pub mod nouns;
+pub mod barrier;
 
 pub mod ocel;
 pub mod oracle_keys;

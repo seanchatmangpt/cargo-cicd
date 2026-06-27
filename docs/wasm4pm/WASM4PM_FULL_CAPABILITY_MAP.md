@@ -118,7 +118,7 @@
 
 | Capability | Public Types / Functions | Leverage | Notes |
 |---|---|---|---|
-| Dense FNV-1a symbol index | `DenseIndex::compile(symbols: &[&str]) -> Result<DenseIndex>` | `WRAP_LOCAL` | Fully implemented, deterministic, `Serialize/Deserialize`; thin workspace re-export or path reference required |
+| Dense FNV-1a symbol index | `DenseIndex::compile(symbols: &[&str]) -> Result<DenseIndex>` | `WRAP_LOCAL` | Implemented, deterministic, `Serialize/Deserialize`; thin workspace re-export or path reference required |
 | Const-generic bitsets | `KBitSet<WORDS>` with `and()`, `or()`, `not()`, `set()`, `contains()`, `missing_count()` | `WRAP_LOCAL` | `Copy + Serialize/Deserialize`; all bitwise ops present; no public trait — wrap concrete `KBitSet<N>` types to isolate const-generic WORDS parameter |
 | Open-addressing hash table | `PackedKeyTable<K,V>`, `StaticPackedKeyTable<K,V,N>` | `PATCH_SMALL` | `PackedKeyTable`: rebuild indices post-deserialization (2-line patch: `#[serde(default)]` + manual `Deserialize` impl calling `rebuild_indices_if_needed()`). `StaticPackedKeyTable`: missing `Serialize/Deserialize` — add thin newtype wrapper with derives |
 | Tarjan SCC decomposition | `compute_sccs_generic(adj: &[KBitSet<W>]) -> Vec<Vec<usize>>`, `compute_sccs_branchless(...)` | `WRAP_LOCAL` | Both implementations complete and tested for parity; adapter needed to convert cargo-cicd graph types to `KBitSet` adjacency form |
@@ -146,7 +146,7 @@
 
 | Capability | Public Types / Functions | Leverage | Notes |
 |---|---|---|---|
-| OCEL 2.0 in-memory type model | `OCEL`, `OCELEvent`, `OCELObject`, `OCELRelationship`, `OCELObjectAttribute`, `OCELAttributeValue`, `ObjectTypeCardinality` | `USE_AS_IS` | All types fully implemented, serde-derived, stable; add as path dep and import directly |
+| OCEL 2.0 in-memory type model | `OCEL`, `OCELEvent`, `OCELObject`, `OCELRelationship`, `OCELObjectAttribute`, `OCELAttributeValue`, `ObjectTypeCardinality` | `USE_AS_IS` | All types implemented, serde-derived, stable; add as path dep and import directly |
 | OCEDO formal accessors | `OCEL::eval(e)`, `OCEL::oaval(o,t)`, `OCEL::e2o()`, `OCEL::o2o()` | `USE_AS_IS` | All four accessors implemented as `#[must_use]` methods; paper-grounded (Latif et al., OCEDO Fig. 1, OCPQ Def. 2) |
 | OCPQ Def. 2 invariant validation | `validate::validate(ocel: &OCEL, card: &[ObjectTypeCardinality]) -> ValidationReport` | `USE_AS_IS` | Structured `ValidationReport` with machine-stable error codes: `E2O_EMPTY`, `DANGLING_E2O`, `DANGLING_O2O`, `UNDECLARED_EVENT_TYPE`, `DUPLICATE_ID`, `CARDINALITY_MIN`, `CARDINALITY_MAX`; serde-serializable |
 | Object-type cardinality enforcement | `ObjectTypeCardinality` fields `min_count`/`max_count`, `created_by`/`terminated_by` | `USE_AS_IS` | Count bounds enforced; note: `validate()` does not enforce lifecycle event sequencing (only count bounds checked); `PATCH_SMALL` if full lifecycle ordering required |
@@ -210,7 +210,7 @@
 |---|---|---|---|
 | Heuristic process model discovery | `wpm mining discover <log>` | `SHELL_OUT` | DFG output to stdout; only heuristic algo wired; inductive bails explicitly (`anyhow::bail!`); no `--format json` yet |
 | Conformance checking against DFG/PNML models | `wpm mining conformance <log> <model>` | `PATCH_SMALL` | `PATCH_SMALL`: model file argument is ignored — loaded as `DFG::new()` (empty mock); wire actual DFG/PNML deserialization from model path before use |
-| Receipt auditing against Adversarial Ingress Gates | `wpm receipt doctor --format json --strict <receipt.json>` | `USE_AS_IS` | Fully implemented; exits non-zero on refused receipts; `--audience producer|operator|ci` flag; direct CI gate |
+| Receipt auditing against Adversarial Ingress Gates | `wpm receipt doctor --format json --strict <receipt.json>` | `USE_AS_IS` | Implemented; exits non-zero on refused receipts; `--audience producer|operator|ci` flag; direct CI gate |
 | OCEL 2.0 structural validation | `wpm receipt verify-ocel2 <receipt.json>` | `SHELL_OUT` | Implemented and file-driven; exit code gates pipeline |
 | OCEL 2.0 canonicalization | `wpm receipt canonicalize-ocel2 <receipt.json>` | `SHELL_OUT` | Implemented; emits JSON to stdout |
 | Fixture mutation detection | `wpm receipt detect-fixture-mutation <receipt.json>` | `SHELL_OUT` | Implemented; exits non-zero on detected mutation |
@@ -334,9 +334,9 @@
 
 | Capability | Public API | Leverage | Notes |
 |---|---|---|---|
-| `#[powl_test]` conformance test expansion | `#[powl_test(route = "...", model = "...")]` | `WRAP_LOCAL` | Fully implemented; injects `PowlTestHarness` local variable `h` and calls `h.finish()`; requires nightly + path dep + `wasm4pm` in dep tree; feature-gated wrapper re-exporting attribute under stable alias recommended |
+| `#[powl_test]` conformance test expansion | `#[powl_test(route = "...", model = "...")]` | `WRAP_LOCAL` | Implemented; injects `PowlTestHarness` local variable `h` and calls `h.finish()`; requires nightly + path dep + `wasm4pm` in dep tree; feature-gated wrapper re-exporting attribute under stable alias recommended |
 | POWL model path resolution via `CARGO_MANIFEST_DIR` | `concat!(env!("CARGO_MANIFEST_DIR"), "/", model_path)` at compile time | `USE_AS_IS` | Resolves correctly relative to consumer crate; supply correct relative model path string in attribute |
-| `expect_refusal` negative conformance testing | `#[powl_test(route = "...", model = "...", expect_refusal = "AndonPull::Variant")]` | `USE_AS_IS` | Fully implemented; emits `assert_eq!` against named `AndonPull` variant; same nightly + path dep constraints |
+| `expect_refusal` negative conformance testing | `#[powl_test(route = "...", model = "...", expect_refusal = "AndonPull::Variant")]` | `USE_AS_IS` | Implemented; emits `assert_eq!` against named `AndonPull` variant; same nightly + path dep constraints |
 | `#[powl_activity]` recording with production no-op | `#[powl_activity]` on any function | `USE_AS_IS` | Prepends `record_activity()` call; inlined away outside test/powl-test cfg; same nightly + path dep constraints |
 | `exact` parameter | `#[powl_test(..., exact = true)]` | `DO_NOT_USE` | Parsed to avoid compile errors; has zero effect; callers must not rely on it for conformance semantics — risk of false-passing tests |
 
@@ -359,9 +359,9 @@
 
 | Capability | Public Types / Functions | Leverage | Notes |
 |---|---|---|---|
-| BASIC E2O predicate evaluation | `BasicPredicate::E2O`, `BasicPredicate::holds(binding: &Binding, ocel: &OCEL) -> bool` | `USE_AS_IS` | Fully implemented, paper-grounded (Def. 5); accessible via public rlib surface; direct call within workspace |
+| BASIC E2O predicate evaluation | `BasicPredicate::E2O`, `BasicPredicate::holds(binding: &Binding, ocel: &OCEL) -> bool` | `USE_AS_IS` | Implemented, paper-grounded (Def. 5); accessible via public rlib surface; direct call within workspace |
 | BASIC O2O predicate evaluation | `BasicPredicate::O2O`, `BasicPredicate::holds(...)` | `USE_AS_IS` | Identically complete; same direct-call path |
-| BASIC TBE predicate evaluation (time-between-events duration constraints) | `BasicPredicate::Tbe { seconds_min, seconds_max }`, `BasicPredicate::holds(...)` | `USE_AS_IS` | Fully implemented with `chrono` timestamp arithmetic; directly callable as rlib dep |
+| BASIC TBE predicate evaluation (time-between-events duration constraints) | `BasicPredicate::Tbe { seconds_min, seconds_max }`, `BasicPredicate::holds(...)` | `USE_AS_IS` | Implemented with `chrono` timestamp arithmetic; directly callable as rlib dep |
 | BindingBox output set computation | `BindingBox::output(ocel: &OCEL) -> Vec<Binding>` | `WRAP_LOCAL` | Naive Cartesian-product enumeration — correct but O(n^k) in log size and variable count; add a binding-count size guard / pagination layer before exposing to pipeline consumers |
 | QueryTree constraint evaluation | `evaluate_constraint(tree: &QueryTree, ocel: &OCEL) -> ConstraintResult`, `evaluate_node_constraint(node: &QueryNode, ocel: &OCEL) -> ConstraintResult` | `WRAP_LOCAL` | Complete and paper-grounded; `ConstraintResult` is opaque to cargo-cicd's proof-gate surface — thin adapter mapping `satisfied`/`violated` counts to pass/fail gate verdicts needed |
 | CHILD SET cardinality constraint enforcement | `ConstraintPredicate::ChildSet { n_min, n_max }`, wired into `QueryTree` evaluation | `USE_AS_IS` | Fully wired and tested; callable as-is within workspace |
@@ -414,11 +414,11 @@
 
 | Capability | Public Types / Functions | Leverage | Notes |
 |---|---|---|---|
-| DFG discovery | `dfg_mining(events: &[Event]) -> Evidence<ProcessModel, Admitted, W>` | `WRAP_LOCAL` | Fully implemented and tested; thin adapter to construct `Event` structs and extract `ProcessModel` from `Evidence` wrapper |
+| DFG discovery | `dfg_mining(events: &[Event]) -> Evidence<ProcessModel, Admitted, W>` | `WRAP_LOCAL` | Implemented and tested; thin adapter to construct `Event` structs and extract `ProcessModel` from `Evidence` wrapper |
 | Alpha miner (Alpha+ approximation) | `alpha_miner(events: &[Event]) -> Evidence<ProcessModel, Admitted, W>` | `WRAP_LOCAL` | Implemented; simplified linear-chain Petri net rather than true Alpha+; label as heuristics-miner not ILP-miner to avoid overclaiming |
 | POWL discovery with cut detection | `PowerMiner::mine() -> Evidence<TypedPowl, Admitted, PowerWitness>` | `WRAP_LOCAL` | Implemented; depends on `wasm4pm-compat::TypedPowl`, `TreeProjectable`, `OperatorKind`; XOR, sequence, partial order, parallelism cuts; loop cut is heuristic; path dep must be resolved |
-| Token-based replay conformance | `TokenReplayEngine::replay_case()`, `TokenReplayEngine::replay_log() -> Evidence<TokenReplayResult, Admitted, TokenReplay>` | `WRAP_LOCAL` | Fully implemented; fitness in [0,1]; thin adapter needed to construct `PetriNet` from internal `BTreeSet`/`BTreeMap` API |
-| Alignment-based conformance (A*) | `AlignmentEngine`, `AlignmentConformance`, `AlignmentConformance::compute() -> Evidence<AlignmentResult, Admitted, AlignmentWitness>` | `WRAP_LOCAL` | Fully implemented with A* search; state-space cap 5000 iterations (hardcoded); thin adapter needed for `PetriNet` construction |
+| Token-based replay conformance | `TokenReplayEngine::replay_case()`, `TokenReplayEngine::replay_log() -> Evidence<TokenReplayResult, Admitted, TokenReplay>` | `WRAP_LOCAL` | Implemented; fitness in [0,1]; thin adapter needed to construct `PetriNet` from internal `BTreeSet`/`BTreeMap` API |
+| Alignment-based conformance (A*) | `AlignmentEngine`, `AlignmentConformance`, `AlignmentConformance::compute() -> Evidence<AlignmentResult, Admitted, AlignmentWitness>` | `WRAP_LOCAL` | Implemented with A* search; state-space cap 5000 iterations (hardcoded); thin adapter needed for `PetriNet` construction |
 | Footprints conformance checking | (no dedicated module found) | `DEFER_CONTRIB` | Not present in sources/wasm4pm snapshot; defer until footprints module contributed |
 | OCEL 2.0 JSON/XML import/export | (no standard JSON/XML parser found) | `DO_NOT_USE` | `ZeroCopyOcel` and `ZeroCopyOcelV2` parse custom binary OCEL format (magic `0x4F43454C`); not standard OCEL 2.0 JSON or XML; use `ocel-core` for standard format |
 | XES event log import/export | (no XES module found in sources/wasm4pm) | `DO_NOT_USE` | Not present in this snapshot despite crate description; use `wasm4pm-types` `import` feature for XES |
