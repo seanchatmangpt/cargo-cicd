@@ -25,7 +25,6 @@ tempfile = "3"
 cargo-cicd-core = { version = "26.6", path = "crates/cargo-cicd-core" }
 cargo-cicd-lsp = { version = "26.6", path = "crates/cargo-cicd-lsp" }
 # External git crates
-lsp-max-anti-cheat = { git = "https://github.com/seanchatmangpt/lsp-max", branch = "master" }
 
 [package]
 name = "cargo-cicd"
@@ -69,7 +68,6 @@ autonomic = ["process-data"]
 autoarch = ["autonomic"]
 contrib = ["process-data"]
 wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
-anti-llm-cheat = ["dep:lsp-max-anti-cheat"]
 lsp = []
 # Cryptographic provenance receipts via the affidavit `affi` CLI (shell-out
 # oracle, mirroring wasm4pm). affidavit itself is a nightly-only crate, so it is
@@ -97,6 +95,7 @@ cargo-cicd-core = { workspace = true }
 cargo-cicd-lsp = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 clap-noun-verb = "26.6.2"
+clap-noun-verb-macros = "26.6.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -117,7 +116,7 @@ petgraph = { version = "0.6", optional = true }
 jiff = { version = "0.2", optional = true, features = ["serde"] }
 hdrhistogram = { version = "7", optional = true }
 aho-corasick = { version = "1", optional = true }
-lsp-max-anti-cheat = { workspace = true, optional = true }
+linkme = "0.3"
 
 [[example]]
 name = "01_first_clean"

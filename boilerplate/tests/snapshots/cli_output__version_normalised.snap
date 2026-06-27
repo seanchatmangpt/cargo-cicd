@@ -1,5 +1,0 @@
----
-source: tests/snapshot/cli_output.rs
-expression: version_normalised
----
-cargo-project <VERSION>

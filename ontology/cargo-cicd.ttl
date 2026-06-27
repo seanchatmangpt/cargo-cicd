@@ -49,6 +49,12 @@ cicd:workspace a cicd:Noun ;
     cicd:publicSafe true ;
     cicd:verbs (cicd:workspaceDoctor) .
 
+cicd:hooks a cicd:Noun ;
+    rdfs:label "hooks" ;
+    cicd:about "Manage git hooks for cargo-cicd" ;
+    cicd:publicSafe true ;
+    cicd:verbs (cicd:hooksInstall cicd:hooksUninstall) .
+
 # ── Verbs ────────────────────────────────────────────────────────
 cicd:statusShow a cicd:Verb ; rdfs:label "show" ; cicd:about "Show full CI/CD status" .
 cicd:targetShow a cicd:Verb ; rdfs:label "show" ; cicd:about "Show target directory size and state" .
@@ -59,6 +65,8 @@ cicd:gitStatus a cicd:Verb ; rdfs:label "status" ; cicd:about "Show git reposito
 cicd:gitClose a cicd:Verb ; rdfs:label "close" ; cicd:about "Enforce phase closure: stage, commit, verify" .
 cicd:publishRun a cicd:Verb ; rdfs:label "run" ; cicd:about "Emit cicd.toml with current workspace state" .
 cicd:workspaceDoctor a cicd:Verb ; rdfs:label "doctor" ; cicd:about "Diagnose workspace health" .
+cicd:hooksInstall a cicd:Verb ; rdfs:label "install" ; cicd:about "Install and configure git pre-commit hooks for cargo-cicd" .
+cicd:hooksUninstall a cicd:Verb ; rdfs:label "uninstall" ; cicd:about "Uninstall cargo-cicd pre-commit hooks" .
 
 # ── Verb→Noun links ─────────────────────────────────────────────
 cicd:statusShow cicd:noun cicd:status .
@@ -70,6 +78,8 @@ cicd:gitStatus cicd:noun cicd:git .
 cicd:gitClose cicd:noun cicd:git .
 cicd:publishRun cicd:noun cicd:publish .
 cicd:workspaceDoctor cicd:noun cicd:workspace .
+cicd:hooksInstall cicd:noun cicd:hooks .
+cicd:hooksUninstall cicd:noun cicd:hooks .
 
 # ── Diataxis Doc Types ───────────────────────────────────────────
 cicd:DocType a rdfs:Class .

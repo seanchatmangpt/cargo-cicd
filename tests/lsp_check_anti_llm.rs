@@ -2,6 +2,7 @@
 
 use assert_cmd::Command;
 use predicates::prelude::predicate;
+use predicates::prelude::PredicateBooleanExt;
 use std::fs;
 use tempfile::TempDir;
 

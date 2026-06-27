@@ -1,5 +1,0 @@
----
-source: tests/snapshot/error_display.rs
-expression: format!("{}", err)
----
-process failed: `cargo test --all` exited with code 101

@@ -1049,6 +1049,22 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
         );
     }
 
+    // Autonomic Receipt Injection
+    // Synchronously emit each event to affidavit and seal the receipt chain.
+    #[cfg(feature = "affidavit")]
+    if let Some(affi) = crate::integrations::affidavit_shell::AffidavitShell::detect() {
+        let affi_dir = crate::integrations::affidavit_shell::affidavit_receipt_dir(evidence_dir);
+        let _ = std::fs::create_dir_all(&affi_dir);
+        let receipt_out = affi_dir.join("receipt.json");
+        
+        for ev in events {
+            let event_type = crate::integrations::affidavit_shell::event_type_for(&ev.command, &ev.lifecycle_transition);
+            let object = crate::integrations::affidavit_shell::object_ref_for(ev);
+            let _ = affi.emit(&affi_dir, &event_type, &object, &jsonl_path);
+        }
+        let _ = affi.assemble(&affi_dir, &receipt_out);
+    }
+
     Ok(())
 }
 
@@ -1104,6 +1120,37 @@ pub fn assert_wpm_verdict_ocel(
         actual, *expected,
         "wpm OCEL evidence gate verdict mismatch for {:?}: expected {:?}, got {:?}",
         ocel_path, expected, actual
+    );
+}
+
+/// Assert that the affidavit oracle returns the expected verdict for a sealed receipt.
+///
+/// Panics with a detailed message if:
+/// - The oracle is `Blocked` and the expected verdict is not `Blocked` (E3 violation).
+/// - The actual verdict does not match the expected verdict.
+#[cfg(feature = "affidavit")]
+pub fn assert_affidavit_verdict(
+    oracle: &crate::integrations::affidavit_shell::AffidavitShell,
+    receipt_path: &Path,
+    expected: &crate::integrations::affidavit_shell::AffidavitVerdict,
+) {
+    let actual = match oracle.verify(receipt_path) {
+        Ok(r) => r.verdict,
+        Err(e) => panic!("Failed to invoke affi verify: {}", e),
+    };
+
+    if actual == crate::integrations::affidavit_shell::AffidavitVerdict::Blocked && *expected != crate::integrations::affidavit_shell::AffidavitVerdict::Blocked {
+        panic!(
+            "BLOCKED: affidavit oracle command unavailable — evidence gate cannot certify integrity.\n\
+             affi binary not found. Install affidavit or set AFFI_PATH env var.\n\
+             Evidence gate invariant E3 violated: external oracle required."
+        );
+    }
+
+    assert_eq!(
+        actual, *expected,
+        "affidavit evidence gate verdict mismatch for {:?}: expected {:?}, got {:?}",
+        receipt_path, expected, actual
     );
 }
 

@@ -1,7 +1,0 @@
-# Local audit records. Add entries here when you have reviewed a crate's
-# source code and are satisfied it is safe to use.
-#
-# Run `cargo vet certify <crate> <version>` to add an entry.
-# Run `cargo vet diff <crate> <old-version> <new-version>` to review updates.
-
-[audits]

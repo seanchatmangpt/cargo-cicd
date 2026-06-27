@@ -1,12 +1,12 @@
 [workspace]
 name = "cargo-cicd"
-toolchain = "stable-x86_64-unknown-linux-gnu"
+toolchain = "nightly-aarch64-apple-darwin"
 target_dir = "target"
 
 [state]
 dirty = true
-target_size_gb = 6.05
-changed_files = 23
+target_size_gb = 3.45
+changed_files = 3
 changed_tests = 0
 changed_trybuild_fixtures = 0
 
@@ -33,3 +33,19 @@ mode = "suggest"
 [[events]]
 kind = "status"
 verdict = "pass"
+
+[profiles.test]
+runner = "just"
+recipe = "test"
+
+[profiles.clippy]
+runner = "just"
+recipe = "clippy"
+
+[profiles.dx]
+runner = "just"
+recipe = "dx"
+
+[profiles.dry-run]
+runner = "just"
+recipe = "publish-dry-run"
