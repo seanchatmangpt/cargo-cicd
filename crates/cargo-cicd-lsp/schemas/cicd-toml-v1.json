@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "cargo-cicd.cicd-toml.v1",
+  "title": "cicd.toml Configuration Schema",
+  "description": "Contract for cicd.toml — the carrier configuration for cargo-cicd. Unknown fields are rejected (deny_unknown_fields). Consumers MUST read the exact keys below.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workspace", "state", "target", "test", "trybuild", "git", "autonomic"],
+  "properties": {
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "toolchain", "target_dir"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Workspace or package name. Must be non-empty."
+        },
+        "toolchain": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Rust toolchain channel: stable, beta, nightly, or a version string starting with a digit (e.g. 1.86.0)."
+        },
+        "target_dir": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Relative path to the Cargo target directory."
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dirty", "target_size_gb", "changed_files", "changed_tests", "changed_trybuild_fixtures"],
+      "properties": {
+        "dirty": {
+          "type": "boolean",
+          "description": "Whether the working tree has uncommitted changes."
+        },
+        "target_size_gb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Current size of the Cargo target directory in gigabytes."
+        },
+        "changed_files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of changed source files since the base ref."
+        },
+        "changed_tests": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of changed test files since the base ref."
+        },
+        "changed_trybuild_fixtures": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of changed trybuild fixture files since the base ref."
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_size_gb", "prune_after_days"],
+      "properties": {
+        "max_size_gb": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum allowed size of the Cargo target directory in gigabytes. Must be > 0."
+        },
+        "prune_after_days": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of days after which target artifacts are pruned."
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changed"],
+      "properties": {
+        "changed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "base"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether to run only changed tests."
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Git ref used as the base for detecting changed tests. Must be non-empty."
+            }
+          }
+        }
+      }
+    },
+    "trybuild": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changed"],
+      "properties": {
+        "changed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "snapshot_mode"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether to run only changed trybuild fixtures."
+            },
+            "snapshot_mode": {
+              "type": "string",
+              "enum": ["changed-only", "all"],
+              "description": "Snapshot mode for trybuild: changed-only or all."
+            }
+          }
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase"],
+      "properties": {
+        "phase": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["require_clean_tree", "commit_after_phase"],
+          "properties": {
+            "require_clean_tree": {
+              "type": "boolean",
+              "description": "Whether the working tree must be clean before each phase."
+            },
+            "commit_after_phase": {
+              "type": "boolean",
+              "description": "Whether to auto-commit after each phase completes."
+            }
+          }
+        }
+      }
+    },
+    "autonomic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "mode"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether autonomic (self-regulating) behavior is active."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["suggest", "apply", "report"],
+          "description": "Autonomic mode: suggest (recommendations only), apply (auto-fix), or report (log only)."
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "Event log records appended by the pipeline. Optional.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "verdict"],
+        "properties": {
+          "kind": { "type": "string" },
+          "verdict": { "type": "string" },
+          "details": { "type": "string" },
+          "timestamp": { "type": "string" }
+        }
+      }
+    }
+  }
+}
