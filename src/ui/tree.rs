@@ -188,4 +188,3 @@ pub fn from_paths(paths: &[&str]) -> String {
     root.sort();
     root.into_tree(".".to_string()).render()
 }
-

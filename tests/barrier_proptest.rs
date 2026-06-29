@@ -1,6 +1,6 @@
+use cargo_cicd::barrier::{detect_barriers, Counterexample};
 use proptest::prelude::*;
 use tempfile::TempDir;
-use cargo_cicd::barrier::{detect_barriers, Counterexample};
 
 /// Helper: write a file and run detect_barriers on the tempdir.
 /// Also writes a valid .agents/hooks.json so hook_not_installed doesn't pollute results.
@@ -131,8 +131,11 @@ fn just_called_by_agent_detected_in_justfile() {
     let content = "build:\n    just build-inner\n";
     let found = detect_in_tempdir(content, "justfile");
     assert!(
-        found.iter().any(|c| matches!(c, Counterexample::just_called_by_agent)),
-        "expected just_called_by_agent, got {:?}", found
+        found
+            .iter()
+            .any(|c| matches!(c, Counterexample::just_called_by_agent)),
+        "expected just_called_by_agent, got {:?}",
+        found
     );
 }
 
@@ -141,8 +144,11 @@ fn gate_without_trace_receipt_detected() {
     let content = "pub fn gate(x: u32) -> bool { x > 0 }\n";
     let found = detect_in_tempdir(content, "mygate.rs");
     assert!(
-        found.iter().any(|c| matches!(c, Counterexample::gate_without_trace_receipt)),
-        "expected gate_without_trace_receipt, got {:?}", found
+        found
+            .iter()
+            .any(|c| matches!(c, Counterexample::gate_without_trace_receipt)),
+        "expected gate_without_trace_receipt, got {:?}",
+        found
     );
 }
 
@@ -151,8 +157,11 @@ fn verify_without_trace_receipt_detected() {
     let content = "pub fn verify(sig: &str) -> bool { sig.len() > 0 }\n";
     let found = detect_in_tempdir(content, "verifier.rs");
     assert!(
-        found.iter().any(|c| matches!(c, Counterexample::verify_without_trace_receipt)),
-        "expected verify_without_trace_receipt, got {:?}", found
+        found
+            .iter()
+            .any(|c| matches!(c, Counterexample::verify_without_trace_receipt)),
+        "expected verify_without_trace_receipt, got {:?}",
+        found
     );
 }
 
@@ -162,7 +171,10 @@ fn gate_with_receipt_digest_not_flagged() {
     let content = "pub fn gate(x: u32) -> bool {\n    let _d = receipt_digest();\n    x > 0\n}\n";
     let found = detect_in_tempdir(content, "mygate.rs");
     assert!(
-        !found.iter().any(|c| matches!(c, Counterexample::gate_without_trace_receipt)),
-        "false positive gate_without_trace_receipt, got {:?}", found
+        !found
+            .iter()
+            .any(|c| matches!(c, Counterexample::gate_without_trace_receipt)),
+        "false positive gate_without_trace_receipt, got {:?}",
+        found
     );
 }

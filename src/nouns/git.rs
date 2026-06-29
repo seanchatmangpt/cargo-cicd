@@ -1,7 +1,9 @@
-use clap_noun_verb_macros::verb;
+use crate::legacy_nouns::git::{
+    GitCloseVerb, GitCommitVerb, GitDiffVerb, GitFetchVerb, GitStageVerb, GitStatusVerb,
+};
 use clap_noun_verb::Result;
-use crate::legacy_nouns::git::{GitStatusVerb, GitCloseVerb, GitDiffVerb, GitStageVerb, GitCommitVerb, GitFetchVerb};
 use clap_noun_verb::{VerbArgs, VerbCommand};
+use clap_noun_verb_macros::verb;
 
 #[verb("status")]
 pub fn cmd_status() -> Result<()> {

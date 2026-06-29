@@ -177,4 +177,3 @@ impl Style {
 pub fn paint(text: impl AsRef<str>, style: Style) -> String {
     style.paint(text)
 }
-

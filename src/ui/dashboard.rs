@@ -327,4 +327,3 @@ pub fn render_fullscreen(data: &DashboardData) -> std::io::Result<()> {
 
     enter
 }
-

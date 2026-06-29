@@ -1,7 +1,9 @@
-use clap_noun_verb_macros::verb;
+use crate::legacy_nouns::workspace::{
+    WorkspaceDoctorVerb, WorkspaceListVerb, WorkspaceSyncVerb, WorkspaceValidateVerb,
+};
 use clap_noun_verb::Result;
-use crate::legacy_nouns::workspace::{WorkspaceDoctorVerb, WorkspaceValidateVerb, WorkspaceSyncVerb, WorkspaceListVerb};
 use clap_noun_verb::{VerbArgs, VerbCommand};
+use clap_noun_verb_macros::verb;
 
 #[verb("doctor")]
 pub fn cmd_doctor() -> Result<()> {

@@ -150,4 +150,3 @@ pub fn error_chain(err: &str, causes: &[&str]) -> String {
     }
     out
 }
-

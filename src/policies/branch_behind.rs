@@ -46,4 +46,3 @@ impl CicdPolicy for BranchBehindPolicy {
         }
     }
 }
-

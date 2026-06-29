@@ -131,4 +131,3 @@ pub fn hyperlink(label: &str, url: &str) -> String {
         label.to_string()
     }
 }
-

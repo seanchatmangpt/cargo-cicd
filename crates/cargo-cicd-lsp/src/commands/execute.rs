@@ -19,7 +19,9 @@ pub async fn execute_permitted(cmd: &str) -> Result<String, String> {
     }
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let (program, args) = parts.split_first().ok_or_else(|| "Empty command".to_string())?;
+    let (program, args) = parts
+        .split_first()
+        .ok_or_else(|| "Empty command".to_string())?;
 
     let output = tokio::process::Command::new(program)
         .args(args)

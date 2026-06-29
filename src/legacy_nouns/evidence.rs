@@ -60,14 +60,12 @@ impl VerbCommand for DoctorVerb {
     }
 
     fn build_command(&self) -> clap::Command {
-        clap::Command::new(self.name())
-            .about(self.about())
-            .arg(
-                clap::Arg::new("json")
-                    .long("json")
-                    .action(clap::ArgAction::SetTrue)
-                    .help("Output machine-readable JSON"),
-            )
+        clap::Command::new(self.name()).about(self.about()).arg(
+            clap::Arg::new("json")
+                .long("json")
+                .action(clap::ArgAction::SetTrue)
+                .help("Output machine-readable JSON"),
+        )
     }
 
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {

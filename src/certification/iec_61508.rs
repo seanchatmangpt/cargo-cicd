@@ -211,4 +211,3 @@ pub fn compliance_summary(sil: &Sil, satisfied: &[String], missing: &[String]) -
 
     out
 }
-

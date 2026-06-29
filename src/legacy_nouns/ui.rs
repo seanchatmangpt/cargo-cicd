@@ -468,4 +468,3 @@ fn read_pinned_toolchain() -> Option<String> {
         None
     }
 }
-

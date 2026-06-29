@@ -175,9 +175,7 @@ pub fn evidence_issues_to_sarif(
     end_time: &str,
     _run_ordinal: usize,
 ) -> SarifReport {
-    let execution_successful = issues
-        .iter()
-        .all(|i| i.severity != IssueSeverity::Error);
+    let execution_successful = issues.iter().all(|i| i.severity != IssueSeverity::Error);
 
     // Collect the distinct rule ids that appear in this issue set.
     let mut rule_ids: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
@@ -251,4 +249,3 @@ pub fn write_sarif_report(report: &SarifReport) -> anyhow::Result<std::path::Pat
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
-

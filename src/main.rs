@@ -5,6 +5,7 @@ mod adapters;
 #[cfg(feature = "advanced")]
 mod advanced;
 mod autonomic;
+pub mod barrier;
 mod certification;
 mod cicd_toml;
 pub mod code_provenance;
@@ -14,7 +15,6 @@ pub mod evidence_helpers;
 mod integrations;
 pub mod legacy_nouns;
 pub mod nouns;
-pub mod barrier;
 pub mod ocel;
 mod policies;
 pub mod session;

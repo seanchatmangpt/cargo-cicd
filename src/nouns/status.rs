@@ -1,5 +1,3 @@
-use clap_noun_verb_macros::verb;
-use clap_noun_verb::Result;
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::autonomic::policy_engine;
 use crate::engine::EngineState;
@@ -7,6 +5,8 @@ use crate::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::badge::{self, Verdict};
 use crate::ui::theme::{self, Role};
 use crate::ui::{chart, panel};
+use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 
 // ── domain helpers ────────────────────────────────────────────────────────────
 
@@ -48,7 +48,14 @@ fn run_show() -> anyhow::Result<()> {
     );
 
     let ev_verdict = if dirty { "WARN" } else { "PASS" };
-    finish_evidence(start_evt, t0, case_id, ev_verdict, "status:show", &evidence_dir);
+    finish_evidence(
+        start_evt,
+        t0,
+        case_id,
+        ev_verdict,
+        "status:show",
+        &evidence_dir,
+    );
 
     print_engine_state();
     Ok(())
@@ -113,7 +120,11 @@ fn run_audit() -> anyhow::Result<()> {
     let ocel = evidence_dir.join("events.ocel.json");
 
     if !ocel.exists() {
-        println!("{} no evidence at {}", badge::tag(Verdict::Blocked), ocel.display());
+        println!(
+            "{} no evidence at {}",
+            badge::tag(Verdict::Blocked),
+            ocel.display()
+        );
         return Ok(());
     }
 
@@ -169,8 +180,7 @@ fn emit_audit_events(
     if !stderr_trim.is_empty() {
         result_rows.push(("stderr", theme::paint(&stderr_trim, Role::Warning)));
     }
-    let rows_ref: Vec<(&str, &str)> =
-        result_rows.iter().map(|(k, v)| (*k, v.as_str())).collect();
+    let rows_ref: Vec<(&str, &str)> = result_rows.iter().map(|(k, v)| (*k, v.as_str())).collect();
     println!("{}", panel::kv(&rows_ref));
 
     let oracle_verdict = if result.success { "ACCEPT" } else { "REFUSE" };

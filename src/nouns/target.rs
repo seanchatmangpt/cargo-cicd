@@ -1,7 +1,7 @@
-use clap_noun_verb_macros::verb;
+use crate::legacy_nouns::target::{TargetPruneVerb, TargetShowVerb};
 use clap_noun_verb::Result;
-use crate::legacy_nouns::target::{TargetShowVerb, TargetPruneVerb};
 use clap_noun_verb::{VerbArgs, VerbCommand};
+use clap_noun_verb_macros::verb;
 
 #[verb("show")]
 pub fn cmd_show() -> Result<()> {

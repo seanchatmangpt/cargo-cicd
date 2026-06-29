@@ -12,7 +12,10 @@ use crate::ui::theme::{self, Role};
 use crate::ui::{panel, symbols};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
-#[deprecated(since = "0.0.0", note = "Use crate::nouns::certification::CertificationNoun instead")]
+#[deprecated(
+    since = "0.0.0",
+    note = "Use crate::nouns::certification::CertificationNoun instead"
+)]
 pub struct CertificationNoun;
 
 impl CertificationNoun {
@@ -43,7 +46,10 @@ impl NounCommand for CertificationNoun {
     }
 }
 
-#[deprecated(since = "0.0.0", note = "Use crate::nouns::certification::CertificationShowVerb instead")]
+#[deprecated(
+    since = "0.0.0",
+    note = "Use crate::nouns::certification::CertificationShowVerb instead"
+)]
 pub struct CertificationShowVerb;
 
 impl CertificationShowVerb {
@@ -78,12 +84,8 @@ impl CertificationShowVerb {
         for req in &iso_reqs {
             if req.min_asil.severity() <= asil.severity() {
                 match iso_26262::check_requirement(req, &all_cmds) {
-                    None => {
-                        iso_satisfied.push(format!("{} \u{2014} {}", req.clause, req.title))
-                    }
-                    Some(_) => {
-                        iso_missing.push(format!("{} \u{2014} {}", req.clause, req.title))
-                    }
+                    None => iso_satisfied.push(format!("{} \u{2014} {}", req.clause, req.title)),
+                    Some(_) => iso_missing.push(format!("{} \u{2014} {}", req.clause, req.title)),
                 }
             }
         }

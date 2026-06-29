@@ -106,4 +106,3 @@ pub fn coverage_summary() -> String {
     }
     out
 }
-

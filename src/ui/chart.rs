@@ -325,4 +325,3 @@ fn down_arrow() -> &'static str {
         "v"
     }
 }
-

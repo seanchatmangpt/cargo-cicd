@@ -1,6 +1,6 @@
-use clap_noun_verb_macros::verb;
-use clap_noun_verb::Result;
 use crate::barrier::Counterexample;
+use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 
 // ---------------------------------------------------------------------------
 // SARIF v2.1.0 types
@@ -126,7 +126,20 @@ fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
         year += 1;
     }
     let leap = is_leap(year);
-    let month_days = [31u64, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let month_days = [
+        31u64,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     let mut month = 1u64;
     for &md in &month_days {
         if days < md {
@@ -142,11 +155,18 @@ fn is_leap(y: u64) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
-fn build_sarif(counterexamples: &[Counterexample], q_release: u8, start: std::time::SystemTime, end: std::time::SystemTime) -> SarifOutput {
+fn build_sarif(
+    counterexamples: &[Counterexample],
+    q_release: u8,
+    start: std::time::SystemTime,
+    end: std::time::SystemTime,
+) -> SarifOutput {
     let rules: Vec<SarifRule> = all_rule_ids()
         .into_iter()
         .map(|id| SarifRule {
-            short_description: SarifMessage { text: id.replace('_', " ") },
+            short_description: SarifMessage {
+                text: id.replace('_', " "),
+            },
             id,
         })
         .collect();
@@ -156,7 +176,9 @@ fn build_sarif(counterexamples: &[Counterexample], q_release: u8, start: std::ti
         .map(|ce| SarifResult {
             rule_id: counterexample_rule_id(ce),
             level: "error",
-            message: SarifMessage { text: counterexample_rule_id(ce).replace('_', " ") },
+            message: SarifMessage {
+                text: counterexample_rule_id(ce).replace('_', " "),
+            },
         })
         .collect();
 
@@ -226,10 +248,16 @@ fn compute_gate(repo_dir: &str, json: bool, sarif: bool) -> Result<()> {
 
     let q_release = components.v_cargo_cicd;
 
-    let ocel_event = crate::ocel::append_ocel_event(repo_dir, "GateComputed", serde_json::json!({
-        "q_release": q_release,
-        "failset_cardinality": counterexamples.len()
-    }), "").unwrap();
+    let ocel_event = crate::ocel::append_ocel_event(
+        repo_dir,
+        "GateComputed",
+        serde_json::json!({
+            "q_release": q_release,
+            "failset_cardinality": counterexamples.len()
+        }),
+        "",
+    )
+    .unwrap();
 
     let report = GateReport {
         schema: "cargo-cicd.gate.v1".to_string(),
@@ -255,7 +283,9 @@ fn compute_gate(repo_dir: &str, json: bool, sarif: bool) -> Result<()> {
     }
 
     if report.q_release == 0 {
-        return Err(clap_noun_verb::error::NounVerbError::execution_error("Gate failed"));
+        return Err(clap_noun_verb::error::NounVerbError::execution_error(
+            "Gate failed",
+        ));
     }
 
     Ok(())
@@ -294,7 +324,13 @@ mod tests {
         let end = std::time::SystemTime::now();
         let sarif_doc = build_sarif(&counterexamples, 1, start, end);
         let val = serde_json::to_value(&sarif_doc).unwrap();
-        let rules = val["runs"][0]["tool"]["driver"]["rules"].as_array().unwrap();
-        assert!(rules.len() >= 19, "expected >= 19 rules, got {}", rules.len());
+        let rules = val["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .unwrap();
+        assert!(
+            rules.len() >= 19,
+            "expected >= 19 rules, got {}",
+            rules.len()
+        );
     }
 }

@@ -84,7 +84,11 @@ pub fn validate_receipt_file(receipt_path: &Path, expected_hash: &str) -> Receip
 pub fn blake3_file_hex(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     let hash = blake3::hash(&bytes);
-    Ok(hash.as_bytes().iter().map(|b| format!("{:02x}", b)).collect())
+    Ok(hash
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect())
 }
 
 /// Parse a receipt JSON string and extract the primary verdict fields.
@@ -150,7 +154,6 @@ pub fn receipt_has_required_fields(json_str: &str) -> Vec<String> {
         .map(|&f| f.to_string())
         .collect()
 }
-
 
 #[cfg(test)]
 mod tests {

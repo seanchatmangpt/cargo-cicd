@@ -139,4 +139,3 @@ pub fn workspace_digest(entries: &[(PathBuf, Fingerprint)]) -> Fingerprint {
 
     hasher.finalize().into()
 }
-

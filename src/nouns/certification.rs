@@ -7,8 +7,8 @@
 #[allow(deprecated)]
 pub use crate::legacy_nouns::certification::{CertificationNoun, CertificationShowVerb};
 
-use clap_noun_verb_macros::verb;
 use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 
 #[allow(deprecated)]
 #[verb("show")]

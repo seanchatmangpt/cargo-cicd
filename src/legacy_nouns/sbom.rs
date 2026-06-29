@@ -37,7 +37,10 @@ impl NounCommand for SbomNoun {
 
 // ── generate verb ──────────────────────────────────────────────────────────────
 
-#[deprecated(since = "0.0.0", note = "Use crate::nouns::sbom::SbomGenerateVerb instead")]
+#[deprecated(
+    since = "0.0.0",
+    note = "Use crate::nouns::sbom::SbomGenerateVerb instead"
+)]
 pub struct SbomGenerateVerb;
 
 impl SbomGenerateVerb {
@@ -116,9 +119,7 @@ impl SbomShowVerb {
 
         let sbom_path = std::path::Path::new("sbom.json");
         let verdict = if sbom_path.exists() {
-            let size = std::fs::metadata(sbom_path)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let size = std::fs::metadata(sbom_path).map(|m| m.len()).unwrap_or(0);
             println!("[OK] CycloneDX SBOM present at sbom.json ({} bytes)", size);
 
             // Print the first 20 lines as a preview.
@@ -135,9 +136,7 @@ impl SbomShowVerb {
             }
             "PASS"
         } else {
-            println!(
-                "[WARN] No sbom.json found — run `cargo cicd sbom generate` first"
-            );
+            println!("[WARN] No sbom.json found — run `cargo cicd sbom generate` first");
             "WARN"
         };
 

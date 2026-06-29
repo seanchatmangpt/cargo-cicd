@@ -5,10 +5,10 @@
 // See CCICD-106 for the deletion milestone.
 
 #[allow(deprecated)]
-pub use crate::legacy_nouns::sbom::{SbomNoun, SbomGenerateVerb, SbomShowVerb};
+pub use crate::legacy_nouns::sbom::{SbomGenerateVerb, SbomNoun, SbomShowVerb};
 
-use clap_noun_verb_macros::verb;
 use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 
 #[allow(deprecated)]
 #[verb("generate")]

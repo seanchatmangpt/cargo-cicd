@@ -31,7 +31,10 @@ fn finding_at_line_and_character_produces_correct_range() {
     let diagnostic = finding_to_lsp(&finding);
     assert_eq!(diagnostic.range.start.line, 3);
     assert_eq!(diagnostic.range.start.character, 7);
-    assert_eq!(diagnostic.range.end.character, 8, "end character should be start + 1");
+    assert_eq!(
+        diagnostic.range.end.character, 8,
+        "end character should be start + 1"
+    );
 }
 
 /// A finding without location info defaults to line 0, character 0.

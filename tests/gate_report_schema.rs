@@ -1,5 +1,5 @@
-use cargo_cicd::nouns::gate::GateReport;
 use assert_cmd::Command;
+use cargo_cicd::nouns::gate::GateReport;
 use tempfile::TempDir;
 
 #[test]
@@ -10,7 +10,13 @@ fn gate_report_deserializes() {
     // Gate will fail (no OCEL log, no setup) but it must still emit valid JSON.
     let output = Command::cargo_bin("cargo-cicd")
         .expect("binary exists")
-        .args(["gate", "repo", "--repo", dir.path().to_str().unwrap(), "--json"])
+        .args([
+            "gate",
+            "repo",
+            "--repo",
+            dir.path().to_str().unwrap(),
+            "--json",
+        ])
         .output()
         .expect("command ran");
 
@@ -23,7 +29,10 @@ fn gate_report_deserializes() {
     assert_eq!(report.failset_cardinality, report.counterexamples.len());
     // Invariant: q_release == 1 ⟺ counterexamples.is_empty()
     if report.q_release == 1 {
-        assert!(report.counterexamples.is_empty(), "q_release=1 but counterexamples non-empty");
+        assert!(
+            report.counterexamples.is_empty(),
+            "q_release=1 but counterexamples non-empty"
+        );
     } else {
         assert!(!report.counterexamples.is_empty() || report.q_release == 0);
     }

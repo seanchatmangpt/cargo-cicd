@@ -243,7 +243,11 @@ impl Validate for CicdToml {
         v.check_non_empty("workspace.name", &self.workspace.name);
         let tc = &self.workspace.toolchain;
         let valid_toolchain = matches!(tc.as_str(), "stable" | "beta" | "nightly")
-            || tc.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false);
+            || tc
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false);
         v.check_predicate(
             "workspace.toolchain",
             valid_toolchain,
@@ -275,8 +279,7 @@ pub fn load_admitted() -> Result<AdmittedConfig<CicdToml>> {
 /// Load cicd.toml without admission — fallback for contexts where the
 /// typestate guarantee is not yet required.
 pub fn load_or_default() -> CicdToml {
-    CicdToml::from_file(std::path::Path::new("cicd.toml"))
-        .unwrap_or_default()
+    CicdToml::from_file(std::path::Path::new("cicd.toml")).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -298,7 +301,10 @@ mod tests {
     fn empty_name_fails_validate() {
         let mut config = CicdToml::default();
         config.workspace.name = String::new();
-        assert!(config.check().is_err(), "expected validation errors for empty name");
+        assert!(
+            config.check().is_err(),
+            "expected validation errors for empty name"
+        );
     }
 
     #[test]

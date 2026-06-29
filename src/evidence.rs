@@ -778,7 +778,6 @@ impl ReceiptDoctor {
     }
 }
 
-
 /// Build an OCEL 2.0 receipt that satisfies `wpm receipt doctor --strict`.
 ///
 /// Key design decisions:
@@ -1028,7 +1027,10 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
         let receipt_out = affi_dir.join("receipt.json");
 
         for ev in events {
-            let event_type = crate::integrations::affidavit_shell::event_type_for(&ev.command, &ev.lifecycle_transition);
+            let event_type = crate::integrations::affidavit_shell::event_type_for(
+                &ev.command,
+                &ev.lifecycle_transition,
+            );
             let object = crate::integrations::affidavit_shell::object_ref_for(ev);
             let _ = affi.emit(&affi_dir, &event_type, &object, &jsonl_path);
         }
@@ -1109,7 +1111,9 @@ pub fn assert_affidavit_verdict(
         Err(e) => panic!("Failed to invoke affi verify: {}", e),
     };
 
-    if actual == crate::integrations::affidavit_shell::AffidavitVerdict::Blocked && *expected != crate::integrations::affidavit_shell::AffidavitVerdict::Blocked {
+    if actual == crate::integrations::affidavit_shell::AffidavitVerdict::Blocked
+        && *expected != crate::integrations::affidavit_shell::AffidavitVerdict::Blocked
+    {
         panic!(
             "BLOCKED: affidavit oracle command unavailable — evidence gate cannot certify integrity.\n\
              affi binary not found. Install affidavit or set AFFI_PATH env var.\n\
@@ -1346,20 +1350,29 @@ mod tests {
         append_events(&[ev2], &ev_dir).expect("second append_events must succeed");
 
         let content2 = std::fs::read_to_string(&jsonl_path).expect("jsonl must exist");
-        assert_eq!(content2.lines().count(), 2, "two events after second append");
+        assert_eq!(
+            content2.lines().count(),
+            2,
+            "two events after second append"
+        );
         assert!(content2.contains("evt-atomic-1"), "first event retained");
         assert!(content2.contains("evt-atomic-2"), "second event added");
 
         // XES must exist and contain no tmp files left behind.
         assert!(ev_dir.join("events.xes").exists(), "events.xes must exist");
-        assert!(ev_dir.join("events.ocel.json").exists(), "events.ocel.json must exist");
+        assert!(
+            ev_dir.join("events.ocel.json").exists(),
+            "events.ocel.json must exist"
+        );
 
         let stale_tmp: Vec<_> = std::fs::read_dir(&ev_dir)
             .unwrap()
             .flatten()
             .filter(|e| e.file_name().to_string_lossy().contains(".tmp."))
             .collect();
-        assert!(stale_tmp.is_empty(), "no .tmp.* files must remain after rename");
+        assert!(
+            stale_tmp.is_empty(),
+            "no .tmp.* files must remain after rename"
+        );
     }
-
 }

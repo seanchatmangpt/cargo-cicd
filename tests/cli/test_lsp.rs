@@ -31,7 +31,6 @@ fn lsp_explain_unknown_code_fails() {
         .failure();
 }
 
-
 #[cfg(feature = "anti-llm-cheat")]
 #[test]
 fn lsp_check_runs_and_emits_verdict() {

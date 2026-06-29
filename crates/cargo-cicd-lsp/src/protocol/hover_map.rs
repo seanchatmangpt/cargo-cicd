@@ -72,7 +72,8 @@ pub fn hover_card_map() -> &'static HashMap<&'static str, HoverCard> {
                 section: "[wpm]",
                 field: "require_oracle",
                 controls: "Requires the wpm runtime court to adjudicate evidence before close.",
-                repair_hint: "Install wpm or set WPM_BIN env var, then run `cargo cicd evidence doctor`.",
+                repair_hint:
+                    "Install wpm or set WPM_BIN env var, then run `cargo cicd evidence doctor`.",
             },
         );
 
@@ -122,8 +123,7 @@ pub fn hover_card_map() -> &'static HashMap<&'static str, HoverCard> {
                 section: "[workspace]",
                 field: "validate_members",
                 controls: "Validates that all workspace member crates are structurally consistent.",
-                repair_hint:
-                    "Run `cargo cicd workspace validate` to diagnose structural issues.",
+                repair_hint: "Run `cargo cicd workspace validate` to diagnose structural issues.",
             },
         );
 

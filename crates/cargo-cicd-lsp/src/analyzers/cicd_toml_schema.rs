@@ -56,7 +56,10 @@ fn analyze_schema(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
     let instance = match serde_json::to_value(&toml_value) {
         Ok(v) => v,
         Err(e) => {
-            tracing::warn!("Failed to convert cicd.toml to JSON for schema validation: {}", e);
+            tracing::warn!(
+                "Failed to convert cicd.toml to JSON for schema validation: {}",
+                e
+            );
             return Vec::new();
         }
     };
@@ -75,11 +78,7 @@ fn analyze_schema(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
     let mut findings = Vec::new();
     for error in validator.iter_errors(&instance) {
         let path_str = error.instance_path.to_string();
-        let field_name = path_str
-            .split('/')
-            .last()
-            .unwrap_or("<root>")
-            .to_string();
+        let field_name = path_str.split('/').last().unwrap_or("<root>").to_string();
 
         // Find the line number by scanning source for the field name.
         let line_no: u32 = source_lines
@@ -89,7 +88,9 @@ fn analyze_schema(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
                 line.trim_start().starts_with(&format!("{}  =", field_name))
                     || line.trim_start().starts_with(&format!("{} =", field_name))
                     || line.trim_start().starts_with(&format!("{}=", field_name))
-                    || line.trim_start().starts_with(&format!("\"{}\"", field_name))
+                    || line
+                        .trim_start()
+                        .starts_with(&format!("\"{}\"", field_name))
             })
             .map(|(i, _)| i as u32)
             .unwrap_or(0);

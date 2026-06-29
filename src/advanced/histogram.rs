@@ -143,4 +143,3 @@ pub struct Percentiles {
     /// Mean latency.
     pub mean: f64,
 }
-

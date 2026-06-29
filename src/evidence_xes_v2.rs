@@ -396,4 +396,3 @@ pub fn write_xes_v2_with_meta(
     std::fs::write(&path, xml)?;
     Ok(path)
 }
-

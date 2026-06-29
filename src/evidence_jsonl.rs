@@ -142,4 +142,3 @@ pub fn write_jsonl(
     std::fs::write(&path, lines)?;
     Ok(path)
 }
-

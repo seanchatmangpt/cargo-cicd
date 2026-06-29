@@ -62,8 +62,9 @@ pub fn criteria() -> Vec<Soc2Criterion> {
         Soc2Criterion {
             id: "CC7.2".to_string(),
             category: TrustCategory::Security,
-            description: "Incident detection — detect system events that indicate security incidents"
-                .to_string(),
+            description:
+                "Incident detection — detect system events that indicate security incidents"
+                    .to_string(),
             evidence_mapping: "wasm4pm oracle adjudicates every process event; \
                                REFUSE verdicts surface anomalies"
                 .to_string(),
@@ -174,4 +175,3 @@ pub fn compliance_summary() -> String {
     }
     out
 }
-

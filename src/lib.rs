@@ -46,6 +46,7 @@ pub mod adapters;
 #[cfg(feature = "advanced")]
 pub mod advanced;
 pub mod autonomic;
+pub mod barrier;
 pub mod certification;
 pub mod cicd_toml;
 pub mod code_provenance;
@@ -53,13 +54,12 @@ pub mod engine;
 pub mod evidence;
 pub mod evidence_helpers;
 pub mod evidence_jsonl;
-pub mod evidence_sarif;
 pub mod evidence_manifest;
+pub mod evidence_sarif;
 pub mod evidence_xes_v2;
 pub mod integrations;
 pub mod legacy_nouns;
 pub mod nouns;
-pub mod barrier;
 
 pub mod ocel;
 pub mod oracle_keys;

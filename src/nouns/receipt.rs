@@ -1,6 +1,6 @@
-use clap_noun_verb_macros::verb;
 use clap_noun_verb::Result;
-use serde::{Serialize, Deserialize};
+use clap_noun_verb_macros::verb;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -33,7 +33,13 @@ pub struct Receipt {
 
 impl Receipt {
     pub fn mint(trace: &ExecutionTrace) -> Self {
-        let timestamp = format!("{:?}", std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_millis());
+        let timestamp = format!(
+            "{:?}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        );
         let mut r = Self {
             schema: "cargo-cicd.receipt.v1".to_string(),
             command: trace.command.clone(),
@@ -76,7 +82,12 @@ impl Receipt {
 }
 
 fn fn_hash(data: &[u8]) -> String {
-    let mut h: [u64; 4] = [0xcbf29ce484222325, 0x9e3779b97f4a7c15, 0x6c62272e07bb0142, 0x517cc1b727220a95];
+    let mut h: [u64; 4] = [
+        0xcbf29ce484222325,
+        0x9e3779b97f4a7c15,
+        0x6c62272e07bb0142,
+        0x517cc1b727220a95,
+    ];
     for (i, &b) in data.iter().enumerate() {
         let lane = i % 4;
         h[lane] ^= b as u64;
@@ -100,10 +111,11 @@ fn do_verify(repo_dir: &str) -> (usize, Vec<String>) {
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
         }
-        
+
         let content = std::fs::read_to_string(&path).unwrap_or_default();
-        let v: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::Value::Null);
-        
+        let v: serde_json::Value =
+            serde_json::from_str(&content).unwrap_or(serde_json::Value::Null);
+
         if let Ok(receipt) = serde_json::from_str::<Receipt>(&content) {
             if receipt.is_valid() {
                 valid_count += 1;
@@ -132,7 +144,7 @@ fn do_verify(repo_dir: &str) -> (usize, Vec<String>) {
             }
         }
     }
-    
+
     (valid_count, counterexamples)
 }
 

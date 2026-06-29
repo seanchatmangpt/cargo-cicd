@@ -126,4 +126,3 @@ impl MultiPatternScanner {
         &self.patterns
     }
 }
-

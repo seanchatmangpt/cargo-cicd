@@ -164,7 +164,6 @@ fn threshold_color(frac: f64) -> Color {
     }
 }
 
-
 /// Like [`raw_bar`] but paints the filled portion in `color` (when enabled). The
 /// trailing empty cells are dimmed so the track reads as background.
 fn colored_bar(fraction: f64, width: usize, color: Color) -> String {
@@ -260,4 +259,3 @@ pub fn spinner_line(frame_idx: usize, msg: &str) -> String {
     let styled = SPINNER_STYLE.paint(frame);
     format!("{styled} {msg}")
 }
-

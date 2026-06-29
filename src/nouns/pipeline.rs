@@ -1,7 +1,7 @@
-use clap_noun_verb_macros::verb;
-use clap_noun_verb::Result;
 use crate::legacy_nouns::pipeline::{PipelineRunVerb, PipelineStatusVerb, PipelineValidateVerb};
+use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};
+use clap_noun_verb_macros::verb;
 
 #[verb("run")]
 pub fn cmd_run() -> Result<()> {

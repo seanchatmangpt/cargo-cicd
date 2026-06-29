@@ -319,4 +319,3 @@ pub fn simple(headers: &[&str], rows: Vec<Vec<String>>) -> String {
         .borderless(true)
         .render()
 }
-

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
@@ -31,7 +31,7 @@ pub enum Counterexample {
 
 pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
     let mut detected = Vec::new();
-    
+
     let mut has_fake_test = false;
     let mut has_token_gate = false;
     let mut has_dummy_gate = false;
@@ -41,7 +41,7 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
     let mut has_hardcoded_commitment = false;
     let mut has_python_authority = false;
     let mut has_shell_authority = false;
-    
+
     // New ones
     let mut has_research_allowlist_in_locked = false;
     let mut has_antigravity_unproven = false;
@@ -65,14 +65,14 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
         if path.is_dir() && (name == "target" || name == ".git" || name == "node_modules") {
             continue;
         }
-        
+
         if path.is_file() {
             if name == "barrier.rs" {
                 continue;
             }
             if let Ok(content) = fs::read_to_string(path) {
                 let content_lower = content.to_lowercase();
-                
+
                 // Existing
                 if content.contains("assert!(true)") || content.contains("assert_eq!(1, 1)") {
                     has_fake_test = true;
@@ -90,10 +90,14 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                 {
                     has_token_gate = true;
                 }
-                if content_lower.contains("placeholder_authority") || content.contains("todo!(\"authority\")") {
+                if content_lower.contains("placeholder_authority")
+                    || content.contains("todo!(\"authority\")")
+                {
                     has_placeholder_authority = true;
                 }
-                if content_lower.contains("ocel replay placeholder") || content.contains("todo!(\"ocel replay\")") {
+                if content_lower.contains("ocel replay placeholder")
+                    || content.contains("todo!(\"ocel replay\")")
+                {
                     has_ocel_replay_placeholder = true;
                 }
                 if content_lower.contains("manual receipt") || content.contains("receipt_json") {
@@ -106,31 +110,41 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                 {
                     has_hardcoded_commitment = true;
                 }
-                
+
                 // Agents.md specific
                 if name == "AGENTS.md" {
-                    if content_lower.contains("research_allowlist") && content_lower.contains("locked_mode") {
+                    if content_lower.contains("research_allowlist")
+                        && content_lower.contains("locked_mode")
+                    {
                         has_research_allowlist_in_locked = true;
                     }
                 }
-                
+
                 // Various heuristics
-                if content_lower.contains("block_semantics_unproven") || content.contains("unproven block") {
+                if content_lower.contains("block_semantics_unproven")
+                    || content.contains("unproven block")
+                {
                     has_antigravity_unproven = true;
                 }
-                if content_lower.contains("trace profile --repo . test") || content_lower.contains("trace run") {
+                if content_lower.contains("trace profile --repo . test")
+                    || content_lower.contains("trace run")
+                {
                     has_trace_inconsistent = true;
                 }
                 if content_lower.contains("cargo subcommand path unverified") {
                     has_cargo_subcommand_unverified = true;
                 }
-                if content.contains("cargo ") && !content.contains("cargo cicd") && (name.ends_with(".sh") || name == "justfile") {
+                if content.contains("cargo ")
+                    && !content.contains("cargo cicd")
+                    && (name.ends_with(".sh") || name == "justfile")
+                {
                     has_raw_cargo = true;
                 }
                 // just_called_by_agent: justfile or content invoking "just" as a build tool
                 if ((name == "justfile" || name == "Justfile" || name.ends_with(".just"))
                     && (content.contains("just ") || content_lower.contains("just_called")))
-                    || (name == "events.jsonl" && (content.contains("\"just\"") || content.contains("\"just ")))
+                    || (name == "events.jsonl"
+                        && (content.contains("\"just\"") || content.contains("\"just ")))
                 {
                     has_just_called_by_agent = true;
                 }
@@ -156,7 +170,11 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                     || content_lower.contains("completed")
                     || content_lower.contains("done")
                 {
-                    if name != "barrier.rs" && name != "DoD_v26.6.27.md" && name != "AGENTS.md" && !name.ends_with(".json") {
+                    if name != "barrier.rs"
+                        && name != "DoD_v26.6.27.md"
+                        && name != "AGENTS.md"
+                        && !name.ends_with(".json")
+                    {
                         has_prose_completion_claim = true;
                     }
                 }
@@ -165,18 +183,24 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                         has_compilation_as_standing = true;
                     }
                 }
-                if content.contains("\"missing_fields\": true") || content_lower.contains("receipt_without_execution_trace") {
+                if content.contains("\"missing_fields\": true")
+                    || content_lower.contains("receipt_without_execution_trace")
+                {
                     has_receipt_without_trace = true;
                 }
-                
+
                 if let Some(ext) = path.extension() {
                     let ext = ext.to_string_lossy();
                     if ext == "py" {
-                        if content.contains("cargo ") && (content.contains("def ") || content.contains("if ")) {
+                        if content.contains("cargo ")
+                            && (content.contains("def ") || content.contains("if "))
+                        {
                             has_python_authority = true;
                         }
                     } else if ext == "sh" || ext == "bash" {
-                        if content.contains("cargo ") && (content.contains("if ") || content.contains("case ")) {
+                        if content.contains("cargo ")
+                            && (content.contains("if ") || content.contains("case "))
+                        {
                             has_shell_authority = true;
                         }
                     }
@@ -184,46 +208,93 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
             }
         }
     }
-    
-    if has_fake_test { detected.push(Counterexample::fake_test); }
-    if has_dummy_gate { detected.push(Counterexample::dummy_gate); }
-    if has_token_gate { detected.push(Counterexample::token_gate); }
-    if has_placeholder_authority { detected.push(Counterexample::placeholder_authority); }
-    if has_ocel_replay_placeholder { detected.push(Counterexample::ocel_replay_placeholder); }
-    if has_manual_receipt_json { detected.push(Counterexample::manual_receipt_json); }
-    if has_hardcoded_commitment { detected.push(Counterexample::hardcoded_commitment); }
-    if has_python_authority { detected.push(Counterexample::python_called_by_agent); }
-    if has_shell_authority { detected.push(Counterexample::shell_called_by_agent); }
-    if has_research_allowlist_in_locked { detected.push(Counterexample::research_allowlist_present_in_locked_mode); }
-    if has_antigravity_unproven { detected.push(Counterexample::antigravity_block_semantics_unproven); }
-    if has_trace_inconsistent { detected.push(Counterexample::trace_profile_command_shape_inconsistent); }
-    if has_cargo_subcommand_unverified { detected.push(Counterexample::cargo_subcommand_path_unverified); }
-    if has_gate_without_receipt { detected.push(Counterexample::gate_without_trace_receipt); }
-    if has_verify_without_receipt { detected.push(Counterexample::verify_without_trace_receipt); }
-    if has_just_without_receipt { detected.push(Counterexample::just_called_without_receipt); }
-    if has_raw_cargo { detected.push(Counterexample::raw_cargo_used_by_agent); }
-    if has_just_called_by_agent { detected.push(Counterexample::just_called_by_agent); }
-    if has_prose_completion_claim { detected.push(Counterexample::prose_completion_claim); }
-    if has_compilation_as_standing { detected.push(Counterexample::compilation_treated_as_standing); }
-    if has_receipt_without_trace { detected.push(Counterexample::receipt_without_execution_trace); }
+
+    if has_fake_test {
+        detected.push(Counterexample::fake_test);
+    }
+    if has_dummy_gate {
+        detected.push(Counterexample::dummy_gate);
+    }
+    if has_token_gate {
+        detected.push(Counterexample::token_gate);
+    }
+    if has_placeholder_authority {
+        detected.push(Counterexample::placeholder_authority);
+    }
+    if has_ocel_replay_placeholder {
+        detected.push(Counterexample::ocel_replay_placeholder);
+    }
+    if has_manual_receipt_json {
+        detected.push(Counterexample::manual_receipt_json);
+    }
+    if has_hardcoded_commitment {
+        detected.push(Counterexample::hardcoded_commitment);
+    }
+    if has_python_authority {
+        detected.push(Counterexample::python_called_by_agent);
+    }
+    if has_shell_authority {
+        detected.push(Counterexample::shell_called_by_agent);
+    }
+    if has_research_allowlist_in_locked {
+        detected.push(Counterexample::research_allowlist_present_in_locked_mode);
+    }
+    if has_antigravity_unproven {
+        detected.push(Counterexample::antigravity_block_semantics_unproven);
+    }
+    if has_trace_inconsistent {
+        detected.push(Counterexample::trace_profile_command_shape_inconsistent);
+    }
+    if has_cargo_subcommand_unverified {
+        detected.push(Counterexample::cargo_subcommand_path_unverified);
+    }
+    if has_gate_without_receipt {
+        detected.push(Counterexample::gate_without_trace_receipt);
+    }
+    if has_verify_without_receipt {
+        detected.push(Counterexample::verify_without_trace_receipt);
+    }
+    if has_just_without_receipt {
+        detected.push(Counterexample::just_called_without_receipt);
+    }
+    if has_raw_cargo {
+        detected.push(Counterexample::raw_cargo_used_by_agent);
+    }
+    if has_just_called_by_agent {
+        detected.push(Counterexample::just_called_by_agent);
+    }
+    if has_prose_completion_claim {
+        detected.push(Counterexample::prose_completion_claim);
+    }
+    if has_compilation_as_standing {
+        detected.push(Counterexample::compilation_treated_as_standing);
+    }
+    if has_receipt_without_trace {
+        detected.push(Counterexample::receipt_without_execution_trace);
+    }
 
     // Check for missing or malformed hooks installation (bypassed in playground tests)
     let repo_path_str = repo_dir.to_string_lossy();
-    let is_playground = repo_path_str.contains("/playground/") || repo_path_str.contains("\\playground\\");
+    let is_playground =
+        repo_path_str.contains("/playground/") || repo_path_str.contains("\\playground\\");
     let hook_not_installed = if is_playground {
         false
     } else {
         let hooks_path = repo_dir.join(".agents/hooks.json");
         if hooks_path.exists() {
             match fs::read_to_string(&hooks_path) {
-                Ok(content) => !content.contains("cargo-cicd.execute") || !content.contains("pre-tool-use"),
+                Ok(content) => {
+                    !content.contains("cargo-cicd.execute") || !content.contains("pre-tool-use")
+                }
                 Err(_) => true,
             }
         } else {
             true
         }
     };
-    if hook_not_installed { detected.push(Counterexample::hook_not_installed); }
+    if hook_not_installed {
+        detected.push(Counterexample::hook_not_installed);
+    }
 
     detected
 }

@@ -1,7 +1,7 @@
-use clap_noun_verb_macros::verb;
+use crate::legacy_nouns::test::{TestBenchVerb, TestChangedVerb, TestRunVerb};
 use clap_noun_verb::Result;
-use crate::legacy_nouns::test::{TestChangedVerb, TestRunVerb, TestBenchVerb};
 use clap_noun_verb::{VerbArgs, VerbCommand};
+use clap_noun_verb_macros::verb;
 
 #[verb("changed")]
 pub fn cmd_changed() -> Result<()> {

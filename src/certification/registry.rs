@@ -210,4 +210,3 @@ pub fn format_registry_listing(entries: &[SafetyCriticalEntry]) -> String {
 pub fn default_registry_path() -> PathBuf {
     PathBuf::from("safety-critical-registry.toml")
 }
-

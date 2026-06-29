@@ -178,4 +178,3 @@ fn test_git_dirty_one_file_suggests() {
         result.verdict
     );
 }
-

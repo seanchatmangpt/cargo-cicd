@@ -116,14 +116,22 @@ impl EnvGuard {
         let lock = ENV_MUTEX.lock().unwrap();
         let original = std::env::var(key).ok();
         std::env::set_var(key, value);
-        Self { key, original, _lock: lock }
+        Self {
+            key,
+            original,
+            _lock: lock,
+        }
     }
 
     fn remove(key: &'static str) -> Self {
         let lock = ENV_MUTEX.lock().unwrap();
         let original = std::env::var(key).ok();
         std::env::remove_var(key);
-        Self { key, original, _lock: lock }
+        Self {
+            key,
+            original,
+            _lock: lock,
+        }
     }
 }
 

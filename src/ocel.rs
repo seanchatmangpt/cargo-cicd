@@ -1096,7 +1096,10 @@ mod tests {
         append_ocel_event(repo_dir, "evt_a", serde_json::json!({}), "").unwrap();
         append_ocel_event(repo_dir, "evt_b", serde_json::json!({}), "").unwrap();
         append_ocel_event(repo_dir, "evt_c", serde_json::json!({}), "").unwrap();
-        let path = std::path::Path::new(repo_dir).join(".cargo-cicd").join("ocel").join("events.jsonl");
+        let path = std::path::Path::new(repo_dir)
+            .join(".cargo-cicd")
+            .join("ocel")
+            .join("events.jsonl");
         let summary = replay_events(&path).unwrap();
         assert_eq!(summary.events_verified, 3);
         assert!(matches!(summary.status, ReplayStatus::Success));
@@ -1110,7 +1113,9 @@ mod tests {
         append_ocel_event(repo_dir, "evt_a", serde_json::json!({}), "").unwrap();
         append_ocel_event(repo_dir, "evt_b", serde_json::json!({}), "").unwrap();
         // Append a third event with a corrupted prev_hash
-        let ocel_dir = std::path::Path::new(repo_dir).join(".cargo-cicd").join("ocel");
+        let ocel_dir = std::path::Path::new(repo_dir)
+            .join(".cargo-cicd")
+            .join("ocel");
         let events_file = ocel_dir.join("events.jsonl");
         let mut record = OcelEventRecord {
             event_id: "bad-id".to_string(),
@@ -1125,10 +1130,16 @@ mod tests {
         to_hash.as_object_mut().unwrap().remove("event_hash");
         let cjson = canonical_json(&to_hash);
         record.event_hash = blake3_hex(cjson.as_bytes());
-        let mut file = std::fs::OpenOptions::new().append(true).open(&events_file).unwrap();
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&events_file)
+            .unwrap();
         writeln!(file, "{}", serde_json::to_string(&record).unwrap()).unwrap();
         let summary = replay_events(&events_file).unwrap();
-        assert!(matches!(summary.status, ReplayStatus::ChainBroken { index: 2 }));
+        assert!(matches!(
+            summary.status,
+            ReplayStatus::ChainBroken { index: 2 }
+        ));
     }
 }
 
@@ -1143,15 +1154,20 @@ pub struct OcelEventRecord {
     pub event_hash: String,
 }
 
-pub fn append_ocel_event(repo_dir: &str, event_type: &str, objects: serde_json::Value, git_delta: &str) -> Result<OcelEventRecord, String> {
-    use std::fs::{OpenOptions, File};
-    use std::io::{Write, BufRead, BufReader};
+pub fn append_ocel_event(
+    repo_dir: &str,
+    event_type: &str,
+    objects: serde_json::Value,
+    git_delta: &str,
+) -> Result<OcelEventRecord, String> {
+    use std::fs::{File, OpenOptions};
+    use std::io::{BufRead, BufReader, Write};
     use std::path::Path;
 
     let ocel_dir = Path::new(repo_dir).join(".cargo-cicd").join("ocel");
     std::fs::create_dir_all(&ocel_dir).map_err(|e| e.to_string())?;
     let events_file = ocel_dir.join("events.jsonl");
-    
+
     let mut prev_hash = "genesis".to_string();
     if events_file.exists() {
         let file = File::open(&events_file).map_err(|e| e.to_string())?;
@@ -1164,11 +1180,14 @@ pub fn append_ocel_event(repo_dir: &str, event_type: &str, objects: serde_json::
             }
         }
     }
-    
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     let event_id = format!("evt-{}-{}", now, std::process::id());
     let timestamp = format!("{}", now);
-    
+
     let mut record = OcelEventRecord {
         event_id,
         event_type: event_type.to_string(),
@@ -1178,16 +1197,20 @@ pub fn append_ocel_event(repo_dir: &str, event_type: &str, objects: serde_json::
         prev_hash,
         event_hash: String::new(),
     };
-    
+
     let mut to_hash = serde_json::to_value(&record).unwrap();
     to_hash.as_object_mut().unwrap().remove("event_hash");
-    
+
     let cjson = canonical_json(&to_hash);
     record.event_hash = blake3_hex(cjson.as_bytes());
-    
-    let mut file = OpenOptions::new().create(true).append(true).open(&events_file).map_err(|e| e.to_string())?;
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&events_file)
+        .map_err(|e| e.to_string())?;
     writeln!(file, "{}", serde_json::to_string(&record).unwrap()).map_err(|e| e.to_string())?;
-    
+
     Ok(record)
 }
 
@@ -1211,7 +1234,10 @@ pub fn replay_events(events_jsonl_path: &std::path::Path) -> Result<ReplaySummar
     use std::io::{BufRead, BufReader};
 
     if !events_jsonl_path.exists() {
-        return Ok(ReplaySummary { events_verified: 0, status: ReplayStatus::Empty });
+        return Ok(ReplaySummary {
+            events_verified: 0,
+            status: ReplayStatus::Empty,
+        });
     }
 
     let file = File::open(events_jsonl_path).map_err(|e| e.to_string())?;
@@ -1221,7 +1247,9 @@ pub fn replay_events(events_jsonl_path: &std::path::Path) -> Result<ReplaySummar
 
     for (i, line) in reader.lines().enumerate() {
         let l = line.map_err(|e| e.to_string())?;
-        if l.trim().is_empty() { continue; }
+        if l.trim().is_empty() {
+            continue;
+        }
         let record: OcelEventRecord = serde_json::from_str(&l).map_err(|e| e.to_string())?;
 
         // Verify hash first (so we use the stored hash for prev_hash tracking)
@@ -1231,11 +1259,17 @@ pub fn replay_events(events_jsonl_path: &std::path::Path) -> Result<ReplaySummar
         let computed_hash = blake3_hex(cjson.as_bytes());
 
         if computed_hash != record.event_hash {
-            return Ok(ReplaySummary { events_verified: i, status: ReplayStatus::HashInvalid { index: i } });
+            return Ok(ReplaySummary {
+                events_verified: i,
+                status: ReplayStatus::HashInvalid { index: i },
+            });
         }
 
         if record.prev_hash != expected_prev_hash {
-            return Ok(ReplaySummary { events_verified: i, status: ReplayStatus::ChainBroken { index: i } });
+            return Ok(ReplaySummary {
+                events_verified: i,
+                status: ReplayStatus::ChainBroken { index: i },
+            });
         }
 
         expected_prev_hash = record.event_hash.clone();
@@ -1244,7 +1278,9 @@ pub fn replay_events(events_jsonl_path: &std::path::Path) -> Result<ReplaySummar
 
     // Append a verification event to the log
     let repo_dir = events_jsonl_path
-        .parent().and_then(|p| p.parent()).and_then(|p| p.parent())
+        .parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.parent())
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|| ".".to_string());
     let _ = append_ocel_event(
@@ -1254,7 +1290,10 @@ pub fn replay_events(events_jsonl_path: &std::path::Path) -> Result<ReplaySummar
         "",
     );
 
-    Ok(ReplaySummary { events_verified: count, status: ReplayStatus::Success })
+    Ok(ReplaySummary {
+        events_verified: count,
+        status: ReplayStatus::Success,
+    })
 }
 
 /// Legacy wrapper: verify events in a repo directory.

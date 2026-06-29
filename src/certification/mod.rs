@@ -212,4 +212,3 @@ pub fn cert_body_recommendation(standard: &ComplianceStandard) -> String {
     );
     out
 }
-

@@ -1,6 +1,6 @@
-use clap_noun_verb_macros::verb;
-use clap_noun_verb::Result;
 use crate::ocel::{ReplayStatus, ReplaySummary};
+use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 
 #[derive(serde::Serialize)]
 pub struct OcelReplayOutput {
@@ -81,7 +81,10 @@ pub fn cmd_replay(repo: Option<String>, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string(&output).unwrap());
     } else if output.status == "success" {
-        println!("OCEL replay successful: {} events verified in {}", output.events_verified, repo_dir);
+        println!(
+            "OCEL replay successful: {} events verified in {}",
+            output.events_verified, repo_dir
+        );
     } else if output.status == "empty" {
         println!("OCEL replay: no events log found in {}", repo_dir);
     } else {
@@ -89,7 +92,9 @@ pub fn cmd_replay(repo: Option<String>, json: bool) -> Result<()> {
     }
 
     if output.q == 0 {
-        return Err(clap_noun_verb::error::NounVerbError::execution_error(output.error.unwrap()));
+        return Err(clap_noun_verb::error::NounVerbError::execution_error(
+            output.error.unwrap(),
+        ));
     }
 
     Ok(())

@@ -205,4 +205,3 @@ pub fn compliance_summary(asil: &Asil, satisfied: &[String], missing: &[String])
 
     out
 }
-

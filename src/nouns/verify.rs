@@ -1,12 +1,12 @@
-use clap_noun_verb_macros::verb;
 use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct VerifyOutput {
-    pub schema: String,   // "cargo-cicd.verify.v2"
+    pub schema: String, // "cargo-cicd.verify.v2"
     pub q_verify: u8,
     pub errors: Vec<String>,
-    pub semver_status: Option<String>,  // "pass", "fail", "unavailable"
+    pub semver_status: Option<String>, // "pass", "fail", "unavailable"
     pub semver_errors: Vec<String>,
 }
 
@@ -25,7 +25,12 @@ pub fn evaluate_verify(repo_dir: &str) -> VerifyOutput {
 
     if semver_available {
         let result = std::process::Command::new("cargo")
-            .args(["semver-checks", "check-release", "--package", "cargo-cicd-core"])
+            .args([
+                "semver-checks",
+                "check-release",
+                "--package",
+                "cargo-cicd-core",
+            ])
             .current_dir(repo_dir)
             .output();
 
@@ -70,4 +75,3 @@ pub fn cmd_repo(repo: Option<String>, json: bool) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&output).unwrap());
     Ok(())
 }
-

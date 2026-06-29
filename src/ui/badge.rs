@@ -167,4 +167,3 @@ pub fn dot(v: Verdict) -> String {
     let mark = Style::new().fg(v.color()).bold().paint(symbols::bullet());
     format!("{} {}", mark, v.label())
 }
-

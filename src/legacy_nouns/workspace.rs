@@ -64,14 +64,12 @@ impl VerbCommand for WorkspaceDoctorVerb {
         "Diagnose workspace health"
     }
     fn build_command(&self) -> clap::Command {
-        clap::Command::new(self.name())
-            .about(self.about())
-            .arg(
-                clap::Arg::new("json")
-                    .long("json")
-                    .action(clap::ArgAction::SetTrue)
-                    .help("Output machine-readable JSON"),
-            )
+        clap::Command::new(self.name()).about(self.about()).arg(
+            clap::Arg::new("json")
+                .long("json")
+                .action(clap::ArgAction::SetTrue)
+                .help("Output machine-readable JSON"),
+        )
     }
     fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
         let json_mode = std::env::args().any(|a| a == "--json");
@@ -215,7 +213,10 @@ impl VerbCommand for WorkspaceDoctorVerb {
                 if !json_mode {
                     println!(
                         "{}",
-                        check_row("FAIL", "Python/shell scripts acting as authority logic (fraud scan)")
+                        check_row(
+                            "FAIL",
+                            "Python/shell scripts acting as authority logic (fraud scan)"
+                        )
                     );
                     for f in &authority_files {
                         println!("    {} {}", theme::paint("->", Role::Muted), f);
@@ -240,7 +241,9 @@ impl VerbCommand for WorkspaceDoctorVerb {
         if json_mode {
             let mut checks = vec![];
             checks.push(serde_json::json!({ "name": "Cargo.toml", "status": if has_cargo { "OK" } else { "FAIL" } }));
-            checks.push(serde_json::json!({ "name": "toolchain", "status": "OK", "value": toolchain }));
+            checks.push(
+                serde_json::json!({ "name": "toolchain", "status": "OK", "value": toolchain }),
+            );
             checks.push(serde_json::json!({ "name": "rust-toolchain file", "status": if has_toolchain_file { "OK" } else { "WARN" } }));
             checks.push(serde_json::json!({ "name": "git repository", "status": if has_git { "OK" } else { "FAIL" } }));
             checks.push(serde_json::json!({ "name": "cicd.toml", "status": if has_cicd { "OK" } else { "WARN" } }));

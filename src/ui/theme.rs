@@ -103,4 +103,3 @@ pub fn field(label: &str, value: &str) -> String {
         paint(value, Role::Value)
     )
 }
-

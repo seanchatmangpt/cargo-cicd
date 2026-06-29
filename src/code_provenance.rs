@@ -162,7 +162,10 @@ pub fn emit_provenance_xes_attributes(
     provenance: &CodeProvenance,
 ) -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
-    map.insert("provenance:tag".to_string(), provenance.to_tag().to_string());
+    map.insert(
+        "provenance:tag".to_string(),
+        provenance.to_tag().to_string(),
+    );
     map.insert(
         "provenance:tool".to_string(),
         provenance.tool_name().unwrap_or("").to_string(),

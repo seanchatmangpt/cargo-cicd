@@ -342,4 +342,3 @@ pub fn kv_aligned(pairs: &[(&str, &str)], key_align: Align) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
-

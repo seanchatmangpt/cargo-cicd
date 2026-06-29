@@ -140,9 +140,7 @@ impl LanguageServer for Backend {
                                 kind: None,
                             },
                             FileSystemWatcher {
-                                glob_pattern: GlobPattern::String(
-                                    "**/*.receipt".to_string(),
-                                ),
+                                glob_pattern: GlobPattern::String("**/*.receipt".to_string()),
                                 kind: None,
                             },
                         ],
@@ -183,10 +181,7 @@ impl LanguageServer for Backend {
         // Populate document cache with the latest full-text sync (F-T2).
         if let Some(last) = params.content_changes.last() {
             let mut ws = self.workspace_state.write().await;
-            ws.set_document_text(
-                params.text_document.uri.to_string(),
-                last.text.clone(),
-            );
+            ws.set_document_text(params.text_document.uri.to_string(), last.text.clone());
         }
         self.refresh_diagnostics(&params.text_document.uri).await;
     }
@@ -225,9 +220,8 @@ impl LanguageServer for Backend {
             // Refresh diagnostics for the workspace cicd.toml.
             let cicd_toml_uri = {
                 let lock = self.workspace_root.read().await;
-                lock.as_ref().and_then(|root| {
-                    Url::from_file_path(root.join("cicd.toml")).ok()
-                })
+                lock.as_ref()
+                    .and_then(|root| Url::from_file_path(root.join("cicd.toml")).ok())
             };
             if let Some(uri) = cicd_toml_uri {
                 self.refresh_diagnostics(&uri).await;
@@ -318,9 +312,7 @@ impl LanguageServer for Backend {
                         );
 
                         // Range covers the key token on the hovered line.
-                        let key_start = line_text
-                            .find(key.as_str())
-                            .unwrap_or(0) as u32;
+                        let key_start = line_text.find(key.as_str()).unwrap_or(0) as u32;
                         let key_end = key_start + key.len() as u32;
                         let range = Range {
                             start: Position {
@@ -379,7 +371,10 @@ impl LanguageServer for Backend {
         }))
     }
 
-    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<serde_json::Value>> {
+    async fn execute_command(
+        &self,
+        params: ExecuteCommandParams,
+    ) -> Result<Option<serde_json::Value>> {
         if params.command != "cargo-cicd.execute" {
             return Ok(None);
         }

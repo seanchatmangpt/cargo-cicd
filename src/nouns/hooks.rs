@@ -1,5 +1,5 @@
-use clap_noun_verb_macros::verb;
 use clap_noun_verb::Result;
+use clap_noun_verb_macros::verb;
 use std::io::Read;
 
 #[verb("install")]
@@ -187,7 +187,10 @@ mod tests {
         let hook_path = format!("{}/.agents/hooks.json", repo);
         let content = std::fs::read_to_string(&hook_path).expect("hooks.json should exist");
 
-        assert!(!content.contains("cargo run"), "hook must not use 'cargo run'");
+        assert!(
+            !content.contains("cargo run"),
+            "hook must not use 'cargo run'"
+        );
 
         let binary_path = std::env::current_exe()
             .map(|p| p.to_string_lossy().to_string())

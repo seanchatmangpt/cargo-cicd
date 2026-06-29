@@ -425,5 +425,4 @@ mod tests {
         // Either finds the binary or returns None — both are valid here.
         let _ = WpmOracle::discover();
     }
-
 }

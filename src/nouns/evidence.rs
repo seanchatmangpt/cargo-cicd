@@ -1,7 +1,9 @@
-use clap_noun_verb_macros::verb;
+use crate::legacy_nouns::evidence::{
+    AuditVerb, DoctorVerb, EvidenceListVerb, EvidenceResetVerb, EvidenceShowVerb,
+};
 use clap_noun_verb::Result;
-use crate::legacy_nouns::evidence::{DoctorVerb, AuditVerb, EvidenceShowVerb, EvidenceListVerb, EvidenceResetVerb};
 use clap_noun_verb::{VerbArgs, VerbCommand};
+use clap_noun_verb_macros::verb;
 
 #[verb("doctor")]
 pub fn cmd_doctor() -> Result<()> {

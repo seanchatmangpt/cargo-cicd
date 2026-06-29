@@ -108,4 +108,3 @@ fn invariant_status_exits_zero() {
         .assert()
         .success();
 }
-

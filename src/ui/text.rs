@@ -94,4 +94,3 @@ pub fn fill(unit: &str, width: usize) -> String {
     }
     out
 }
-
