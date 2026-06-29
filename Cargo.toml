@@ -21,6 +21,7 @@ walkdir = "2"
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+chicago-tdd-tools = { path = "../chicago-tdd-tools", version = "26.6.29" }
 # Internal crates (path in workspace, version required for publishing)
 cargo-cicd-core = { version = "26.6", path = "crates/cargo-cicd-core" }
 cargo-cicd-lsp = { version = "26.6", path = "crates/cargo-cicd-lsp" }
@@ -236,6 +237,7 @@ assert_cmd = { workspace = true }
 tempfile = { workspace = true }
 predicates = { workspace = true }
 toml = { workspace = true }
+chicago-tdd-tools = { workspace = true }
 
 [patch.crates-io]
 wasm4pm-compat = { git = "https://github.com/seanchatmangpt/wasm4pm-compat" }

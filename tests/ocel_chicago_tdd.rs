@@ -49,21 +49,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use tempfile::TempDir;
 
-// ── Arrange-Act-Assert test macro (vendored) ──────────────────────────────────
+// ── Arrange-Act-Assert test macro ─────────────────────────────────────────────
 //
-// Previously sourced from the external `chicago-tdd-tools` crate, which was
-// declared as a machine-local `/tmp` path dependency. That broke every CI job
-// (cargo could not even load the workspace manifest) and the upstream git repo
-// is unresolvable (malformed `registry` submodule). The framework's only
-// surface used here is the AAA `test!` macro, so it is vendored inline: each
-// invocation expands to a standard `#[test]`, keeping the suite reproducible
-// with zero external/network dependencies.
-macro_rules! aaa_test {
-    ($name:ident, $body:block) => {
-        #[test]
-        fn $name() $body
-    };
-}
+// Imported from the officially published `chicago-tdd-tools` crate.
+use chicago_tdd_tools::test as aaa_test;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
