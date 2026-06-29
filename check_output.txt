@@ -1,0 +1,107 @@
+[1m[33mwarning[0m: patch `wasm4pm-compat v26.6.14 (https://github.com/seanchatmangpt/wasm4pm-compat#8b97e61f)` was not used in the crate graph
+[1m[96mhelp[0m: Check that the patched package version and available features are compatible
+      with the dependency requirements. If the patch has a different version from
+      what is locked in the Cargo.lock file, run `cargo update` to use the new
+      version. This may also occur with an optional dependency that is not enabled.
+[1m[92m    Checking[0m cargo-cicd v26.6.22 (/Users/sac/cargo-cicd)
+[1m[91merror[E0433][0m[1m: cannot find `barrier` in `crate`[0m
+  [1m[94m--> [0msrc/nouns/gate.rs:10:38
+   [1m[94m|[0m
+[1m[94m10[0m [1m[94m|[0m         let counterexamples = crate::barrier::detect_barriers(repo_path);
+   [1m[94m|[0m                                      [1m[91m^^^^^^^[0m [1m[91mcould not find `barrier` in the crate root[0m
+
+[1m[91merror[E0433][0m[1m: cannot find `Receipt` in `receipt`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:88:42
+   [1m[94m|[0m
+[1m[94m88[0m [1m[94m|[0m     let receipt = crate::nouns::receipt::Receipt::mint(&trace);
+   [1m[94m|[0m                                          [1m[91m^^^^^^^[0m [1m[91mcould not find `Receipt` in `receipt`[0m
+
+[1m[91merror[E0425][0m[1m: cannot find function `append_ocel_event` in module `crate::ocel`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:56:18
+   [1m[94m|[0m
+[1m[94m56[0m [1m[94m|[0m     crate::ocel::append_ocel_event(&repo_dir, "TraceProfileRequested", serde_json::json!({"profile": profile}), "").unwrap();
+   [1m[94m|[0m                  [1m[91m^^^^^^^^^^^^^^^^^[0m [1m[91mnot found in `crate::ocel`[0m
+
+[1m[91merror[E0425][0m[1m: cannot find function `append_ocel_event` in module `crate::ocel`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:57:18
+   [1m[94m|[0m
+[1m[94m57[0m [1m[94m|[0m     crate::ocel::append_ocel_event(&repo_dir, "JustRecipeResolved", serde_json::json!({"recipe": recipe}), "").unwrap();
+   [1m[94m|[0m                  [1m[91m^^^^^^^^^^^^^^^^^[0m [1m[91mnot found in `crate::ocel`[0m
+
+[1m[91merror[E0425][0m[1m: cannot find function `append_ocel_event` in module `crate::ocel`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:62:18
+   [1m[94m|[0m
+[1m[94m62[0m [1m[94m|[0m     crate::ocel::append_ocel_event(&repo_dir, "CommandStarted", serde_json::json!({"command": ["just", recipe]}), "").unwrap();
+   [1m[94m|[0m                  [1m[91m^^^^^^^^^^^^^^^^^[0m [1m[91mnot found in `crate::ocel`[0m
+
+[1m[91merror[E0425][0m[1m: cannot find function `append_ocel_event` in module `crate::ocel`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:70:18
+   [1m[94m|[0m
+[1m[94m70[0m [1m[94m|[0m     crate::ocel::append_ocel_event(&repo_dir, "CommandExited", serde_json::json!({"exit_code": exit_code}), &git_delta).unwrap();
+   [1m[94m|[0m                  [1m[91m^^^^^^^^^^^^^^^^^[0m [1m[91mnot found in `crate::ocel`[0m
+
+[1m[91merror[E0422][0m[1m: cannot find struct, variant or union type `ExecutionTrace` in module `crate::nouns::receipt`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:77:40
+   [1m[94m|[0m
+[1m[94m77[0m [1m[94m|[0m     let trace = crate::nouns::receipt::ExecutionTrace {
+   [1m[94m|[0m                                        [1m[91m^^^^^^^^^^^^^^[0m [1m[91mnot found in `crate::nouns::receipt`[0m
+
+[1m[91merror[E0425][0m[1m: cannot find function `append_ocel_event` in module `crate::ocel`[0m
+  [1m[94m--> [0msrc/nouns/trace.rs:95:35
+   [1m[94m|[0m
+[1m[94m95[0m [1m[94m|[0m     let ocel_event = crate::ocel::append_ocel_event(&repo_dir, "ReceiptMinted", serde_json::json!({"receipt_digest": receipt.receipt_digest}), &git_delta).unwrap();
+   [1m[94m|[0m                                   [1m[91m^^^^^^^^^^^^^^^^^[0m [1m[91mnot found in `crate::ocel`[0m
+
+[1m[33mwarning[0m[1m: unexpected `cfg` condition value: `anti-llm-cheat`[0m
+   [1m[94m--> [0msrc/legacy_nouns/lsp.rs:497:7
+    [1m[94m|[0m
+[1m[94m497[0m [1m[94m|[0m #[cfg(feature = "anti-llm-cheat")]
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: expected values for `feature` are: `advanced`, `affidavit`, `autoarch`, `autonomic`, `contrib`, `default`, `lsp`, `process-data`, and `wasm4pm`
+    [1m[94m= [0m[1mhelp[0m: consider adding `anti-llm-cheat` as a feature in `Cargo.toml`
+    [1m[94m= [0m[1mnote[0m: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    [1m[94m= [0m[1mnote[0m: `#[warn(unexpected_cfgs)]` on by default
+
+[1m[33mwarning[0m[1m: unexpected `cfg` condition value: `anti-llm-cheat`[0m
+   [1m[94m--> [0msrc/legacy_nouns/lsp.rs:500:7
+    [1m[94m|[0m
+[1m[94m500[0m [1m[94m|[0m #[cfg(feature = "anti-llm-cheat")]
+    [1m[94m|[0m       [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: expected values for `feature` are: `advanced`, `affidavit`, `autoarch`, `autonomic`, `contrib`, `default`, `lsp`, `process-data`, and `wasm4pm`
+    [1m[94m= [0m[1mhelp[0m: consider adding `anti-llm-cheat` as a feature in `Cargo.toml`
+    [1m[94m= [0m[1mnote[0m: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+[1m[33mwarning[0m[1m: unexpected `cfg` condition value: `anti-llm-cheat`[0m
+  [1m[94m--> [0msrc/legacy_nouns/lsp.rs:31:15
+   [1m[94m|[0m
+[1m[94m31[0m [1m[94m|[0m         #[cfg(feature = "anti-llm-cheat")]
+   [1m[94m|[0m               [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: expected values for `feature` are: `advanced`, `affidavit`, `autoarch`, `autonomic`, `contrib`, `default`, `lsp`, `process-data`, and `wasm4pm`
+   [1m[94m= [0m[1mhelp[0m: consider adding `anti-llm-cheat` as a feature in `Cargo.toml`
+   [1m[94m= [0m[1mnote[0m: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+[1m[33mwarning[0m[1m: variable does not need to be mutable[0m
+  [1m[94m--> [0msrc/legacy_nouns/pipeline.rs:64:13
+   [1m[94m|[0m
+[1m[94m64[0m [1m[94m|[0m         let mut steps: Vec<(&str, Vec<&str>)> = vec![
+   [1m[94m|[0m             [1m[94m----[0m[1m[33m^^^^^[0m
+   [1m[94m|[0m             [1m[94m|[0m
+   [1m[94m|[0m             [1m[94mhelp: remove this `mut`[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: unused variable: `json`[0m
+   [1m[94m--> [0msrc/nouns/doctor.rs:136:21
+    [1m[94m|[0m
+[1m[94m136[0m [1m[94m|[0m pub fn cmd_evidence(json: bool) -> Result<()> {
+    [1m[94m|[0m                     [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_json`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+[1mSome errors have detailed explanations: E0422, E0425, E0433.[0m
+[1mFor more information about an error, try `rustc --explain E0422`.[0m
+[1m[33mwarning[0m: `cargo-cicd` (lib) generated 5 warnings
+[1m[91merror[0m: could not compile `cargo-cicd` (lib) due to 8 previous errors; 5 warnings emitted

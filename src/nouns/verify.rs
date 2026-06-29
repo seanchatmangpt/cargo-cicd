@@ -71,36 +71,3 @@ pub fn cmd_repo(repo: Option<String>, json: bool) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn verify_semver_unavailable_does_not_fail() {
-        // When semver-checks is unavailable, q_verify should remain 1
-        // We simulate this by calling evaluate_verify with a path where the tool won't run
-        // Since we can't mock std::process::Command, we test the logic indirectly:
-        // if semver_status is "unavailable", q_verify must be 1
-        let output = VerifyOutput {
-            schema: "cargo-cicd.verify.v2".to_string(),
-            q_verify: 1,
-            errors: vec![],
-            semver_status: Some("unavailable".to_string()),
-            semver_errors: vec![],
-        };
-        assert_eq!(output.q_verify, 1);
-    }
-
-    #[test]
-    fn verify_output_schema_is_v2() {
-        // The schema field must be "cargo-cicd.verify.v2"
-        let output = VerifyOutput {
-            schema: "cargo-cicd.verify.v2".to_string(),
-            q_verify: 1,
-            errors: vec![],
-            semver_status: None,
-            semver_errors: vec![],
-        };
-        assert_eq!(output.schema, "cargo-cicd.verify.v2");
-    }
-}

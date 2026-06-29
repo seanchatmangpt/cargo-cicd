@@ -5,9 +5,9 @@ target_dir = "target"
 
 [state]
 dirty = true
-target_size_gb = 3.45
-changed_files = 3
-changed_tests = 0
+target_size_gb = 10.09
+changed_files = 224
+changed_tests = 21
 changed_trybuild_fixtures = 0
 
 [target]
@@ -33,19 +33,3 @@ mode = "suggest"
 [[events]]
 kind = "status"
 verdict = "pass"
-
-[profiles.test]
-runner = "just"
-recipe = "test"
-
-[profiles.clippy]
-runner = "just"
-recipe = "clippy"
-
-[profiles.dx]
-runner = "just"
-recipe = "dx"
-
-[profiles.dry-run]
-runner = "just"
-recipe = "publish-dry-run"

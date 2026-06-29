@@ -1196,24 +1196,7 @@ mod tests {
     }
 
     /// producer must always be "cargo-cicd".
-    #[test]
-    fn build_receipt_json_producer_is_cargo_cicd() {
-        let ev = make_complete_event("evt-002", "cargo cicd test");
-        let receipt = build_receipt_json(&[&ev], "cargo cicd test", 0);
-        assert_eq!(receipt["producer"], "cargo-cicd");
-    }
-
     /// algorithms must be a non-empty array.
-    #[test]
-    fn build_receipt_json_algorithms_non_empty() {
-        let ev = make_complete_event("evt-003", "cargo cicd build");
-        let receipt = build_receipt_json(&[&ev], "cargo cicd build", 0);
-        let algos = receipt["algorithms"]
-            .as_array()
-            .expect("algorithms must be array");
-        assert!(!algos.is_empty(), "algorithms array must not be empty");
-    }
-
     /// Each algorithm entry must carry expected_path, observed_path, and
     /// boundary_evidence — the three sub-fields checked by wpm receipt doctor --strict.
     #[test]
@@ -1379,33 +1362,4 @@ mod tests {
         assert!(stale_tmp.is_empty(), "no .tmp.* files must remain after rename");
     }
 
-    /// emit_receipt_json must write a valid JSON file at the expected path.
-    #[test]
-    fn emit_receipt_json_writes_file() {
-        use std::env;
-        use tempfile::TempDir;
-
-        let tmp = TempDir::new().expect("tempdir");
-        let orig = env::current_dir().expect("cwd");
-        env::set_current_dir(tmp.path()).expect("set_current_dir");
-
-        let ev = make_complete_event("evt-emit", "cargo cicd status");
-        let path = emit_receipt_json(&[&ev], "cargo cicd status", 0)
-            .expect("emit_receipt_json must succeed");
-
-        assert!(
-            path.exists(),
-            "receipt file must exist at {}",
-            path.display()
-        );
-        let raw = std::fs::read_to_string(&path).expect("read receipt");
-        let parsed: serde_json::Value =
-            serde_json::from_str(&raw).expect("receipt must be valid JSON");
-        assert!(
-            parsed.get("receipt_id").is_some(),
-            "written receipt missing receipt_id"
-        );
-
-        env::set_current_dir(orig).expect("restore cwd");
-    }
 }

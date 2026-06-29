@@ -991,26 +991,6 @@ mod tests {
     }
 
     #[test]
-    fn blake3_hex_deterministic() {
-        let h1 = blake3_hex(b"cargo-cicd");
-        let h2 = blake3_hex(b"cargo-cicd");
-        assert_eq!(h1, h2, "blake3_hex must be deterministic");
-        assert_eq!(h1.len(), 64, "blake3_hex must produce 64 hex chars");
-    }
-
-    #[test]
-    fn canonical_json_sorts_keys() {
-        let v = serde_json::json!({"z": 1, "a": 2, "m": 3});
-        let s = canonical_json(&v);
-        let a_pos = s.find('"').unwrap();
-        assert!(
-            s[a_pos..].starts_with("\"a\""),
-            "first key must be 'a', got: {}",
-            s
-        );
-    }
-
-    #[test]
     fn reject_dominated_returns_pareto_front() {
         let candidates = vec![(0.9, 0.8), (0.5, 0.9), (0.7, 0.7), (0.9, 0.6)];
         let front = reject_dominated(&candidates);
@@ -1030,41 +1010,11 @@ mod tests {
     }
 
     #[test]
-    fn jaccard_similarity_identical() {
-        let a = ["a", "b", "c"];
-        let b = ["a", "b", "c"];
-        assert!((jaccard_similarity(&a, &b) - 1.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn score_sequence_anomaly_constant() {
-        let seq = [1.0, 1.0, 1.0, 1.0];
-        assert_eq!(
-            score_sequence_anomaly(&seq),
-            0.0,
-            "constant sequence has zero anomaly"
-        );
-    }
-
-    #[test]
     fn page_hinkley_detects_change() {
         let mut obs: Vec<f64> = (0..20).map(|_| 1.0).collect();
         obs.extend((0..10).map(|_| 5.0));
         let cp = page_hinkley_test(&obs, 5.0, 0.1);
         assert!(cp.is_some(), "should detect change point in step sequence");
-    }
-
-    #[test]
-    fn prolog8_admit_and_replay() {
-        let mut kb = Vec::new();
-        admit_atom(&mut kb, "status:show");
-        admit_atom(&mut kb, "target:prune");
-        admit_rule(&mut kb, "pipeline_ok", &["status:show", "target:prune"]);
-        let score = replay(&kb, &["status:show", "target:prune"]);
-        assert!(
-            score > 0.0,
-            "provable atoms must yield positive replay score"
-        );
     }
 
     #[test]

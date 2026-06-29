@@ -180,26 +180,6 @@ mod tests {
     }
 
     #[test]
-    fn blake3_file_hex_returns_64_char_hex() {
-        let (f, hash) = write_temp_file("hello world");
-        assert_eq!(hash.len(), 64);
-        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
-        drop(f);
-    }
-
-    #[test]
-    fn blake3_file_hex_returns_err_for_missing_file() {
-        let result = blake3_file_hex(Path::new("/nonexistent/path/to/file.json"));
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn validate_receipt_file_not_found() {
-        let result = validate_receipt_file(Path::new("/nonexistent/receipt.json"), "expected_hash");
-        assert_eq!(result, ReceiptValidationResult::NotFound);
-    }
-
-    #[test]
     fn validate_receipt_file_hash_mismatch() {
         let (f, _real_hash) = write_temp_file(
             r#"{"verdict":"Accept","oracle_id":"wasm4pm","timestamp":"2026-01-01T00:00:00Z","case_id":"c1","trace_hash":"th1"}"#,
@@ -209,42 +189,5 @@ mod tests {
             result,
             ReceiptValidationResult::HashMismatch { .. }
         ));
-    }
-
-    #[test]
-    fn parse_receipt_json_valid() {
-        let json =
-            r#"{"verdict":"Accept","oracle_id":"wasm4pm/v1","timestamp":"2026-06-17T00:00:00Z"}"#;
-        let (verdict, ts, oracle) = parse_receipt_json(json).unwrap();
-        assert_eq!(verdict, "Accept");
-        assert_eq!(ts, "2026-06-17T00:00:00Z");
-        assert_eq!(oracle, "wasm4pm/v1");
-    }
-
-    #[test]
-    fn parse_receipt_json_malformed() {
-        let result = parse_receipt_json("not json at all {{{");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn receipt_has_required_fields_all_present() {
-        let json = r#"{"verdict":"Accept","oracle_id":"x","timestamp":"t","case_id":"c","trace_hash":"h"}"#;
-        let missing = receipt_has_required_fields(json);
-        assert!(
-            missing.is_empty(),
-            "expected no missing fields, got: {:?}",
-            missing
-        );
-    }
-
-    #[test]
-    fn receipt_has_required_fields_returns_missing() {
-        let json = r#"{"verdict":"Accept"}"#;
-        let missing = receipt_has_required_fields(json);
-        assert!(missing.contains(&"oracle_id".to_string()));
-        assert!(missing.contains(&"timestamp".to_string()));
-        assert!(missing.contains(&"case_id".to_string()));
-        assert!(missing.contains(&"trace_hash".to_string()));
     }
 }

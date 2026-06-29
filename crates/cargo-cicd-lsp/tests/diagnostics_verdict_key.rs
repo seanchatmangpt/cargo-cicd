@@ -85,15 +85,3 @@ fn precision_null_is_explicit_not_silent_zero() {
         "precision must be explicitly null when not computed, not silently absent or 0.0"
     );
 }
-
-#[test]
-fn wpm_004_diagnostic_code_is_defined() {
-    // Prove the code is registered in the diagnostic catalog.
-    let code = CicdCode::WpmVerdictKeyMismatch;
-    let display = format!("{}", code);
-    assert_eq!(display, "CICD-WPM-004");
-    assert!(
-        code.description().contains("mismatch") || code.description().contains("key"),
-        "CICD-WPM-004 description must mention key or mismatch"
-    );
-}

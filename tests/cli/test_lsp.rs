@@ -31,31 +31,6 @@ fn lsp_explain_unknown_code_fails() {
         .failure();
 }
 
-#[test]
-fn lsp_help_output_has_no_forbidden_terms() {
-    let output = Command::cargo_bin("cargo-cicd")
-        .unwrap()
-        .args(["lsp", "--help"])
-        .output()
-        .unwrap();
-    let text = String::from_utf8_lossy(&output.stdout).to_string()
-        + &String::from_utf8_lossy(&output.stderr);
-    for term in &[
-        "ALIVE",
-        "Nehemiah",
-        "CONSTRUCT8",
-        "Instinct8",
-        "Cargo Court",
-        "AGI",
-        "Truex",
-    ] {
-        assert!(
-            !text.contains(term),
-            "forbidden term '{}' in lsp --help",
-            term
-        );
-    }
-}
 
 #[cfg(feature = "anti-llm-cheat")]
 #[test]

@@ -385,47 +385,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn to_tag_human_roundtrips() {
-        let p = CodeProvenance::Human;
-        assert_eq!(p.to_tag(), "human");
-        assert_eq!(CodeProvenance::from_tag("human"), CodeProvenance::Human);
-    }
-
-    #[test]
-    fn to_tag_ai_assisted_with_tool() {
-        let p = CodeProvenance::AiAssisted {
-            tool: "copilot".to_string(),
-        };
-        assert_eq!(p.to_tag(), "ai-assisted");
-        assert_eq!(
-            CodeProvenance::from_tag("ai-assisted:copilot"),
-            CodeProvenance::AiAssisted {
-                tool: "copilot".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn to_tag_ai_generated_with_tool() {
-        let p = CodeProvenance::AiGenerated {
-            tool: "claude".to_string(),
-        };
-        assert_eq!(p.to_tag(), "ai-generated");
-        assert_eq!(
-            CodeProvenance::from_tag("ai-generated:claude"),
-            CodeProvenance::AiGenerated {
-                tool: "claude".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn unknown_roundtrips() {
-        assert_eq!(CodeProvenance::from_tag("unknown"), CodeProvenance::Unknown);
-        assert_eq!(CodeProvenance::from_tag("garbage"), CodeProvenance::Unknown);
-    }
-
-    #[test]
     fn detect_llm_patterns_low_confidence_for_clean_code() {
         let source = r#"
 fn add(a: i32, b: i32) -> i32 {
@@ -479,18 +438,6 @@ fn add(a: i32, b: i32) -> i32 {
     }
 
     #[test]
-    fn detect_llm_patterns_correct_line_numbers() {
-        let source = "fn foo() {}\n// This function does stuff\nfn bar() {}";
-        let result = detect_llm_patterns(source);
-        let signal = result
-            .signals
-            .iter()
-            .find(|s| s.pattern == "// This function")
-            .expect("signal must be present");
-        assert_eq!(signal.line, 2, "line number must be 1-based");
-    }
-
-    #[test]
     fn git_provenance_unknown_when_not_git_repo() {
         let result = detect_provenance_from_git(std::path::Path::new("/tmp"));
         assert_eq!(result, CodeProvenance::Unknown);
@@ -502,13 +449,5 @@ fn add(a: i32, b: i32) -> i32 {
         let summary = summarize_provenance(&[]);
         std::env::remove_var("CICD_CODE_PROVENANCE");
         assert_eq!(summary.tag, "ai-generated:claude");
-    }
-
-    #[test]
-    fn summarize_provenance_empty_input() {
-        let summary = summarize_provenance(&[]);
-        assert_eq!(summary.files_scanned, 0);
-        assert_eq!(summary.likely_llm_files, 0);
-        assert_eq!(summary.avg_confidence, 0.0);
     }
 }

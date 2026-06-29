@@ -73,7 +73,6 @@ you want to accomplish and need to know how to do it.
 | [Close a git phase (alternate)](how-to/close-a-git-phase.md) | Variant of the close guide covering edge cases and refusal messages |
 | [Publish with cicd.toml](how-to/publish-cicd-toml.md) | Publish a crate to crates.io with a cicd.toml receipt |
 | [Run the playground](how-to/run-the-playground.md) | Spin up the local playground workspace for experimentation |
-| [Use all feature flags](how-to/use-all-features.md) | Enable autonomic, wasm4pm, advanced, and contrib features together |
 
 ---
 
@@ -111,12 +110,11 @@ Key entry points in `cargo doc`:
 
 | Document | Contents |
 |----------|----------|
-| [Command reference](reference/commands.md) | All commands in noun-verb form with descriptions, global flags, and exit codes |
+| [Command reference](reference/COMMANDS.md) | All commands in noun-verb form with descriptions, global flags, and exit codes |
 | [cicd.toml schema](reference/cicd-toml.md) | Every field in `cicd.toml`: type, default, whether user-writable |
 | [Configuration](reference/configuration.md) | Configuration keys recognized by cargo-cicd at startup |
 | [Evidence format](reference/evidence-format.md) | XES and JSONL event schemas, field definitions, and serialization rules |
 | [Feature flags](reference/feature-flags.md) | `process-data`, `autonomic`, `wasm4pm`, `advanced`, `contrib` — what each enables and implies |
-| [Capabilities](reference/capabilities.md) | The full capability surface derived from the ontology: all nouns, verbs, and their properties |
 
 ### Per-command reference
 
@@ -166,7 +164,7 @@ design choice, not when you need to accomplish a task.
 | [Why wasm4pm evidence validation](explanation/why-wasm4pm-evidence-validation.md) | The reasoning behind external adjudication of process evidence rather than self-certification |
 | [Why changed test planning](explanation/why-changed-test-planning.md) | Why `test changed` runs only a subset of tests, and why this is safe rather than risky |
 | [Autonomic policies](explanation/autonomic-policies.md) | What the autonomic policy layer is, how suggest mode works, and why policies never take destructive action |
-| [Combinatorial maximalism rationale](explanation/combinatorial-maximalism-rationale.md) | The philosophy behind exhaustive combinatorial testing of noun-verb combinations |
+| [Combinatorial maximalism rationale](explanation/combinatorial-maximalism.md) | The philosophy behind exhaustive combinatorial testing of noun-verb combinations |
 
 ---
 
@@ -245,7 +243,7 @@ to go directly to the right document.
 | I want to... | Go here |
 |--------------|---------|
 | Install cargo-cicd for the first time | [Getting Started](tutorials/getting-started.md) |
-| See what commands are available | [Command reference](reference/commands.md) |
+| See what commands are available | [Command reference](reference/COMMANDS.md) |
 | Check if my workspace is ready to push | [Inspect workspace status](how-to/inspect-workspace-status.md) |
 | Run only the tests that matter for my change | [Run changed tests](how-to/run-changed-tests.md) |
 | Free up disk space from the target directory | [Manage the target directory](how-to/manage-target-directory.md) |

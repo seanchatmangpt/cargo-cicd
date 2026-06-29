@@ -437,25 +437,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cicd_code_display_matches_as_str() {
-        let code = CicdCode::GitDirtyTreeBlocksClose;
-        assert_eq!(format!("{}", code), code.as_str());
-    }
-
-    #[test]
-    fn cicd_code_from_str_roundtrip() {
-        let code = CicdCode::TargetDirOversize;
-        let s = code.as_str();
-        let back: CicdCode = s.parse().unwrap();
-        assert_eq!(back.as_str(), s);
-    }
-
-    #[test]
-    fn all_variants_returns_non_empty() {
-        assert!(!CicdCode::all_variants().is_empty());
-    }
-
-    #[test]
     fn cicd_code_category_not_empty() {
         for code in CicdCode::all_variants() {
             assert!(

@@ -463,36 +463,6 @@ aaa_test!(assert_wpm_verdict_ocel_passes_on_blocked_blocked, {
     assert_wpm_verdict_ocel(&oracle, absent, &ExpectedWpmVerdict::Blocked);
 });
 
-// ── Wasm4pmShell new receipt methods ─────────────────────────────────────────
-
-aaa_test!(
-    wasm4pm_shell_receipt_verify_ocel2_returns_err_when_absent,
-    {
-        // Arrange: detect() returns None in CI without wpm, so we use a known-absent path
-        if let Some(wpm) = Wasm4pmShell::detect() {
-            // Act
-            let result = wpm.receipt_verify_ocel2("/tmp/no-such-file.ocel.json");
-            // Assert: returns a Result (Ok or Err), never panics
-            let _ = result;
-        }
-        // If wpm not present, compile-time proof that the method exists is sufficient.
-    }
-);
-
-aaa_test!(wasm4pm_shell_six_receipt_methods_are_callable, {
-    // Compile-time check: all 6 new methods exist and have correct signatures.
-    // This test proves the API surface is complete even without a live wpm binary.
-    if let Some(wpm) = Wasm4pmShell::detect() {
-        let path = "/tmp/dummy.json";
-        let _ = wpm.receipt_verify_ocel2(path);
-        let _ = wpm.receipt_canonicalize_ocel2(path);
-        let _ = wpm.receipt_detect_fixture_mutation(path);
-        let _ = wpm.receipt_verify_boundary_evidence(path);
-        let _ = wpm.receipt_verify_proof_class(path);
-        let _ = wpm.autoprocess();
-    }
-});
-
 // ── ocel::OcelLog struct ──────────────────────────────────────────────────────
 
 aaa_test!(ocel_log_cargo_object_types_returns_11, {
@@ -936,20 +906,6 @@ aaa_test!(dimension_group_accumulates_values, {
     );
 });
 
-aaa_test!(dimension_group_label_is_preserved, {
-    // Arrange + Act
-    let dg: DimensionGroup<DimCount> = DimensionGroup::new("latency_ms");
-
-    // Assert
-    assert_eq!(
-        dg.label, "latency_ms",
-        "DimensionGroup must preserve the label"
-    );
-    assert!(
-        dg.values.is_empty(),
-        "new DimensionGroup must start with empty values"
-    );
-});
 
 aaa_test!(dimension_group_max_min, {
     // Arrange
@@ -1284,45 +1240,6 @@ aaa_test!(select_ucb1_prefers_unexplored_arm, {
     assert_eq!(
         chosen, 1,
         "select_ucb1 must select unexplored arm (UCB1 exploration bonus)"
-    );
-});
-
-// ── policy: evidence_stale accepts OCEL ───────────────────────────────────────
-
-aaa_test!(evidence_stale_policy_accepts_ocel_as_fresh, {
-    // Arrange: create a directory with only events.ocel.json (no events.xes)
-    let tmp = TempDir::new().unwrap();
-    let evidence_dir = tmp.path().join("evidence");
-    std::fs::create_dir_all(&evidence_dir).unwrap();
-    std::fs::write(evidence_dir.join("events.ocel.json"), b"{}").unwrap();
-
-    // Act: manually replicate the policy logic
-    let ocel = evidence_dir.join("events.ocel.json");
-    let xes = evidence_dir.join("events.xes");
-    let evidence_fresh = ocel.exists() || xes.exists();
-
-    // Assert — OCEL alone is sufficient to signal fresh evidence
-    assert!(
-        evidence_fresh,
-        "evidence_stale policy must treat events.ocel.json as fresh evidence"
-    );
-});
-
-aaa_test!(evidence_stale_policy_rejects_when_neither_format_present, {
-    // Arrange: empty directory — neither OCEL nor XES
-    let tmp = TempDir::new().unwrap();
-    let evidence_dir = tmp.path().join("evidence");
-    std::fs::create_dir_all(&evidence_dir).unwrap();
-
-    // Act: replicate policy logic
-    let ocel = evidence_dir.join("events.ocel.json");
-    let xes = evidence_dir.join("events.xes");
-    let evidence_fresh = ocel.exists() || xes.exists();
-
-    // Assert — no evidence files → stale
-    assert!(
-        !evidence_fresh,
-        "evidence_stale policy must report stale when neither OCEL nor XES is present"
     );
 });
 

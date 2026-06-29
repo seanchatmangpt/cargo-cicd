@@ -1,16 +1,13 @@
 <!-- BEGIN custom:introduction -->
 # cargo-cicd
 
-**cargo-cicd keeps Rust workspaces clean, fast, and push-ready.**
+**cargo-cicd is a sovereign admission controller and operational substrate for Rust workspaces, powered by star-toml.**
 
 [![Crates.io](https://img.shields.io/crates/v/cargo-cicd.svg)](https://crates.io/crates/cargo-cicd)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 
-`cargo-cicd` is a Cargo subcommand that brings CI/CD discipline to your local
-workflow. Run it before you push — catch dirty trees, bloated target
-directories, broken trybuild fixtures, and workspace health issues before they
-reach remote pipelines.
+`cargo-cicd` transitions Cargo from a simple build-and-test runner into a sovereign local execution container and admission authority. Powered by `star-toml`, it treats workspace settings as operational law, enforcing strict policies locally, generating cryptographically verified execution receipts, and ensuring publication only proceeds on proven, admitted configurations ($q_{config} = 1$).
 <!-- END custom:introduction -->
 
 ---
@@ -242,9 +239,11 @@ For release pipelines, add the wasm4pm oracle and enforce evidence gates:
 | Document | Description |
 |----------|-------------|
 | [docs/INDEX.md](docs/INDEX.md) | Master documentation index — find anything |
-| [docs/dx/ONBOARDING.md](docs/dx/ONBOARDING.md) | 30-minute onboarding guide for new contributors |
-| [docs/dx/CHEATSHEET.md](docs/dx/CHEATSHEET.md) | Developer cheat sheet: commands, flags, env vars |
-| [docs/dx/ECOSYSTEM_MAP.md](docs/dx/ECOSYSTEM_MAP.md) | Visual map of all modules and their interactions |
+| [docs/star-toml-refactor/PRD.md](docs/star-toml-refactor/PRD.md) | PRD: Product requirements for positioning cargo-cicd as an operational substrate |
+| [docs/star-toml-refactor/ARD.md](docs/star-toml-refactor/ARD.md) | ARD: Architectural layers (operational law, standing) and authority models |
+| [docs/star-toml-refactor/REFACTOR.md](docs/star-toml-refactor/REFACTOR.md) | Refactoring specifications (loader pipelines, diagnostics, receipt loops) |
+| [docs/contributing/README.md](docs/contributing/README.md) | Contributor Guide: onboarding, setup, and workflow |
+| [docs/DX_GUIDE.md](docs/DX_GUIDE.md) | Developer Experience Guide: quick reference and aliases |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Deep-dive: EngineState, adapters, noun-verb grammar |
 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | Testing strategy, fixtures, evidence-gate patterns |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Debugging adapter failures, test issues, policy verdicts |

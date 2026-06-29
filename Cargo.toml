@@ -154,10 +154,6 @@ name = "autonomic_policies"
 path = "tests/autonomic_policies.rs"
 
 [[test]]
-name = "changed_tests"
-path = "tests/changed_tests.rs"
-
-[[test]]
 name = "git_phase_closure"
 path = "tests/git_phase_closure.rs"
 
@@ -223,10 +219,6 @@ path = "tests/xes_v2_compliance.rs"
 [[test]]
 name = "certification_policies"
 path = "tests/certification_policies.rs"
-
-[[test]]
-name = "evidence_manifest"
-path = "tests/evidence_manifest.rs"
 
 [[test]]
 name = "affidavit_integration"

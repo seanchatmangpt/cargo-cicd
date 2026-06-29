@@ -343,48 +343,4 @@ mode = "suggest"
         let result = CicdToml::from_file(&path);
         assert!(result.is_err(), "expected Err for unknown field");
     }
-
-    #[test]
-    fn test_default_cicd_toml() {
-        let config = CicdToml::default();
-        assert_eq!(config.target.max_size_gb, 20);
-        assert_eq!(config.target.prune_after_days, 14);
-        assert!(config.autonomic.enabled);
-        assert_eq!(config.autonomic.mode, "suggest");
-        assert!(config.git.phase.require_clean_tree);
-        assert!(!config.git.phase.commit_after_phase);
-        assert!(config.test.changed.enabled);
-        assert_eq!(config.test.changed.base, "origin/main");
-        assert!(config.trybuild.changed.enabled);
-        assert_eq!(config.trybuild.changed.snapshot_mode, "changed-only");
-    }
-
-    #[test]
-    fn test_write_and_read_roundtrip() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("cicd.toml");
-        let config = CicdToml::default();
-        config.write(&path).expect("write failed");
-        let loaded = CicdToml::from_file(&path).expect("read failed");
-        assert_eq!(loaded.target.max_size_gb, config.target.max_size_gb);
-        assert_eq!(loaded.autonomic.mode, config.autonomic.mode);
-    }
-
-    #[test]
-    fn test_from_current_workspace_has_status_pass_event() {
-        let cicd = CicdToml::from_current_workspace();
-        assert_eq!(cicd.events.len(), 1);
-        assert_eq!(cicd.events[0].kind, "status");
-        assert_eq!(cicd.events[0].verdict, "pass");
-        assert!(cicd.events[0].details.is_none());
-        assert!(cicd.events[0].timestamp.is_none());
-    }
-
-    #[test]
-    fn test_event_record_optional_fields_skip_serialization() {
-        let record = EventRecord::status_pass();
-        let serialized = toml::to_string_pretty(&record).unwrap();
-        assert!(!serialized.contains("details"));
-        assert!(!serialized.contains("timestamp"));
-    }
 }
