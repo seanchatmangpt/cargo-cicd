@@ -15,7 +15,6 @@ use std::io::{stderr, IsTerminal, Write};
 use crate::ui::caps;
 use crate::ui::style::{Color, Style};
 use crate::ui::symbols;
-use crate::ui::text::{self, Align};
 
 /// Color for the spinning glyph while work is in progress.
 const SPINNER_STYLE: Style = Style::new().fg(Color::Cyan).bold();
@@ -165,38 +164,6 @@ fn threshold_color(frac: f64) -> Color {
     }
 }
 
-/// Build the raw (uncolored, ANSI-free) glyph string for `fraction` over
-/// `width` cells, using eighth-block sub-cell precision for the partial cell.
-fn raw_bar(fraction: f64, width: usize) -> String {
-    if width == 0 {
-        return String::new();
-    }
-    let f = fraction.clamp(0.0, 1.0);
-    let blocks = symbols::hblocks();
-    let full = blocks[8];
-    let empty = blocks[0];
-
-    // Total fill measured in eighths of a cell across the whole bar.
-    let total_eighths = (f * width as f64 * 8.0).round() as usize;
-    let full_cells = (total_eighths / 8).min(width);
-    let remainder = total_eighths % 8;
-
-    let mut out = String::new();
-    out.push_str(&full.repeat(full_cells));
-
-    let mut used = full_cells;
-    // A non-zero remainder draws one partial cell from the eighth-block ramp,
-    // but only if there is still room for it.
-    if remainder > 0 && used < width {
-        out.push_str(blocks[remainder]);
-        used += 1;
-    }
-    // Pad the rest with the empty-cell glyph so the bar is always `width` wide.
-    if used < width {
-        out.push_str(&empty.repeat(width - used));
-    }
-    out
-}
 
 /// Like [`raw_bar`] but paints the filled portion in `color` (when enabled). The
 /// trailing empty cells are dimmed so the track reads as background.

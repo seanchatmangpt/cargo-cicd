@@ -70,6 +70,7 @@ autoarch = ["autonomic"]
 contrib = ["process-data"]
 wasm4pm = ["process-data"]  # capability scan complete; integration deferred to v26.6.3
 lsp = []
+anti-llm-cheat = []
 # Cryptographic provenance receipts via the affidavit `affi` CLI (shell-out
 # oracle, mirroring wasm4pm). affidavit itself is a nightly-only crate, so it is
 # integrated as an external binary — never linked — to keep this build on stable.

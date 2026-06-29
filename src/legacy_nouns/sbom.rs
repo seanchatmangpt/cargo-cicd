@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 

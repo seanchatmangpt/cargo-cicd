@@ -1,5 +1,4 @@
 use super::{CicdPolicy, PolicyMode, PolicyResult};
-use crate::adapters::GitStatusAdapter;
 
 pub struct GitPhaseDirtyPolicy;
 

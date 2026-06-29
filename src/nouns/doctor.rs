@@ -258,6 +258,17 @@ pub fn cmd_evidence(_json: bool) -> Result<()> {
         .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))
 }
 
+#[verb("diff")]
+/// Diff current doctor results against a saved baseline.
+pub fn cmd_diff(
+    repo: Option<String>,
+    baseline: Option<String>,
+) -> Result<()> {
+    let repo_path = repo.unwrap_or_else(|| ".".into());
+    let repo_dir = Path::new(&repo_path);
+    diff_baseline_logic(repo_dir, baseline)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

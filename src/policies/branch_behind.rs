@@ -1,6 +1,5 @@
 //! Autonomic policy: branch behind remote blocks close.
 use super::{CicdPolicy, PolicyMode, PolicyResult};
-use std::process::Command;
 
 pub struct BranchBehindPolicy;
 
@@ -48,19 +47,3 @@ impl CicdPolicy for BranchBehindPolicy {
     }
 }
 
-/// Run `git rev-list --count HEAD..@{u}` and parse the result.
-///
-/// Returns `None` when git is unavailable or no upstream is configured.
-fn count_commits_behind() -> Option<usize> {
-    let output = Command::new("git")
-        .args(["rev-list", "--count", "HEAD..@{u}"])
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let stdout = String::from_utf8(output.stdout).ok()?;
-    stdout.trim().parse::<usize>().ok()
-}

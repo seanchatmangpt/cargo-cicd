@@ -1,3 +1,4 @@
+#[cfg(feature = "anti-llm-cheat")]
 use crate::evidence::ProcessEvent;
 use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};

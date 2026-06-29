@@ -1,5 +1,4 @@
 use super::{CicdPolicy, PolicyMode, PolicyResult};
-use crate::adapters::TargetScannerAdapter;
 
 pub struct TargetPressurePolicy {
     pub max_gb: f64,

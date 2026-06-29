@@ -778,22 +778,6 @@ impl ReceiptDoctor {
     }
 }
 
-/// Simple 32-byte hex digest (FNV-1a fan-out, no dependencies).
-fn simple_hex_hash(data: &[u8]) -> String {
-    // Use a stable 256-bit rolling hash based on FNV-1a over 8 lanes.
-    let mut h: [u64; 4] = [
-        0xcbf29ce484222325u64,
-        0x9e3779b97f4a7c15u64,
-        0x6c62272e07bb0142u64,
-        0x517cc1b727220a95u64,
-    ];
-    for (i, &b) in data.iter().enumerate() {
-        let lane = i % 4;
-        h[lane] ^= b as u64;
-        h[lane] = h[lane].wrapping_mul(0x00000100000001b3u64);
-    }
-    format!("{:016x}{:016x}{:016x}{:016x}", h[0], h[1], h[2], h[3])
-}
 
 /// Build an OCEL 2.0 receipt that satisfies `wpm receipt doctor --strict`.
 ///

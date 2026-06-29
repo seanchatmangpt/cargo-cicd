@@ -12,7 +12,7 @@ pub struct VerifyOutput {
 
 pub fn evaluate_verify(repo_dir: &str) -> VerifyOutput {
     let mut q_verify: u8 = 1;
-    let mut errors: Vec<String> = vec![];
+    let errors: Vec<String> = vec![];
     let semver_status: Option<String>;
     let mut semver_errors: Vec<String> = vec![];
 

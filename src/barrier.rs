@@ -49,7 +49,7 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
     let mut has_cargo_subcommand_unverified = false;
     let mut has_gate_without_receipt = false;
     let mut has_verify_without_receipt = false;
-    let mut has_just_without_receipt = false;
+    let has_just_without_receipt = false;
     let mut has_raw_cargo = false;
     let mut has_just_called_by_agent = false;
     let mut has_prose_completion_claim = false;

@@ -1,6 +1,5 @@
 //! Autonomic policy: stale evidence blocks close.
 use super::{CicdPolicy, PolicyMode, PolicyResult};
-use crate::adapters::ChangedFileDetector;
 
 pub struct EvidenceStalePolicy;
 

@@ -1,7 +1,7 @@
+#![allow(deprecated)]
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::autonomic::policy_engine;
 use crate::engine::EngineState;
-use crate::evidence::ProcessEvent;
 use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::badge::{self, Verdict};
 use crate::ui::theme::{self, Role};

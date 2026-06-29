@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 // src/nouns/certification.rs — cargo cicd certification show
 //
 // Prints an IEC 61508 / ISO 26262 compliance summary using the

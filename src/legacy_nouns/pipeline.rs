@@ -1,4 +1,3 @@
-use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct PipelineNoun;
@@ -61,7 +60,7 @@ impl PipelineRunVerb {
 
         // The declared activities executed as sub-processes in partial-order order.
         // status:audit (+ evidence:audit + receipt:write) is handled inline at the end.
-        let mut steps: Vec<(&str, Vec<&str>)> = vec![
+        let steps: Vec<(&str, Vec<&str>)> = vec![
             ("status:show", vec!["status", "show"]),
             ("target:show", vec!["target", "show"]),
             ("test:changed", vec!["test", "changed"]),
