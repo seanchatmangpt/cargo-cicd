@@ -421,6 +421,7 @@ mod tests {
             adjudicated_at: None,
             oracle_command: None,
             trace_class: "live_workspace".to_string(),
+            config_witness: None,
         }
     }
 

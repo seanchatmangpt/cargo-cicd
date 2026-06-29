@@ -52,13 +52,19 @@ impl CicdAnalyzer for EvidenceAnalyzer {
             if let Ok(content) = std::fs::read_to_string(&jsonl_path) {
                 let jsonl_str = jsonl_path.to_string_lossy().into_owned();
 
-                // CICD-EVIDENCE-003: hardcoded zero timestamp
-                let hardcoded_ts_count = content
-                    .lines()
-                    .filter(|l| l.contains("T00:00:00.000Z"))
-                    .count();
+                // CICD-EVIDENCE-003: hardcoded zero timestamp — track the first offending line.
+                let mut hardcoded_ts_count = 0u32;
+                let mut first_hardcoded_ts_line: Option<u32> = None;
+                for (idx, line) in content.lines().enumerate() {
+                    if line.contains("T00:00:00.000Z") {
+                        hardcoded_ts_count += 1;
+                        if first_hardcoded_ts_line.is_none() {
+                            first_hardcoded_ts_line = Some(idx as u32);
+                        }
+                    }
+                }
                 if hardcoded_ts_count > 0 {
-                    findings.push(CicdFinding::new(
+                    let mut finding = CicdFinding::new(
                         CicdCode::EvidenceHardcodedTimestamp,
                         jsonl_str.clone(),
                         "source event emitter",
@@ -71,16 +77,26 @@ impl CicdAnalyzer for EvidenceAnalyzer {
                              Timestamps must be derived from actual event times.",
                             hardcoded_ts_count
                         ),
-                    ));
+                    );
+                    if let Some(ln) = first_hardcoded_ts_line {
+                        finding = finding.at_line(ln);
+                    }
+                    findings.push(finding);
                 }
 
-                // CICD-EVIDENCE-004: null case_id
-                let null_case_count = content
-                    .lines()
-                    .filter(|l| l.contains("\"case_id\":null") || l.contains("\"case_id\": null"))
-                    .count();
+                // CICD-EVIDENCE-004: null case_id — track the first offending line.
+                let mut null_case_count = 0u32;
+                let mut first_null_case_line: Option<u32> = None;
+                for (idx, line) in content.lines().enumerate() {
+                    if line.contains("\"case_id\":null") || line.contains("\"case_id\": null") {
+                        null_case_count += 1;
+                        if first_null_case_line.is_none() {
+                            first_null_case_line = Some(idx as u32);
+                        }
+                    }
+                }
                 if null_case_count > 0 {
-                    findings.push(CicdFinding::new(
+                    let mut finding = CicdFinding::new(
                         CicdCode::EvidenceMissingCaseId,
                         jsonl_str,
                         "source event emitter",
@@ -93,7 +109,11 @@ impl CicdAnalyzer for EvidenceAnalyzer {
                              object lifecycle.",
                             null_case_count
                         ),
-                    ));
+                    );
+                    if let Some(ln) = first_null_case_line {
+                        finding = finding.at_line(ln);
+                    }
+                    findings.push(finding);
                 }
             }
         }

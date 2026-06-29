@@ -6,11 +6,12 @@
 use crate::certification::iec_61508::{self, Sil};
 use crate::certification::iso_26262::{self, Asil};
 use crate::certification::known_cert_bodies;
-use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
+use crate::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::theme::{self, Role};
 use crate::ui::{panel, symbols};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
+#[deprecated(since = "0.0.0", note = "Use crate::nouns::certification::CertificationNoun instead")]
 pub struct CertificationNoun;
 
 impl CertificationNoun {
@@ -41,6 +42,7 @@ impl NounCommand for CertificationNoun {
     }
 }
 
+#[deprecated(since = "0.0.0", note = "Use crate::nouns::certification::CertificationShowVerb instead")]
 pub struct CertificationShowVerb;
 
 impl CertificationShowVerb {

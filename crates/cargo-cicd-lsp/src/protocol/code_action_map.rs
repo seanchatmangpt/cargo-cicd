@@ -1,6 +1,6 @@
 //! Maps CicdFinding → LSP CodeActions.
 
-use tower_lsp::lsp_types::{CodeAction, CodeActionKind, Diagnostic, Url};
+use tower_lsp::lsp_types::{CodeAction, CodeActionKind, Command, Diagnostic, Url};
 
 use cargo_cicd_core::diagnostics::CicdFinding;
 
@@ -18,13 +18,18 @@ pub fn finding_to_actions(
 
     f.repairs
         .iter()
-        .map(|cmd| CodeAction {
+        .enumerate()
+        .map(|(i, cmd)| CodeAction {
             title: format!("cargo-cicd: {}", cmd),
             kind: Some(CodeActionKind::QUICKFIX),
             diagnostics: linked_diagnostics.clone(),
             edit: None,
-            command: None,
-            is_preferred: Some(false),
+            command: Some(Command {
+                title: cmd.clone(),
+                command: "cargo-cicd.execute".to_string(),
+                arguments: Some(vec![serde_json::json!(cmd)]),
+            }),
+            is_preferred: Some(i == 0),
             disabled: None,
             data: None,
         })

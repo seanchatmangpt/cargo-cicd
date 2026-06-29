@@ -24,6 +24,10 @@ pub fn build_server_capabilities() -> ServerCapabilities {
             trigger_characters: Some(vec!["-".to_string()]),
             ..CompletionOptions::default()
         }),
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: vec!["cargo-cicd.execute".to_string()],
+            ..Default::default()
+        }),
         ..Default::default()
     }
 }

@@ -16,6 +16,10 @@ pub struct CicdFinding {
     pub uri: Option<String>,
     pub route: Option<RepairRoute>,
     pub lifecycle: DiagnosticLifecycle,
+    /// 0-indexed LSP line number of the offending location, if known.
+    pub source_line: Option<u32>,
+    /// 0-indexed LSP character offset of the offending location, if known.
+    pub source_character: Option<u32>,
 }
 
 /// A suggested repair route for a finding.
@@ -43,6 +47,8 @@ impl CicdFinding {
             uri: None,
             route: None,
             lifecycle: DiagnosticLifecycle::Raised,
+            source_line: None,
+            source_character: None,
         }
     }
 
@@ -66,6 +72,18 @@ impl CicdFinding {
     /// Attach a repair route to this finding.
     pub fn with_route(mut self, route: RepairRoute) -> Self {
         self.route = Some(route);
+        self
+    }
+
+    /// Set the 0-indexed LSP line number where the issue was found.
+    pub fn at_line(mut self, line: u32) -> Self {
+        self.source_line = Some(line);
+        self
+    }
+
+    /// Set the 0-indexed LSP character offset where the issue was found.
+    pub fn at_character(mut self, char: u32) -> Self {
+        self.source_character = Some(char);
         self
     }
 }

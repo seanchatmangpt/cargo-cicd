@@ -1,0 +1,1 @@
+{"event_id": "1", "event_type": "CommandStarted", "command": ["just", "build"], "timestamp": "2026-06-27T00:00:00Z", "objects": [], "git_delta": "", "prev_hash": "0", "event_hash": "1"}

@@ -9,6 +9,8 @@ pub struct CapabilityCache {
     pub court_confirmed: bool,
     /// The wpm version string, if available.
     pub wpm_version: Option<String>,
+    /// Whether the file watcher capability has been registered with the client.
+    pub watcher_registered: bool,
 }
 
 impl CapabilityCache {

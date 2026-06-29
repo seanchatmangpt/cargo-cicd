@@ -87,6 +87,10 @@ pub struct ProcessEvent {
     ///   accumulated ambient history (VARIANCE verdict is expected and honest).
     #[serde(default = "default_trace_class")]
     pub trace_class: String,
+    /// BLAKE3 hex hash of the admitted star-toml config witness.
+    /// `None` when no config was loaded through the star-toml pipeline.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub config_witness: Option<String>,
 }
 
 fn default_trace_class() -> String {
@@ -113,6 +117,7 @@ impl ProcessEvent {
             adjudicated_at: None,
             oracle_command: None,
             trace_class: "live_workspace".to_string(),
+            config_witness: None,
         }
     }
 
@@ -136,6 +141,7 @@ impl ProcessEvent {
             adjudicated_at: None,
             oracle_command: None,
             trace_class: "live_workspace".to_string(),
+            config_witness: None,
         };
         (ev, t0)
     }
@@ -157,6 +163,7 @@ impl ProcessEvent {
             adjudicated_at: None,
             oracle_command: None,
             trace_class: "live_workspace".to_string(),
+            config_witness: None,
         }
     }
 
@@ -180,6 +187,7 @@ impl ProcessEvent {
             adjudicated_at: Some(now_iso8601()),
             oracle_command: Some(oracle.to_string()),
             trace_class: "live_workspace".to_string(),
+            config_witness: None,
         }
     }
 
@@ -407,6 +415,12 @@ fn build_ocel_log_impl(events: &[ProcessEvent], filter: bool) -> serde_json::Val
                 serde_json::Value::String(v.clone()),
             );
         }
+        if let Some(ref hash) = ev.config_witness {
+            vmap.insert(
+                "config:witness".into(),
+                serde_json::Value::String(hash.clone()),
+            );
+        }
 
         let typed_omap = serde_json::json!([{
             "ocel:objectId": workspace_id,
@@ -610,6 +624,12 @@ fn emit_xes_impl(events: &[ProcessEvent], path: &Path, filter: bool) -> Result<(
                 xml.push_str(&format!(
                     "      <string key=\"wasm4pm:oracle_command\" value=\"{}\"/>\n",
                     escape_xml(oracle)
+                ));
+            }
+            if let Some(ref hash) = event.config_witness {
+                xml.push_str(&format!(
+                    "      <string key=\"config:witness\" value=\"{}\"/>\n",
+                    escape_xml(hash)
                 ));
             }
             xml.push_str("    </event>\n");
@@ -935,44 +955,75 @@ pub fn read_journal(evidence_dir: &Path) -> Vec<ProcessEvent> {
 }
 
 pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()> {
-    use std::fs::OpenOptions;
-    use std::io::Write;
-
     if let Some(parent) = evidence_dir.parent() {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::create_dir_all(evidence_dir)?;
 
+    let pid = std::process::id();
+
+    // Clean up stale .tmp.* files older than 60 seconds before writing.
+    if let Ok(read_dir) = std::fs::read_dir(evidence_dir) {
+        let now = std::time::SystemTime::now();
+        for entry in read_dir.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.contains(".tmp.") {
+                if let Ok(meta) = entry.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if let Ok(age) = now.duration_since(modified) {
+                            if age.as_secs() > 60 {
+                                let _ = std::fs::remove_file(entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let jsonl_path = evidence_dir.join("events.jsonl");
     let xes_path = evidence_dir.join("events.xes");
     let ocel_path = evidence_dir.join("events.ocel.json");
 
-    // Append new events to the JSONL file (full fidelity — includes start and noise events
-    // for debug purposes; filtering happens only in emit_xes / emit_ocel).
-    {
-        let mut f = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&jsonl_path)?;
-        for ev in events {
-            let line = serde_json::to_string(ev)?;
-            writeln!(f, "{}", line)?;
-        }
+    let jsonl_tmp = evidence_dir.join(format!("events.jsonl.tmp.{}", pid));
+    let xes_tmp = evidence_dir.join(format!("events.xes.tmp.{}", pid));
+    let ocel_tmp = evidence_dir.join(format!("events.ocel.json.tmp.{}", pid));
+
+    // Read existing JSONL content, append new events in memory.
+    let existing = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
+    let mut new_content = existing.clone();
+    for ev in events {
+        let line = serde_json::to_string(ev)?;
+        new_content.push_str(&line);
+        new_content.push('\n');
     }
 
-    // Read the full accumulated JSONL back, rebuild XES and OCEL from all events.
-    // Both writers apply: noise filter + start-event filter + timestamp sort.
-    let content = std::fs::read_to_string(&jsonl_path).unwrap_or_default();
-    let all_events: Vec<ProcessEvent> = content
+    // Write full JSONL to tmp, then atomically rename.
+    std::fs::write(&jsonl_tmp, &new_content)?;
+    std::fs::rename(&jsonl_tmp, &jsonl_path)?;
+
+    // Parse all events from the now-committed JSONL.
+    let all_events: Vec<ProcessEvent> = new_content
         .lines()
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| serde_json::from_str(l).ok())
         .collect();
 
-    emit_xes_filtered(&all_events, &xes_path)?;
-    emit_ocel_filtered(&all_events, &ocel_path)?;
+    // Build and atomically write XES.
+    {
+        // Reuse emit_xes_impl logic by writing to tmp path first.
+        emit_xes_filtered(&all_events, &xes_tmp)?;
+        std::fs::rename(&xes_tmp, &xes_path)?;
+    }
 
-    // Archive the current XES and OCEL to history/ for fresh-trace-per-run traceability.
+    // Build and atomically write OCEL.
+    {
+        emit_ocel_filtered(&all_events, &ocel_tmp)?;
+        std::fs::rename(&ocel_tmp, &ocel_path)?;
+    }
+
+    // Archive the final renamed files to history/ for fresh-trace-per-run traceability.
     let history_dir = evidence_dir.join("history");
     if std::fs::create_dir_all(&history_dir).is_ok() {
         let ts = now_iso8601().replace(['-', ':', '.', 'T', 'Z'], "");
@@ -985,12 +1036,13 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
 
     // Autonomic Receipt Injection
     // Synchronously emit each event to affidavit and seal the receipt chain.
+    // Runs AFTER the rename sequence so the committed JSONL is on disk.
     #[cfg(feature = "affidavit")]
     if let Some(affi) = crate::integrations::affidavit_shell::AffidavitShell::detect() {
         let affi_dir = crate::integrations::affidavit_shell::affidavit_receipt_dir(evidence_dir);
         let _ = std::fs::create_dir_all(&affi_dir);
         let receipt_out = affi_dir.join("receipt.json");
-        
+
         for ev in events {
             let event_type = crate::integrations::affidavit_shell::event_type_for(&ev.command, &ev.lifecycle_transition);
             let object = crate::integrations::affidavit_shell::object_ref_for(ev);
@@ -1128,6 +1180,7 @@ mod tests {
             adjudicated_at: None,
             oracle_command: None,
             trace_class: "live_workspace".to_string(),
+            config_witness: None,
         }
     }
 
@@ -1254,6 +1307,30 @@ mod tests {
         );
     }
 
+    /// config_witness_appears_in_xes — a ProcessEvent with config_witness set
+    /// must include the "config:witness" XES attribute in the emitted XML.
+    #[test]
+    fn config_witness_appears_in_xes() {
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let xes_path = tmp.path().join("events.xes");
+
+        let mut ev = make_complete_event("evt-witness", "status:show");
+        ev.config_witness = Some("abcd1234".to_string());
+
+        emit_xes(&[ev], &xes_path).expect("emit_xes must succeed");
+        let xml = std::fs::read_to_string(&xes_path).expect("xes must exist");
+        assert!(
+            xml.contains("config:witness"),
+            "XES output must contain config:witness attribute"
+        );
+        assert!(
+            xml.contains("abcd1234"),
+            "XES output must contain the witness hash value"
+        );
+    }
+
     /// Only "complete" lifecycle events must appear in the observed OCEL; "start"
     /// events are filtered out.
     #[test]
@@ -1276,6 +1353,46 @@ mod tests {
             !ids.contains(&"evt-start"),
             "start event must be filtered out"
         );
+    }
+
+    /// atomic_write_survives_simulation — writing to tmp then renaming produces
+    /// correct JSONL content that round-trips through append_events.
+    #[test]
+    fn atomic_write_survives_simulation() {
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let ev_dir = tmp.path().join("evidence");
+
+        let ev1 = make_complete_event("evt-atomic-1", "status:show");
+        let ev2 = make_complete_event("evt-atomic-2", "test:changed");
+
+        // First append.
+        append_events(&[ev1], &ev_dir).expect("first append_events must succeed");
+
+        let jsonl_path = ev_dir.join("events.jsonl");
+        let content1 = std::fs::read_to_string(&jsonl_path).expect("jsonl must exist");
+        assert_eq!(content1.lines().count(), 1, "one event after first append");
+        assert!(content1.contains("evt-atomic-1"), "first event present");
+
+        // Second append — must accumulate, not overwrite.
+        append_events(&[ev2], &ev_dir).expect("second append_events must succeed");
+
+        let content2 = std::fs::read_to_string(&jsonl_path).expect("jsonl must exist");
+        assert_eq!(content2.lines().count(), 2, "two events after second append");
+        assert!(content2.contains("evt-atomic-1"), "first event retained");
+        assert!(content2.contains("evt-atomic-2"), "second event added");
+
+        // XES must exist and contain no tmp files left behind.
+        assert!(ev_dir.join("events.xes").exists(), "events.xes must exist");
+        assert!(ev_dir.join("events.ocel.json").exists(), "events.ocel.json must exist");
+
+        let stale_tmp: Vec<_> = std::fs::read_dir(&ev_dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp."))
+            .collect();
+        assert!(stale_tmp.is_empty(), "no .tmp.* files must remain after rename");
     }
 
     /// emit_receipt_json must write a valid JSON file at the expected path.

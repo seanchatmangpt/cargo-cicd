@@ -1,3 +1,6 @@
+//! DEPRECATED: All nouns have been migrated to src/nouns/. This module will be deleted.
+//! See CCICD-106 for the deletion milestone.
+//!
 //! Noun-verb CLI grammar for cargo-cicd.
 //!
 //! Each module in this directory corresponds to one *noun* — a domain area

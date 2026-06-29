@@ -65,6 +65,10 @@ pub struct EngineStateInner<State> {
     pub policies: PolicyState,
     /// Feature flag surface contract for v26.6.2.
     pub projection: ProjectionProfile,
+    /// The admitted cicd.toml configuration (or default if not present/invalid).
+    pub config: crate::cicd_toml::CicdToml,
+    /// BLAKE3 witness hash from the star-toml admission pipeline; None if no admitted config.
+    pub config_witness_hash: Option<String>,
     #[doc(hidden)]
     pub _state: std::marker::PhantomData<State>,
 }
@@ -77,6 +81,20 @@ impl EngineState {
     /// Failures are silenced — partial data is better than no data.
     pub fn from_workspace() -> Self {
         let mut state = Self::default();
+
+        // Load cicd.toml through the star-toml admission pipeline
+        match crate::cicd_toml::load_admitted() {
+            Ok(admitted) => {
+                state.config_witness_hash = Some(admitted.witness().hash().to_string());
+                state.config = admitted.value().clone();
+            }
+            Err(_) => {
+                // No cicd.toml or validation failed — fall back to load_or_default()
+                eprintln!("cargo-cicd: warning: cicd.toml not admitted; using defaults");
+                state.config = crate::cicd_toml::load_or_default();
+                state.config_witness_hash = None;
+            }
+        }
 
         // Populate workspace state
         state.workspace.name = crate::adapters::CargoMetadataAdapter::workspace_name();
@@ -110,9 +128,9 @@ impl EngineState {
             crate::adapters::TargetScannerAdapter::total_size_bytes(&target_dir);
 
         // Populate changed_files state
-        let base_ref = "origin/main";
-        state.changed_files.base_ref = base_ref.to_string();
-        let changed_rs = crate::adapters::ChangedFileDetector::changed_rs_files(base_ref);
+        let base_ref = state.config.test.changed.base.clone();
+        state.changed_files.base_ref = base_ref.clone();
+        let changed_rs = crate::adapters::ChangedFileDetector::changed_rs_files(&base_ref);
         let changed_test_files: Vec<String> = changed_rs
             .iter()
             .filter(|f| crate::adapters::ChangedFileDetector::is_test_file(f))
@@ -194,6 +212,8 @@ impl EngineState {
             artifacts: self.artifacts,
             policies: self.policies,
             projection: self.projection,
+            config: self.config,
+            config_witness_hash: self.config_witness_hash,
             _state: std::marker::PhantomData,
         }
     }
@@ -212,6 +232,80 @@ fn detect_toolchain() -> String {
         return content.trim().to_string();
     }
     "stable".into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // std::env::set_current_dir is process-global; serialize all cwd-mutating tests.
+    static CWD_LOCK: Mutex<()> = Mutex::new(());
+
+    fn write_cicd_toml(dir: &std::path::Path, base: &str) {
+        let content = format!(
+            r#"[workspace]
+name = "test-workspace"
+toolchain = "stable"
+target_dir = "target"
+
+[state]
+dirty = false
+target_size_gb = 0.0
+changed_files = 0
+changed_tests = 0
+changed_trybuild_fixtures = 0
+
+[target]
+max_size_gb = 20
+prune_after_days = 14
+
+[test.changed]
+enabled = true
+base = "{base}"
+
+[trybuild.changed]
+enabled = true
+snapshot_mode = "changed-only"
+
+[git.phase]
+require_clean_tree = true
+commit_after_phase = false
+
+[autonomic]
+enabled = true
+mode = "suggest"
+"#
+        );
+        std::fs::write(dir.join("cicd.toml"), content).unwrap();
+    }
+
+    #[test]
+    fn engine_uses_cicd_toml_base_ref() {
+        let _guard = CWD_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        write_cicd_toml(dir.path(), "origin/develop");
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let state = EngineState::from_workspace();
+        std::env::set_current_dir(prev).unwrap();
+        assert_eq!(state.changed_files.base_ref, "origin/develop");
+        assert_eq!(state.config.test.changed.base, "origin/develop");
+        assert!(state.config_witness_hash.is_some());
+    }
+
+    #[test]
+    fn engine_defaults_to_origin_main() {
+        let _guard = CWD_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let state = EngineState::from_workspace();
+        std::env::set_current_dir(prev).unwrap();
+        assert_eq!(state.changed_files.base_ref, "origin/main");
+        assert_eq!(state.config.test.changed.base, "origin/main");
+        assert!(state.config_witness_hash.is_none());
+    }
 }
 
 /// Detect rust edition from Cargo.toml

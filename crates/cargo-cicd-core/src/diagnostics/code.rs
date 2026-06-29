@@ -46,6 +46,11 @@ pub enum CicdCode {
     WpmVerdictKeyMismatch,
     // WORKSPACE family
     WorkspaceStructureInvalid,
+    // SCHEMA family
+    /// CICD-SCHEMA-001: cicd.toml contains a field not recognized by the schema.
+    CicdTomlUnknownField,
+    /// CICD-SCHEMA-002: cicd.toml contains a value that violates a schema constraint.
+    CicdTomlConstraintViolation,
 }
 
 impl CicdCode {
@@ -84,6 +89,8 @@ impl CicdCode {
             Self::WpmUnconfirmedReceiptCourt => "CICD-WPM-002",
             Self::WpmVerdictKeyMismatch => "CICD-WPM-004",
             Self::WorkspaceStructureInvalid => "CICD-WORKSPACE-001",
+            Self::CicdTomlUnknownField => "CICD-SCHEMA-001",
+            Self::CicdTomlConstraintViolation => "CICD-SCHEMA-002",
         }
     }
 
@@ -124,6 +131,8 @@ impl CicdCode {
                 "Verdict key mismatch between court output and audit reader"
             }
             Self::WorkspaceStructureInvalid => "Workspace structure invalid",
+            Self::CicdTomlUnknownField => "Unknown field in cicd.toml",
+            Self::CicdTomlConstraintViolation => "Constraint violation in cicd.toml",
         }
     }
 
@@ -186,6 +195,12 @@ impl CicdCode {
                 "wpm binary not found or receipt doctor not confirmed"
             }
             Self::WpmVerdictKeyMismatch => "court verdict key mismatch: audit reads wrong key",
+            Self::CicdTomlUnknownField => {
+                "cicd.toml contains a field that is not recognized by the schema"
+            }
+            Self::CicdTomlConstraintViolation => {
+                "cicd.toml contains a value that violates a schema constraint"
+            }
         }
     }
 
@@ -224,6 +239,8 @@ impl CicdCode {
             Self::WpmUnconfirmedReceiptCourt,
             Self::WpmVerdictKeyMismatch,
             Self::WorkspaceStructureInvalid,
+            Self::CicdTomlUnknownField,
+            Self::CicdTomlConstraintViolation,
         ]
     }
 
@@ -288,6 +305,12 @@ impl CicdCode {
             }
             Self::WpmRuntimeCourtNotInvoked => "run cargo cicd evidence doctor",
             Self::WpmVerdictKeyMismatch => "align court output schema with audit reader",
+            Self::CicdTomlUnknownField => {
+                "remove the unrecognized field or update to a supported cicd.toml schema version"
+            }
+            Self::CicdTomlConstraintViolation => {
+                "correct the field value to satisfy the cicd.toml schema constraints"
+            }
         }
     }
 
@@ -322,6 +345,7 @@ impl CicdCode {
             | Self::WpmUnconfirmedReceiptCourt
             | Self::WpmVerdictKeyMismatch => "WPM",
             Self::WorkspaceStructureInvalid => "WORKSPACE",
+            Self::CicdTomlUnknownField | Self::CicdTomlConstraintViolation => "SCHEMA",
         }
     }
 

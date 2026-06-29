@@ -42,8 +42,6 @@
 //! assert!(!state.trybuild.run_all_by_default, "conservative mode is the default");
 //! ```
 
-#![allow(dead_code, unused_imports)]
-
 pub mod adapters;
 #[cfg(feature = "advanced")]
 pub mod advanced;
@@ -53,7 +51,9 @@ pub mod cicd_toml;
 pub mod code_provenance;
 pub mod engine;
 pub mod evidence;
+pub mod evidence_helpers;
 pub mod evidence_jsonl;
+pub mod evidence_sarif;
 pub mod evidence_manifest;
 pub mod evidence_xes_v2;
 pub mod integrations;

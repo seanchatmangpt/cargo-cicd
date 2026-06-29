@@ -32,6 +32,7 @@ fn make_event(lifecycle: &str, verdict: &str) -> ProcessEvent {
         adjudicated_at: None,
         oracle_command: None,
         trace_class: "live_workspace".to_string(),
+        config_witness: None,
     }
 }
 

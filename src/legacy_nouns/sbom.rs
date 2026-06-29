@@ -1,6 +1,7 @@
 use crate::evidence::ProcessEvent;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
+#[deprecated(since = "0.0.0", note = "Use crate::nouns::sbom::SbomNoun instead")]
 pub struct SbomNoun;
 
 impl SbomNoun {
@@ -35,6 +36,7 @@ impl NounCommand for SbomNoun {
 
 // ── generate verb ──────────────────────────────────────────────────────────────
 
+#[deprecated(since = "0.0.0", note = "Use crate::nouns::sbom::SbomGenerateVerb instead")]
 pub struct SbomGenerateVerb;
 
 impl SbomGenerateVerb {
@@ -97,6 +99,7 @@ impl VerbCommand for SbomGenerateVerb {
 
 // ── show verb ──────────────────────────────────────────────────────────────────
 
+#[deprecated(since = "0.0.0", note = "Use crate::nouns::sbom::SbomShowVerb instead")]
 pub struct SbomShowVerb;
 
 impl SbomShowVerb {

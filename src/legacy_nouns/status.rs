@@ -8,6 +8,7 @@ use crate::ui::theme::{self, Role};
 use crate::ui::{chart, panel};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
+#[deprecated(note = "Use crate::nouns::status::cmd_show / cmd_audit directly (D-T1)")]
 pub struct StatusNoun;
 impl StatusNoun {
     pub fn new() -> Self {
@@ -33,6 +34,7 @@ impl NounCommand for StatusNoun {
 }
 
 impl StatusNoun {
+    #[deprecated(note = "Use crate::nouns::status::cmd_show directly (D-T1)")]
     pub fn run_direct() -> anyhow::Result<()> {
         StatusShowVerb.execute()
     }

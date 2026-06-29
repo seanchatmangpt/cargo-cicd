@@ -1,0 +1,13 @@
+{
+  "schema": "cargo-cicd.receipt.v1",
+  "command": ["cargo", "cicd", "trace", "profile", "--repo", ".", "--profile", "test", "--json"],
+  "exit_code": 0,
+  "stdout_digest": "deadbeef",
+  "stderr_digest": "deadbeef",
+  "git_before": "deadbeef",
+  "git_after": "deadbeef",
+  "input_artifacts": {},
+  "output_artifacts": {},
+  "timestamp": "2026-06-27T00:00:00Z",
+  "receipt_digest": "deadbeef"
+}

@@ -16,15 +16,16 @@ pub fn finding_to_lsp(f: &CicdFinding) -> Diagnostic {
     let code_str = f.code.as_str().to_string();
     let code = NumberOrString::String(code_str.clone());
 
-    // Default position: top of file. Findings from the analyzer carry no column info yet.
+    let start_line = f.source_line.unwrap_or(0);
+    let start_char = f.source_character.unwrap_or(0);
     let range = Range {
         start: Position {
-            line: 0,
-            character: 0,
+            line: start_line,
+            character: start_char,
         },
         end: Position {
-            line: 0,
-            character: 0,
+            line: start_line,
+            character: start_char.saturating_add(1),
         },
     };
 

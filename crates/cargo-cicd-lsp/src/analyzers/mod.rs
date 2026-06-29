@@ -6,6 +6,7 @@ use cargo_cicd_core::diagnostics::CicdFinding;
 use cargo_cicd_core::workspace::WorkspaceSnapshot;
 
 pub mod changed_tests;
+pub mod cicd_toml_schema;
 pub mod close_readiness;
 pub mod evidence;
 pub mod git_phase;
@@ -43,6 +44,7 @@ pub fn run_all(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
         Box::new(changed_tests::ChangedTestsAnalyzer),
         Box::new(pipeline_check::PipelineCheckAnalyzer),
         Box::new(workspace_structure::WorkspaceStructureAnalyzer),
+        Box::new(cicd_toml_schema::CicdTomlSchemaAnalyzer),
     ];
     analyzers.iter().flat_map(|a| a.analyze(snapshot)).collect()
 }

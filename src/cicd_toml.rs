@@ -1,9 +1,12 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use star_toml::loader::{ConfigLifecycle, TrustedLoader};
+use star_toml::{AdmittedConfig, Validate, Validator};
 use std::path::Path;
 
 /// v26.6.2 cicd.toml schema — the carrier contract
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct CicdToml {
     pub workspace: WorkspaceSection,
     pub state: StateSection,
@@ -20,6 +23,7 @@ pub struct CicdToml {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct WorkspaceSection {
     pub name: String,
     pub toolchain: String,
@@ -72,6 +76,7 @@ fn detect_toolchain() -> String {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct StateSection {
     pub dirty: bool,
     pub target_size_gb: f64,
@@ -81,6 +86,7 @@ pub struct StateSection {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TargetSection {
     pub max_size_gb: u32,
     pub prune_after_days: u32,
@@ -96,11 +102,13 @@ impl Default for TargetSection {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TestSection {
     pub changed: TestChangedSection,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TestChangedSection {
     pub enabled: bool,
     pub base: String,
@@ -116,11 +124,13 @@ impl Default for TestChangedSection {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TrybuildSection {
     pub changed: TrybuildChangedSection,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TrybuildChangedSection {
     pub enabled: bool,
     pub snapshot_mode: String,
@@ -136,11 +146,13 @@ impl Default for TrybuildChangedSection {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct GitSection {
     pub phase: GitPhaseSection,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct GitPhaseSection {
     pub require_clean_tree: bool,
     pub commit_after_phase: bool,
@@ -156,6 +168,7 @@ impl Default for GitPhaseSection {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct AutonomicSection {
     pub enabled: bool,
     pub mode: String,
@@ -225,9 +238,111 @@ impl CicdToml {
     }
 }
 
+impl Validate for CicdToml {
+    fn validate(&self, v: &mut Validator) {
+        v.check_non_empty("workspace.name", &self.workspace.name);
+        let tc = &self.workspace.toolchain;
+        let valid_toolchain = matches!(tc.as_str(), "stable" | "beta" | "nightly")
+            || tc.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false);
+        v.check_predicate(
+            "workspace.toolchain",
+            valid_toolchain,
+            "invalid_toolchain",
+            "must be stable, beta, nightly, or a version string starting with a digit",
+        );
+        v.check_non_empty("test.changed.base", &self.test.changed.base);
+        v.check_predicate(
+            "target.max_size_gb",
+            self.target.max_size_gb > 0,
+            "invalid_max_size_gb",
+            "must be greater than 0",
+        );
+    }
+}
+
+impl ConfigLifecycle for CicdToml {}
+
+/// Load and admit the cicd.toml configuration through the star-toml pipeline.
+/// Returns a typestate-sealed AdmittedConfig that carries a BLAKE3 witness hash.
+pub fn load_admitted() -> Result<AdmittedConfig<CicdToml>> {
+    let loader = TrustedLoader::new()
+        .layer_file_if_exists("cicd.toml")
+        .env_prefix("CICD_");
+    let admitted = loader.load_admitted::<CicdToml>()?;
+    Ok(admitted)
+}
+
+/// Load cicd.toml without admission — fallback for contexts where the
+/// typestate guarantee is not yet required.
+pub fn load_or_default() -> CicdToml {
+    CicdToml::from_file(std::path::Path::new("cicd.toml"))
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn valid_cicd_toml_admits() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cicd.toml");
+        let config = CicdToml::default();
+        config.write(&path).expect("write failed");
+        // Use from_file + check() to prove the validation pipeline.
+        let loaded = CicdToml::from_file(&path).expect("read failed");
+        loaded.check().expect("valid config should pass validation");
+    }
+
+    #[test]
+    fn empty_name_fails_validate() {
+        let mut config = CicdToml::default();
+        config.workspace.name = String::new();
+        assert!(config.check().is_err(), "expected validation errors for empty name");
+    }
+
+    #[test]
+    fn unknown_field_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cicd.toml");
+        let contents = r#"
+[workspace]
+name = "test"
+toolchain = "stable"
+target_dir = "target"
+frob = true
+
+[state]
+dirty = false
+target_size_gb = 0.0
+changed_files = 0
+changed_tests = 0
+changed_trybuild_fixtures = 0
+
+[target]
+max_size_gb = 20
+prune_after_days = 14
+
+[test.changed]
+enabled = true
+base = "origin/main"
+
+[trybuild.changed]
+enabled = true
+snapshot_mode = "changed-only"
+
+[git.phase]
+require_clean_tree = true
+commit_after_phase = false
+
+[autonomic]
+enabled = true
+mode = "suggest"
+"#;
+        std::fs::write(&path, contents).unwrap();
+        let result = CicdToml::from_file(&path);
+        assert!(result.is_err(), "expected Err for unknown field");
+    }
 
     #[test]
     fn test_default_cicd_toml() {

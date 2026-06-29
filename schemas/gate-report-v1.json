@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cargo-cicd.dev/schemas/gate-report-v1.json",
+  "title": "cargo-cicd gate report schema — version 1",
+  "description": "Contract for the JSON emitted by `cargo cicd gate repo --json`. All consumers MUST read these exact keys.",
+  "version": "1.0.0",
+  "emitted_by": "cargo cicd gate repo (src/nouns/gate.rs → compute_gate)",
+  "invariant": "q_release == 1 ⟺ counterexamples.is_empty(). No consumer may treat absence of q_release as passing.",
+  "type": "object",
+  "required": ["schema", "release", "q_release", "failset_cardinality", "counterexamples", "ocel_event_id", "components"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "cargo-cicd.gate.v1",
+      "description": "Stable schema identifier. Consumers MUST reject documents where this value differs."
+    },
+    "release": {
+      "type": "string",
+      "description": "Version string of the gate computation (e.g. v26.6.28)."
+    },
+    "q_release": {
+      "type": "integer",
+      "enum": [0, 1],
+      "description": "Binary release verdict. 1 = all components pass and counterexamples is empty. 0 = gate failed."
+    },
+    "failset_cardinality": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of counterexamples detected. Equals counterexamples.length()."
+    },
+    "counterexamples": {
+      "type": "array",
+      "description": "List of detected barrier violations. Empty iff q_release == 1.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "research_allowlist_present_in_locked_mode",
+          "antigravity_block_semantics_unproven",
+          "trace_profile_command_shape_inconsistent",
+          "cargo_subcommand_path_unverified",
+          "ocel_replay_placeholder",
+          "gate_without_trace_receipt",
+          "verify_without_trace_receipt",
+          "just_called_without_receipt",
+          "raw_cargo_used_by_agent",
+          "just_called_by_agent",
+          "shell_called_by_agent",
+          "python_called_by_agent",
+          "prose_completion_claim",
+          "compilation_treated_as_standing",
+          "receipt_without_execution_trace",
+          "manual_receipt_json",
+          "placeholder_authority",
+          "fake_test",
+          "dummy_gate",
+          "token_gate",
+          "hardcoded_commitment"
+        ]
+      }
+    },
+    "ocel_event_id": {
+      "type": "string",
+      "description": "OCEL event ID appended to the event log when this gate was computed."
+    },
+    "components": {
+      "type": "object",
+      "description": "Per-component binary scores. Each is 0 or 1.",
+      "required": [
+        "agent_boundary",
+        "pre_tool_use",
+        "trace_profile",
+        "receipt",
+        "ocel",
+        "doctor",
+        "gate",
+        "playground_cheats_detected",
+        "no_prose_standing",
+        "v_cargo_cicd"
+      ],
+      "properties": {
+        "agent_boundary":           { "type": "integer", "enum": [0, 1] },
+        "pre_tool_use":             { "type": "integer", "enum": [0, 1] },
+        "trace_profile":            { "type": "integer", "enum": [0, 1] },
+        "receipt":                  { "type": "integer", "enum": [0, 1] },
+        "ocel":                     { "type": "integer", "enum": [0, 1] },
+        "doctor":                   { "type": "integer", "enum": [0, 1] },
+        "gate":                     { "type": "integer", "enum": [0, 1] },
+        "playground_cheats_detected": { "type": "integer", "enum": [0, 1] },
+        "no_prose_standing":        { "type": "integer", "enum": [0, 1] },
+        "v_cargo_cicd":             { "type": "integer", "enum": [0, 1], "description": "Aggregate verdict. Equals q_release." }
+      },
+      "additionalProperties": false
+    }
+  },
+  "consumer_contract": {
+    "MUST_read": ["schema", "q_release", "counterexamples", "components.v_cargo_cicd"],
+    "MUST_NOT_read": ["components.V_cargo-cicd,26.6.27 (old key — removed)"],
+    "invariant_enforcement": "If q_release == 1 and counterexamples is non-empty, the document is malformed. Consumers MUST treat this as a gate failure.",
+    "key_mismatch_invariant": "If schema != 'cargo-cicd.gate.v1', consumers MUST reject the document."
+  }
+}

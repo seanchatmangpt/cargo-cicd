@@ -1,5 +1,8 @@
 //! Code provenance tracking for Vision 2030 process conformance.
 //!
+//! Git co-author parsing: [`detect_provenance_from_git`] reads the last 20
+//! commits and checks `Co-Authored-By` trailers for known AI tool names.
+//!
 //! Vision 2030 requires that all code is tagged with its authorship origin:
 //! human-authored, AI-assisted (human-led with AI suggestions), or AI-generated
 //! (AI-led with human review/approval). This metadata is embedded in
@@ -105,6 +108,70 @@ impl CodeProvenance {
             _ => None,
         }
     }
+}
+
+/// Known AI tool name fragments (lower-case) for co-author detection.
+const AI_TOOLS: &[&str] = &["claude", "copilot", "gpt", "gemini", "codeium"];
+
+/// Detect code provenance by inspecting git log co-author trailers.
+///
+/// Runs `git log --format="%aN <%ae>%n%(trailers:key=Co-Authored-By,valueonly)" -20`
+/// in `repo_dir` and searches `Co-Authored-By` lines for known AI tool names.
+///
+/// Returns:
+/// - [`CodeProvenance::AiAssisted`] with the first matched tool name, or
+/// - [`CodeProvenance::Unknown`] if git fails, is not a repo, or no AI tool
+///   name is found.
+///
+/// Never panics.
+pub fn detect_provenance_from_git(repo_dir: &std::path::Path) -> CodeProvenance {
+    let output = match std::process::Command::new("git")
+        .args(&[
+            "log",
+            "--format=%aN <%ae>%n%(trailers:key=Co-Authored-By,valueonly)",
+            "-20",
+        ])
+        .current_dir(repo_dir)
+        .output()
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return CodeProvenance::Unknown,
+    };
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        let lower = line.to_lowercase();
+        for &tool in AI_TOOLS {
+            if lower.contains(tool) {
+                return CodeProvenance::AiAssisted {
+                    tool: tool.to_string(),
+                };
+            }
+        }
+    }
+    CodeProvenance::Unknown
+}
+
+/// Emit XES-style provenance attributes for embedding in a trace event.
+///
+/// Returns a map with:
+/// - `"provenance:tag"` — e.g. `"ai-assisted"`
+/// - `"provenance:tool"` — tool name or `""` if not applicable
+/// - `"provenance:detection_method"` — always `"git-log"`
+pub fn emit_provenance_xes_attributes(
+    provenance: &CodeProvenance,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    map.insert("provenance:tag".to_string(), provenance.to_tag().to_string());
+    map.insert(
+        "provenance:tool".to_string(),
+        provenance.tool_name().unwrap_or("").to_string(),
+    );
+    map.insert(
+        "provenance:detection_method".to_string(),
+        "git-log".to_string(),
+    );
+    map
 }
 
 /// Patterns commonly seen in LLM-generated Rust source code.
@@ -218,20 +285,48 @@ pub struct ProvenanceSummary {
 ///
 /// Files that cannot be read are silently skipped.
 pub fn summarize_provenance(file_paths: &[String]) -> ProvenanceSummary {
-    // Env override takes precedence.
+    // 1. Env override takes precedence.
     let env_tag = std::env::var("CICD_CODE_PROVENANCE")
         .ok()
         .filter(|v| !v.trim().is_empty());
 
+    if let Some(ref tag) = env_tag {
+        if file_paths.is_empty() {
+            return ProvenanceSummary {
+                tag: tag.clone(),
+                files_scanned: 0,
+                likely_llm_files: 0,
+                avg_confidence: 0.0,
+            };
+        }
+    }
+
     if file_paths.is_empty() {
+        // 2. No files — try git from cwd, then fall back to unknown.
+        let git_provenance = detect_provenance_from_git(std::path::Path::new("."));
+        let tag = env_tag.unwrap_or_else(|| match &git_provenance {
+            CodeProvenance::Unknown => "unknown".to_string(),
+            p => {
+                let base = p.to_tag();
+                if let Some(tool) = p.tool_name() {
+                    format!("{}:{}", base, tool)
+                } else {
+                    base.to_string()
+                }
+            }
+        });
         return ProvenanceSummary {
-            tag: env_tag.unwrap_or_else(|| "unknown".to_string()),
+            tag,
             files_scanned: 0,
             likely_llm_files: 0,
             avg_confidence: 0.0,
         };
     }
 
+    // 3. Primary signal: git co-author detection from cwd.
+    let git_provenance = detect_provenance_from_git(std::path::Path::new("."));
+
+    // 4. Secondary signal: content heuristics.
     let mut total_confidence = 0.0f32;
     let mut likely_llm_files = 0usize;
     let mut files_scanned = 0usize;
@@ -255,12 +350,26 @@ pub fn summarize_provenance(file_paths: &[String]) -> ProvenanceSummary {
         0.0
     };
 
-    let inferred_tag = if avg_confidence >= 0.5 {
-        "ai-generated:unknown".to_string()
-    } else if avg_confidence >= 0.2 {
-        "ai-assisted:unknown".to_string()
-    } else {
-        "human".to_string()
+    // Prefer git result over content heuristics.
+    let inferred_tag = match &git_provenance {
+        CodeProvenance::Unknown => {
+            // Fall back to content heuristics.
+            if avg_confidence >= 0.5 {
+                "ai-generated:unknown".to_string()
+            } else if avg_confidence >= 0.2 {
+                "ai-assisted:unknown".to_string()
+            } else {
+                "human".to_string()
+            }
+        }
+        p => {
+            let base = p.to_tag();
+            if let Some(tool) = p.tool_name() {
+                format!("{}:{}", base, tool)
+            } else {
+                base.to_string()
+            }
+        }
     };
 
     ProvenanceSummary {
@@ -379,6 +488,20 @@ fn add(a: i32, b: i32) -> i32 {
             .find(|s| s.pattern == "// This function")
             .expect("signal must be present");
         assert_eq!(signal.line, 2, "line number must be 1-based");
+    }
+
+    #[test]
+    fn git_provenance_unknown_when_not_git_repo() {
+        let result = detect_provenance_from_git(std::path::Path::new("/tmp"));
+        assert_eq!(result, CodeProvenance::Unknown);
+    }
+
+    #[test]
+    fn provenance_env_override_takes_precedence() {
+        std::env::set_var("CICD_CODE_PROVENANCE", "ai-generated:claude");
+        let summary = summarize_provenance(&[]);
+        std::env::remove_var("CICD_CODE_PROVENANCE");
+        assert_eq!(summary.tag, "ai-generated:claude");
     }
 
     #[test]

@@ -19,6 +19,7 @@ pub struct TraceProfileOutput {
     pub receipt_path: String,
     pub ocel_event_id: String,
     pub q: i32,
+    pub provenance: String,
 }
 
 fn get_git_hash(repo_dir: &str) -> String {
@@ -89,6 +90,23 @@ pub fn cmd_profile(repo: Option<String>, profile: String, json: bool) -> Result<
     let receipt_path = receipts_dir.join("latest.json");
     std::fs::write(&receipt_path, serde_json::to_string_pretty(&receipt).unwrap()).unwrap();
     
+    let ocel_event = crate::ocel::append_ocel_event(&repo_dir, "ReceiptMinted", serde_json::json!({"receipt_digest": receipt.receipt_digest}), "").map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e))?;
+    let ocel_event_id = ocel_event.event_id;
+
+    let git_provenance =
+        crate::code_provenance::detect_provenance_from_git(std::path::Path::new(&repo_dir));
+    let provenance_tag = match &git_provenance {
+        crate::code_provenance::CodeProvenance::Unknown => "unknown".to_string(),
+        p => {
+            let base = p.to_tag();
+            if let Some(tool) = p.tool_name() {
+                format!("{}:{}", base, tool)
+            } else {
+                base.to_string()
+            }
+        }
+    };
+
     let out = TraceProfileOutput {
         schema: "cargo-cicd.trace.v1".to_string(),
         repo: repo_dir.clone(),
@@ -101,14 +119,15 @@ pub fn cmd_profile(repo: Option<String>, profile: String, json: bool) -> Result<
         git_before,
         git_after,
         receipt_path: receipt_path.to_string_lossy().to_string(),
-        ocel_event_id: "placeholder".to_string(),
-        q: 0,
+        ocel_event_id,
+        q: if exit_code == 0 { 1 } else { 0 },
+        provenance: provenance_tag,
     };
     
     if json {
         println!("{}", serde_json::to_string(&out).unwrap());
     } else {
-        println!("Trace Profile Output");
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
     }
     
     Ok(())

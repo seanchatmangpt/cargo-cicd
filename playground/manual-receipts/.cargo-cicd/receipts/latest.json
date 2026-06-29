@@ -1,0 +1,4 @@
+{
+  "schema": "cargo-cicd.receipt.v1",
+  "manual_receipt_json": true
+}
