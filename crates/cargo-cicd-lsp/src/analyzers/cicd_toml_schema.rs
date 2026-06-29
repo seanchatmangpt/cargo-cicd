@@ -23,7 +23,7 @@ impl CicdAnalyzer for CicdTomlSchemaAnalyzer {
 
 fn analyze_schema(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
     // Load the bundled schema (include_str! at compile time).
-    let schema_str = include_str!("../../../schemas/cicd-toml-v1.json");
+    let schema_str = include_str!("../../schemas/cicd-toml-v1.json");
     if schema_str.is_empty() {
         tracing::warn!("cicd-toml-v1.json schema is empty; skipping schema validation");
         return Vec::new();
