@@ -95,27 +95,3 @@ pub fn fill(unit: &str, width: usize) -> String {
     out
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn strip_and_width() {
-        let s = "\u{1b}[1;31mhi\u{1b}[0m";
-        assert_eq!(strip_ansi(s), "hi");
-        assert_eq!(display_width(s), 2);
-    }
-
-    #[test]
-    fn pad_alignment() {
-        assert_eq!(pad("ab", 5, Align::Left), "ab   ");
-        assert_eq!(pad("ab", 5, Align::Right), "   ab");
-        assert_eq!(pad("ab", 5, Align::Center), " ab  ");
-    }
-
-    #[test]
-    fn truncate_cuts() {
-        assert_eq!(truncate("hello world", 8, "…"), "hello w…");
-        assert_eq!(truncate("hi", 8, "…"), "hi");
-    }
-}

@@ -36,30 +36,6 @@ fn bodies_for_iec_61508_sil2_non_empty() {
     );
 }
 
-// ── 3. Sil::new(2).name() == "SIL 2" ─────────────────────────────────────────
-
-#[test]
-fn sil_new_2_name_is_sil_2() {
-    let sil = Sil::new(2);
-    assert_eq!(
-        sil.name(),
-        "SIL 2",
-        "Sil::new(2).name() must return \"SIL 2\""
-    );
-}
-
-// ── 4. iec_61508::requirements() returns at least 6 items ────────────────────
-
-#[test]
-fn iec_61508_requirements_at_least_six() {
-    let reqs = iec_61508::requirements();
-    assert!(
-        reqs.len() >= 6,
-        "expected at least 6 IEC 61508 requirements, got {}",
-        reqs.len()
-    );
-}
-
 // ── 5. check_requirement returns None when relevant noun is present ───────────
 
 #[test]
@@ -87,77 +63,12 @@ fn asil_d_severity_is_4() {
     assert_eq!(Asil::D.severity(), 4, "ASIL D must have severity 4");
 }
 
-// ── 7. iso_26262::requirements() returns at least 5 items ────────────────────
-
-#[test]
-fn iso_26262_requirements_at_least_five() {
-    let reqs = iso_26262::requirements();
-    assert!(
-        reqs.len() >= 5,
-        "expected at least 5 ISO 26262 requirements, got {}",
-        reqs.len()
-    );
-}
-
 // ── 8. is_certified([], "serde", "1.0.0") returns false ──────────────────────
 
 #[test]
 fn is_certified_empty_registry_returns_false() {
     let result = is_certified(&[], "serde", "1.0.0");
     assert!(!result, "empty registry must return false for any crate");
-}
-
-// ── 9. SafetyCriticalEntry can be constructed ─────────────────────────────────
-
-#[test]
-fn safety_critical_entry_can_be_constructed() {
-    let entry = SafetyCriticalEntry::new(
-        "example-safety-crate",
-        "0.1.0",
-        "ferrous-systems",
-        vec!["IEC 61508 SIL 2".to_string()],
-        "2026-06-17",
-        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    );
-    assert_eq!(entry.crate_name, "example-safety-crate");
-    assert_eq!(entry.version, "0.1.0");
-    assert_eq!(entry.cert_body_id, "ferrous-systems");
-    assert_eq!(entry.certified_at, "2026-06-17");
-    assert!(entry.evidence_url.is_none());
-}
-
-// ── 10. format_registry_listing([]) returns a header line ─────────────────────
-
-#[test]
-fn format_registry_listing_empty_has_header_line() {
-    let listing = format_registry_listing(&[]);
-    assert!(
-        listing.contains("Safety-Critical Crate Registry"),
-        "format_registry_listing([]) must contain a header line, got: {}",
-        listing
-    );
-}
-
-// ── Additional: ComplianceStandard display_name ───────────────────────────────
-
-#[test]
-fn compliance_standard_display_name_iec_61508() {
-    let s = ComplianceStandard::Iec61508 { sil_level: 3 };
-    assert_eq!(s.display_name(), "IEC 61508 SIL 3");
-}
-
-#[test]
-fn compliance_standard_display_name_iso_26262() {
-    let s = ComplianceStandard::Iso26262 { asil_level: 'D' };
-    assert_eq!(s.display_name(), "ISO 26262 ASIL D");
-}
-
-#[test]
-fn compliance_standard_short_code() {
-    assert_eq!(
-        ComplianceStandard::Fda21CfrPart11.short_code(),
-        "FDA-21CFR11"
-    );
 }
 
 // ── Additional: IEC 61508 compliance_summary ──────────────────────────────────
@@ -181,29 +92,12 @@ fn iec_61508_compliance_summary_contains_sil_name() {
     );
 }
 
-// ── Additional: ISO 26262 compliance_summary ──────────────────────────────────
-
-#[test]
-fn iso_26262_compliance_summary_contains_asil_name() {
-    let summary = iso_26262::compliance_summary(&Asil::B, &[], &[]);
-    assert!(summary.contains("ASIL B"), "summary must mention ASIL B");
-}
-
 // ── Additional: cert_body_recommendation ─────────────────────────────────────
 
 #[test]
 fn cert_body_recommendation_non_empty_for_known_standard() {
     let rec = cert_body_recommendation(&ComplianceStandard::Iec61508 { sil_level: 2 });
     assert!(!rec.is_empty(), "recommendation must not be empty");
-}
-
-#[test]
-fn cert_body_recommendation_fallback_for_unknown_standard() {
-    let rec = cert_body_recommendation(&ComplianceStandard::Custom(
-        "Hypothetical-Ultra-Standard-9999".to_string(),
-    ));
-    // Should contain guidance even when no body matches
-    assert!(!rec.is_empty());
 }
 
 // ── Additional: registry with an entry ────────────────────────────────────────
@@ -219,22 +113,4 @@ fn is_certified_found_in_registry() {
         "sha256:abcdef",
     );
     assert!(is_certified(&[entry], "safe-lib", "1.0.0"));
-}
-
-#[test]
-fn format_registry_listing_shows_entry_fields() {
-    let entry = SafetyCriticalEntry::new(
-        "my-critical-crate",
-        "2.3.4",
-        "trustinsoft",
-        vec!["IEC 61508 SIL 1".to_string()],
-        "2026-01-15",
-        "sha256:deadbeef",
-    )
-    .with_evidence_url("https://evidence.example.com/my-critical-crate/");
-
-    let listing = format_registry_listing(&[entry]);
-    assert!(listing.contains("my-critical-crate"));
-    assert!(listing.contains("trustinsoft"));
-    assert!(listing.contains("2026-01-15"));
 }

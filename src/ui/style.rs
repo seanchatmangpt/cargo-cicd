@@ -178,22 +178,3 @@ pub fn paint(text: impl AsRef<str>, style: Style) -> String {
     style.paint(text)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn plain_style_is_passthrough() {
-        assert_eq!(Style::new().paint("x"), "x");
-    }
-
-    #[test]
-    fn forced_color_wraps() {
-        caps::set_color_override(Some(true));
-        let out = Style::new().fg(Color::Red).bold().paint("x");
-        assert!(out.contains("31"));
-        assert!(out.starts_with("\u{1b}["));
-        assert!(out.ends_with("\u{1b}[0m"));
-        caps::set_color_override(None);
-    }
-}

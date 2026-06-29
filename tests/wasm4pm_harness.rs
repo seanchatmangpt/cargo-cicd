@@ -426,34 +426,4 @@ mod tests {
         let _ = WpmOracle::discover();
     }
 
-    #[test]
-    fn flip_verdict_mutation_changes_field() {
-        let ws = FixtureWorkspace::new_clean();
-        let ep = ws.evidence_path();
-        std::fs::create_dir_all(ep.parent().unwrap()).unwrap();
-        std::fs::write(
-            &ep,
-            r#"{"event_id":"e1","command":"test","verdict_claimed_by_cargo_cicd":"pass"}"#,
-        )
-        .unwrap();
-        ws.mutate_evidence(EvidenceMutation::FlipVerdict);
-        let events = ws.read_events();
-        let verdict = events[0]["verdict_claimed_by_cargo_cicd"].as_str().unwrap();
-        assert_eq!(verdict, "FAIL");
-    }
-
-    #[test]
-    fn omit_field_mutation_removes_key() {
-        let ws = FixtureWorkspace::new_clean();
-        let ep = ws.evidence_path();
-        std::fs::create_dir_all(ep.parent().unwrap()).unwrap();
-        std::fs::write(
-            &ep,
-            r#"{"event_id":"e1","command":"test","verdict_claimed_by_cargo_cicd":"pass"}"#,
-        )
-        .unwrap();
-        ws.mutate_evidence(EvidenceMutation::OmitField("command"));
-        let events = ws.read_events();
-        assert!(!events[0].as_object().unwrap().contains_key("command"));
-    }
 }

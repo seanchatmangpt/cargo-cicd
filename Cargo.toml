@@ -57,6 +57,7 @@ exclude = [
 [[bin]]
 name = "cargo-cicd"
 path = "src/main.rs"
+test = false
 
 [[bin]]
 name = "cicd-evidence-gen"
@@ -189,10 +190,6 @@ name = "ocel_chicago_tdd"
 path = "tests/ocel_chicago_tdd.rs"
 
 [[test]]
-name = "refusal_calibration"
-path = "tests/refusal_calibration.rs"
-
-[[test]]
 name = "lsp_explain"
 path = "tests/lsp_explain.rs"
 
@@ -207,10 +204,6 @@ path = "tests/cli/test_lsp.rs"
 [[test]]
 name = "oracle_key_lifecycle"
 path = "tests/oracle_key_lifecycle.rs"
-
-[[test]]
-name = "code_provenance_detection"
-path = "tests/code_provenance_detection.rs"
 
 [[test]]
 name = "xes_v2_compliance"

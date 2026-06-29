@@ -213,39 +213,3 @@ pub fn cert_body_recommendation(standard: &ComplianceStandard) -> String {
     out
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn known_cert_bodies_returns_at_least_three() {
-        assert!(known_cert_bodies().len() >= 3);
-    }
-
-    #[test]
-    fn bodies_for_iec_61508_sil2_non_empty() {
-        let bodies = bodies_for_standard(&ComplianceStandard::Iec61508 { sil_level: 2 });
-        assert!(
-            !bodies.is_empty(),
-            "expected at least one body to support IEC 61508 SIL 2"
-        );
-    }
-
-    #[test]
-    fn compliance_standard_display_name_iec() {
-        let s = ComplianceStandard::Iec61508 { sil_level: 3 };
-        assert_eq!(s.display_name(), "IEC 61508 SIL 3");
-    }
-
-    #[test]
-    fn compliance_standard_short_code_iso() {
-        let s = ComplianceStandard::Iso26262 { asil_level: 'C' };
-        assert_eq!(s.short_code(), "ISO-26262");
-    }
-
-    #[test]
-    fn cert_body_recommendation_non_empty() {
-        let rec = cert_body_recommendation(&ComplianceStandard::Iec61508 { sil_level: 2 });
-        assert!(!rec.is_empty());
-    }
-}
