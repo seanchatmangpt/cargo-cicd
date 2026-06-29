@@ -9,7 +9,7 @@ pub mod trybuild_changed;
 
 pub use branch_behind::BranchBehindPolicy;
 pub use diagnostics_bridge::render_policy_diagnostic;
-pub use evidence_stale::EvidenceStalePoliciy;
+pub use evidence_stale::EvidenceStalePolicy;
 pub use git_phase_dirty::GitPhaseDirtyPolicy;
 pub use publish_not_adjudicated::PublishNotAdjudicatedPolicy;
 pub use target_pressure::TargetPressurePolicy;

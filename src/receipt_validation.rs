@@ -10,11 +10,9 @@
 //!
 //! ## Hash implementation
 //!
-//! Neither `sha2`, `blake3`, nor `ring` are in the current Cargo.toml.
-//! This module uses the same FNV-1a fan-out hash used throughout the codebase
-//! (`evidence::simple_hex_hash`) and clearly labels it as a stub. To upgrade
-//! to true SHA-256, add `sha2 = "0.10"` to Cargo.toml and replace the
-//! `sha256_file_hex` body with a `sha2::Sha256` digest.
+//! Receipt files are content-addressed with BLAKE3 (32 bytes = 64 hex chars).
+//! The hash is cryptographic: finding a collision requires 2^256 work.
+//! Changing the hash algorithm requires a version bump and re-hashing all stored receipts.
 
 use std::path::Path;
 
@@ -55,7 +53,7 @@ pub fn validate_receipt_file(receipt_path: &Path, expected_hash: &str) -> Receip
         return ReceiptValidationResult::NotFound;
     }
 
-    let actual_hash = match sha256_file_hex(receipt_path) {
+    let actual_hash = match blake3_file_hex(receipt_path) {
         Ok(h) => h,
         Err(e) => return ReceiptValidationResult::ParseError(format!("hash error: {}", e)),
     };
@@ -80,21 +78,13 @@ pub fn validate_receipt_file(receipt_path: &Path, expected_hash: &str) -> Receip
     ReceiptValidationResult::Valid
 }
 
-/// Compute a hash of the file at `path` and return it as a lowercase hex string.
+/// Compute the BLAKE3 hash of the file at `path` and return it as a 64-char lowercase hex string.
 ///
-/// # Implementation note
-///
-/// This is a **stub implementation** using FNV-1a fan-out hashing (the same
-/// algorithm used in `evidence::simple_hex_hash`). It produces a 64-character
-/// hex string that is stable and consistent, but is **not** a true SHA-256 hash.
-///
-/// For a real cryptographic digest, run the receipt through the affidavit
-/// provenance engine (`cargo cicd affidavit verify`), which BLAKE3-content-
-/// addresses the receipt out-of-process via the `affi` CLI.
-pub fn sha256_file_hex(path: &Path) -> Result<String, String> {
+/// Changing the hash algorithm requires a version bump and re-hashing all stored receipts.
+pub fn blake3_file_hex(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    // STUB: FNV-1a fan-out hash. Real BLAKE3 is provided by the affi oracle.
-    Ok(fnv1a_fan_out_hex(&bytes))
+    let hash = blake3::hash(&bytes);
+    Ok(hash.as_bytes().iter().map(|b| format!("{:02x}", b)).collect())
 }
 
 /// Parse a receipt JSON string and extract the primary verdict fields.
@@ -161,26 +151,6 @@ pub fn receipt_has_required_fields(json_str: &str) -> Vec<String> {
         .collect()
 }
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
-
-/// FNV-1a fan-out hash producing a 64-char lowercase hex string.
-///
-/// Identical to `evidence::simple_hex_hash`. Duplicated here to keep the
-/// receipt_validation module self-contained without a cross-module dependency.
-fn fnv1a_fan_out_hex(data: &[u8]) -> String {
-    let mut h: [u64; 4] = [
-        0xcbf29ce484222325u64,
-        0x9e3779b97f4a7c15u64,
-        0x6c62272e07bb0142u64,
-        0x517cc1b727220a95u64,
-    ];
-    for (i, &b) in data.iter().enumerate() {
-        let lane = i % 4;
-        h[lane] ^= b as u64;
-        h[lane] = h[lane].wrapping_mul(0x00000100000001b3u64);
-    }
-    format!("{:016x}{:016x}{:016x}{:016x}", h[0], h[1], h[2], h[3])
-}
 
 #[cfg(test)]
 mod tests {
@@ -191,12 +161,26 @@ mod tests {
         let mut f = tempfile::NamedTempFile::new().unwrap();
         f.write_all(content.as_bytes()).unwrap();
         f.flush().unwrap();
-        let hash = sha256_file_hex(f.path()).unwrap();
+        let hash = blake3_file_hex(f.path()).unwrap();
         (f, hash)
     }
 
     #[test]
-    fn sha256_file_hex_returns_64_char_hex() {
+    fn blake3_known_vector() {
+        // BLAKE3 reference value for b"hello world"
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        use std::io::Write;
+        f.write_all(b"hello world").unwrap();
+        f.flush().unwrap();
+        let hash = blake3_file_hex(f.path()).unwrap();
+        assert_eq!(
+            hash,
+            "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24"
+        );
+    }
+
+    #[test]
+    fn blake3_file_hex_returns_64_char_hex() {
         let (f, hash) = write_temp_file("hello world");
         assert_eq!(hash.len(), 64);
         assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
@@ -204,8 +188,8 @@ mod tests {
     }
 
     #[test]
-    fn sha256_file_hex_returns_err_for_missing_file() {
-        let result = sha256_file_hex(Path::new("/nonexistent/path/to/file.json"));
+    fn blake3_file_hex_returns_err_for_missing_file() {
+        let result = blake3_file_hex(Path::new("/nonexistent/path/to/file.json"));
         assert!(result.is_err());
     }
 

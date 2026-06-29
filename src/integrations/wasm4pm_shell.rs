@@ -38,11 +38,60 @@
 //! ```
 
 use anyhow::{bail, Result};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Known path to the wpm binary from the capability scan.
-const WPM_KNOWN_PATH: &str = "/Users/sac/wasm4pm/target/release/wpm";
+/// Discover the wpm binary using a priority-ordered candidate list.
+///
+/// Discovery order:
+/// 1. `WPM_BIN` environment variable
+/// 2. `WPM_PATH` environment variable
+/// 3. Each path in `WPM_SEARCH_PATHS` (colon-separated on Unix)
+/// 4. `.bin/wpm` relative to working directory
+/// 5. `bin/wpm` relative to working directory
+/// 6. `which wpm` PATH lookup
+///
+/// Returns `None` if no candidate resolves to an existing file.
+pub fn discover_wpm_binary() -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    for var in &["WPM_BIN", "WPM_PATH"] {
+        if let Ok(val) = std::env::var(var) {
+            if !val.is_empty() {
+                candidates.push(PathBuf::from(val));
+            }
+        }
+    }
+
+    if let Ok(search_paths) = std::env::var("WPM_SEARCH_PATHS") {
+        for path in search_paths.split(':') {
+            if !path.is_empty() {
+                candidates.push(PathBuf::from(path));
+            }
+        }
+    }
+
+    candidates.push(PathBuf::from(".bin/wpm"));
+    candidates.push(PathBuf::from("bin/wpm"));
+
+    for candidate in candidates {
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+
+    if let Ok(output) = Command::new("which").arg("wpm").output() {
+        let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !p.is_empty() {
+            let pb = PathBuf::from(&p);
+            if pb.is_file() {
+                return Some(pb);
+            }
+        }
+    }
+
+    None
+}
 
 /// Shell-out adapter for the confirmed wpm CLI commands.
 /// Detected at runtime — if wpm is absent, all methods return graceful PARTIAL.
@@ -100,21 +149,14 @@ impl std::fmt::Display for WpmVerdict {
 
 impl Wasm4pmShell {
     /// Detect the wpm binary. Returns None if not found.
-    /// Tries: (1) $WPM_PATH env var, (2) known scan path, (3) PATH lookup.
+    /// Uses `discover_wpm_binary()` for multi-source resolution.
     pub fn detect() -> Option<Self> {
-        // Env override
-        if let Ok(path) = std::env::var("WPM_PATH") {
-            if Path::new(&path).exists() {
-                return Some(Self { binary: path });
-            }
-        }
-        // Known path from capability scan
-        if Path::new(WPM_KNOWN_PATH).exists() {
+        if let Some(pb) = discover_wpm_binary() {
             return Some(Self {
-                binary: WPM_KNOWN_PATH.to_string(),
+                binary: pb.to_string_lossy().into_owned(),
             });
         }
-        // PATH lookup
+        // Legacy PATH lookup fallback (kept for environments that set PATH but not env vars)
         if let Ok(output) = Command::new("which").arg("wpm").output() {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();

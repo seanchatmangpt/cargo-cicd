@@ -22,68 +22,25 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-use crate::integrations::{Wasm4pmShell, WpmVerdict};
+use crate::integrations::{discover_wpm_binary, Wasm4pmShell, WpmVerdict};
 
-// ── Timestamp helpers (std-only, no chrono) ───────────────────────────────────
+// ── Timestamp helpers ─────────────────────────────────────────────────────────
 
 /// Return the current UTC time as an ISO-8601 string, e.g.
 /// `"2026-06-02T13:45:07.123Z"`.
 pub fn now_iso8601() -> String {
-    use std::time::SystemTime;
-    let d = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = d.as_secs();
-    let ms = d.subsec_millis();
-    let (y, mo, day) = epoch_secs_to_ymd(secs);
-    let h = (secs % 86400) / 3600;
-    let mi = (secs % 3600) / 60;
-    let s = secs % 60;
+    let ts = jiff::Timestamp::now();
+    let dt = ts.to_zoned(jiff::tz::TimeZone::UTC);
     format!(
         "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-        y, mo, day, h, mi, s, ms
+        dt.year(),
+        dt.month(),
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second(),
+        dt.millisecond(),
     )
-}
-
-fn epoch_secs_to_ymd(secs: u64) -> (u64, u64, u64) {
-    let mut days = secs / 86400;
-    let mut y = 1970u64;
-    loop {
-        let dy = if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 {
-            366
-        } else {
-            365
-        };
-        if days < dy {
-            break;
-        }
-        days -= dy;
-        y += 1;
-    }
-    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-    let mdays: [u64; 12] = [
-        31,
-        if leap { 29 } else { 28 },
-        31,
-        30,
-        31,
-        30,
-        31,
-        31,
-        30,
-        31,
-        30,
-        31,
-    ];
-    let mut mo = 1u64;
-    for md in &mdays {
-        if days < *md {
-            break;
-        }
-        days -= md;
-        mo += 1;
-    }
-    (y, mo, days + 1)
 }
 
 /// Build a compact event-id from the current timestamp (no special chars).
@@ -731,32 +688,9 @@ pub struct ReceiptDoctor {
 }
 
 impl ReceiptDoctor {
-    const KNOWN_WPM_PATH: &'static str = "/Users/sac/wasm4pm/target/release/wpm";
-
-    /// Discover wpm binary. Returns `None` if not found.
+    /// Discover wpm binary using canonical multi-source discovery.
     pub fn discover() -> Option<Self> {
-        use std::path::Path;
-        // Check env override, known path, then PATH.
-        let candidates: Vec<String> = vec![
-            std::env::var("WPM_BIN").unwrap_or_default(),
-            Self::KNOWN_WPM_PATH.to_string(),
-        ];
-        for c in candidates {
-            if !c.is_empty() && Path::new(&c).is_file() {
-                return Some(Self {
-                    wpm_path: PathBuf::from(c),
-                });
-            }
-        }
-        if let Ok(output) = std::process::Command::new("which").arg("wpm").output() {
-            let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !p.is_empty() && Path::new(&p).is_file() {
-                return Some(Self {
-                    wpm_path: PathBuf::from(p),
-                });
-            }
-        }
-        None
+        discover_wpm_binary().map(|pb| Self { wpm_path: pb })
     }
 
     /// Run `wpm receipt doctor --format json --strict <receipt_path>`.

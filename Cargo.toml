@@ -78,7 +78,6 @@ advanced = [
   "process-data",
   "dep:ignore",
   "dep:rayon",
-  "dep:blake3",
   "dep:tracing",
   "dep:tracing-subscriber",
   "dep:miette",
@@ -86,7 +85,6 @@ advanced = [
   "dep:moka",
   "dep:bitcode",
   "dep:petgraph",
-  "dep:jiff",
   "dep:hdrhistogram",
   "dep:aho-corasick",
 ]
@@ -106,7 +104,7 @@ walkdir = { workspace = true }
 # --- advanced capabilities (best-of-breed / bleeding-edge), gated behind `advanced` ---
 ignore = { version = "0.4", optional = true }
 rayon = { version = "1", optional = true }
-blake3 = { version = "1", optional = true }
+blake3 = { version = "1" }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = ["fmt", "env-filter", "json"] }
 miette = { version = "7", optional = true, features = ["fancy"] }
@@ -114,7 +112,7 @@ thiserror = { version = "2", optional = true }
 moka = { version = "0.12", optional = true, features = ["sync"] }
 bitcode = { version = "0.6", optional = true, features = ["serde"] }
 petgraph = { version = "0.6", optional = true }
-jiff = { version = "0.2", optional = true, features = ["serde"] }
+jiff = { version = "0.2", features = ["serde"] }
 hdrhistogram = { version = "7", optional = true }
 aho-corasick = { version = "1", optional = true }
 linkme = "0.3"

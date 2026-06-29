@@ -2,9 +2,9 @@
 use super::{CicdPolicy, PolicyMode, PolicyResult};
 use crate::adapters::ChangedFileDetector;
 
-pub struct EvidenceStalePoliciy;
+pub struct EvidenceStalePolicy;
 
-impl CicdPolicy for EvidenceStalePoliciy {
+impl CicdPolicy for EvidenceStalePolicy {
     fn name(&self) -> &'static str {
         "evidence_stale"
     }

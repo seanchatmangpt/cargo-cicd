@@ -37,14 +37,15 @@ impl Default for WorkspaceSection {
 }
 
 fn detect_workspace_name() -> String {
-    // Read workspace name from Cargo.toml if available
     std::fs::read_to_string("Cargo.toml")
         .ok()
         .and_then(|s| {
-            s.lines().find(|l| l.starts_with("name = ")).map(|l| {
-                l.trim_start_matches("name = ")
-                    .trim_matches('"')
-                    .to_string()
+            toml::from_str::<toml::Value>(&s).ok().and_then(|v| {
+                v.get("package")
+                    .or_else(|| v.get("workspace").and_then(|w| w.get("package")))
+                    .and_then(|p| p.get("name"))
+                    .and_then(|n| n.as_str())
+                    .map(|s| s.to_string())
             })
         })
         .unwrap_or_else(|| {

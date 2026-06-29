@@ -1,6 +1,6 @@
 use crate::engine::EngineState;
 use crate::policies::{
-    BranchBehindPolicy, CicdPolicy, EvidenceStalePoliciy, GitPhaseDirtyPolicy,
+    BranchBehindPolicy, CicdPolicy, EvidenceStalePolicy, GitPhaseDirtyPolicy,
     PublishNotAdjudicatedPolicy, TargetPressurePolicy, ToolchainMismatchPolicy,
     TrybuildChangedPolicy,
 };
@@ -68,7 +68,7 @@ pub fn run_with_mode(state: &EngineState, mode: AutonomicMode) -> Vec<String> {
         Box::new(ToolchainMismatchPolicy),
         Box::new(TrybuildChangedPolicy),
         Box::new(BranchBehindPolicy),
-        Box::new(EvidenceStalePoliciy),
+        Box::new(EvidenceStalePolicy),
         Box::new(PublishNotAdjudicatedPolicy),
     ];
 
