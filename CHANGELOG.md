@@ -6,6 +6,45 @@ Format: feat(scope): description — scope is core|cli|target|test|git|autonomic
 
 ---
 
+## [Unreleased]
+
+Everything below has landed on `main` since the `26.6.30` version bump; `Cargo.toml` is still pinned at `26.6.30` pending the next release tag.
+
+### Added
+- Standing compiler: a new subsystem that ingests workspace signals (crates, toolchain, CI) and scores them against a versioned schema, with `refresh`, `verify`, `report`, and `claude-context` verbs
+- Standing compiler now wires in a workspace-crate ingestor as part of its refresh pipeline
+- `release-gate` verb added to the standing compiler, with fixtures and an integration test covering refresh/report
+- Standing compiler emits a reusable, publishable ggen pack so other workspaces can reuse the schema/compiler
+- Standing compiler emits a Shape-A OCEL snapshot for wasm4pm oracle validation
+- One-line help descriptions added to every CLI noun so `--help` output is self-explanatory across the board
+- `deny.toml` added for supply-chain / dependency audit policy
+- `justfile` extended with build/fmt/verify-all/evidence recipes
+- Added `UNIFICATION.md`, a fleet unification strategy document
+
+### Fixed
+- Fixed `cargo cicd <noun>` dispatch so it also accepts being invoked as a `cargo` subcommand (`cargo-cicd <noun>`), and corrected the version string it reports
+- Fixed the standing compiler's TTL (schema) output to be deterministic and byte-stable across repeated runs
+- Renamed the standing schema identifier to `cicd-standing.v1`, keeping the old identifier as a legacy alias for compatibility
+- `cicd.toml` toolchain validation now accepts dated nightly toolchain channels (e.g. `nightly-2026-06-22`) instead of rejecting them
+- Repaired two failing workspace-crate ingestion tests in the standing compiler
+- Fixed a missing `toml` dependency and applied formatting across the core crate
+- Removed a non-deterministic real-time timestamp from the Command evidence captured in the standing compiler's TTL projection, so evidence output no longer varies run to run
+- Repaired the `--all-features` build: corrected feature gating on the anti-cheat dependency and fixed a mutability issue in the pipeline noun
+- Target scanning now runs in parallel by default, and scan errors that were previously swallowed are now surfaced to the caller
+- Replaced a deprecated iterator call (`Iterator::last`) with `next_back` to clear a clippy lint in the LSP crate
+- Pinned CI to a fixed nightly toolchain date and removed an unpinned git dependency patch for the wasm4pm-compat crate, stabilizing CI builds
+
+### Changed
+- Narrowed the public API surface of the core crate and documented its stability boundary
+- Deleted first-generation adapter duplicates and wired the anti-cheat LSP noun in their place
+- Removed a workspace-wide `allow(dead_code)` in favor of narrowly scoped allows, so dead code is visible where it actually exists
+
+### Docs
+- Added an ERRC (Eliminate-Reduce-Raise-Create) review of the project, informing the fixes and cleanups above
+- Moved the standing schema and claim policy documentation into this repository
+
+---
+
 ## [26.6.30] — 2026-06-26
 
 ### Fixed
