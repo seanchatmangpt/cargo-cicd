@@ -233,3 +233,7 @@ toml = { workspace = true }
 chicago-tdd-tools = { workspace = true }
 criterion = "0.5"
 proptest = "1"
+# Dev-only: lets `standing.ocel.json`'s Shape-A emission be verified by
+# parsing it with the same `wasm4pm_compat::ocel::OCEL` type wasm4pm itself
+# uses, rather than asserting our own emitter's shape against itself.
+wasm4pm-compat = "26.6.29"

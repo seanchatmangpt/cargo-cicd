@@ -162,6 +162,7 @@ fn write_all_outputs(repo_dir: &str, doc: &StandingDocument) -> std::io::Result<
     let json_path = out_dir.join("standing.json");
     emit::write_standing_json(doc, &json_path)?;
     emit::write_standing_ttl(doc, &out_dir.join("standing.ttl"))?;
+    emit::write_standing_ocel_shape_a(doc, &out_dir.join("standing.ocel.json"))?;
     emit::write_summaries(doc, &out_dir)?;
     emit_standing_ocel(repo_dir, doc);
     Ok(json_path)
@@ -376,6 +377,41 @@ mod tests {
         // Every ingestor contributes at least its fallback artifact.
         assert!(artifacts.len() >= 6);
         assert!(artifacts.iter().all(|a| !a.standing.is_empty(),));
+    }
+
+    /// The Shape-A OCEL snapshot must parse as `wasm4pm_compat::ocel::OCEL`
+    /// — the same typed shape wasm4pm's process-conformance tooling
+    /// consumes — not just as loose JSON. This is the unit-level proof
+    /// that `standing.ocel.json` is genuinely Shape-A, independent of
+    /// this crate's own emitter asserting its own output.
+    #[test]
+    fn standing_ocel_shape_a_parses_as_wasm4pm_compat_ocel() {
+        let artifacts = vec![StandingArtifact {
+            id: "praxis-graphlaw".to_string(),
+            kind: ArtifactKind::RustCrate,
+            path: "crates/praxis-graphlaw".to_string(),
+            standing: vec![StandingStatus::Discovered, StandingStatus::Builds],
+            scope: None,
+            ladder_level: 2,
+            evidence: vec![],
+            external_operator_side_effects: vec![],
+        }];
+        let doc = build_document("v26.7.4", artifacts);
+        let ocel_json = serde_json::to_string(
+            &cargo_cicd_core::standing::emit::render_standing_ocel_shape_a(&doc),
+        )
+        .unwrap();
+
+        let parsed: wasm4pm_compat::ocel::OCEL = serde_json::from_str(&ocel_json)
+            .expect("standing.ocel.json must parse as Shape-A OCEL");
+        assert_eq!(parsed.event_types.len(), 1);
+        assert_eq!(parsed.event_types[0].name, "standing_compiled");
+        assert_eq!(parsed.events.len(), 1);
+        assert_eq!(parsed.objects.len(), 1);
+        assert_eq!(
+            parsed.events[0].relationships[0].object_id,
+            "praxis-graphlaw"
+        );
     }
 
     #[test]

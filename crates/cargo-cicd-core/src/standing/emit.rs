@@ -2,14 +2,22 @@
 //! sub-slices (benchmark/receipt/client-surface/claim-index summaries and
 //! LSP diagnostics).
 //!
-//! OCEL emission (`standing_compiled` events) is deliberately **not** here:
-//! it needs `src/ocel.rs`'s `OcelLog`/`append_ocel_event` from the main
-//! `cargo-cicd` crate, and `cargo-cicd-core` sits below that crate in the
-//! dependency graph (the reverse dependency would be a cycle). That writer
-//! lives in the main crate (`src/nouns/standing.rs`), calling
-//! `append_ocel_event` directly against the `StandingDocument` this module
-//! produces — the OCEL *writer* is still reused as-is, just from the layer
-//! that already owns it.
+//! ## Two distinct OCEL emissions — do not conflate them
+//!
+//! 1. The append-only, hash-chained `standing_compiled` event JSONL ledger
+//!    (`.cargo-cicd/ocel/events.jsonl`) is deliberately **not** built here:
+//!    it needs `src/ocel.rs`'s `OcelLog`/`append_ocel_event` from the main
+//!    `cargo-cicd` crate, and `cargo-cicd-core` sits below that crate in the
+//!    dependency graph (the reverse dependency would be a cycle). That
+//!    writer lives in the main crate (`src/nouns/standing.rs`).
+//! 2. [`render_standing_ocel_shape_a`] / [`write_standing_ocel_shape_a`]
+//!    build a **self-contained Shape-A OCEL 2.0 snapshot**
+//!    (`target/praxis-standing/standing.ocel.json`, the
+//!    `{eventTypes, objectTypes, events, objects}` shape consumed by
+//!    `wasm4pm_compat::ocel::OCEL`) purely from a `StandingDocument` — no
+//!    hash chain, no append-only ledger, just "what does the current
+//!    standing document look like as one OCEL log". That only needs this
+//!    module's own inputs, so it lives here.
 
 use crate::standing::model::{ArtifactKind, StandingArtifact, StandingDocument};
 use std::io;
@@ -124,6 +132,94 @@ pub fn write_standing_ttl(doc: &StandingDocument, path: &Path) -> io::Result<()>
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(path, render_standing_ttl(doc))
+}
+
+// ── Shape-A OCEL snapshot ────────────────────────────────────────────────
+
+/// Render the standing document as a self-contained Shape-A OCEL 2.0 log:
+/// one `standing_compiled` event per artifact, each linked by an
+/// `artifact` qualifier to a `standing_artifact` object carrying that
+/// artifact's kind. Matches the field names and casing
+/// `wasm4pm_compat::ocel::OCEL` expects (`eventTypes`, `objectTypes`,
+/// `events[].type`/`time`/`attributes`/`relationships`, `objects[].type`/
+/// `attributes`/`relationships`) so it can be parsed by that type directly.
+///
+/// Every event/object time is `doc.generated_at_utc` — the one wall-clock
+/// reading this snapshot is allowed to carry, since (unlike `standing.ttl`)
+/// an OCEL log is expected to be time-stamped and is not asserted to be
+/// byte-identical across runs.
+pub fn render_standing_ocel_shape_a(doc: &StandingDocument) -> serde_json::Value {
+    let event_types = serde_json::json!([{
+        "name": "standing_compiled",
+        "attributes": [
+            {"name": "artifact_id", "type": "string"},
+            {"name": "kind", "type": "string"},
+            {"name": "standing", "type": "string"},
+            {"name": "ladder_level", "type": "integer"},
+            {"name": "scope", "type": "string"},
+        ],
+    }]);
+    let object_types = serde_json::json!([{
+        "name": "standing_artifact",
+        "attributes": [
+            {"name": "kind", "type": "string"},
+        ],
+    }]);
+
+    let events: Vec<serde_json::Value> = doc
+        .artifacts
+        .iter()
+        .map(|a| {
+            let standing_str = a
+                .standing
+                .iter()
+                .map(|s| format!("{s:?}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            serde_json::json!({
+                "id": format!("standing_compiled:{}", a.id),
+                "type": "standing_compiled",
+                "time": doc.generated_at_utc,
+                "attributes": [
+                    {"name": "artifact_id", "value": a.id},
+                    {"name": "kind", "value": format!("{:?}", a.kind)},
+                    {"name": "standing", "value": standing_str},
+                    {"name": "ladder_level", "value": a.ladder_level},
+                    {"name": "scope", "value": a.scope.clone().unwrap_or_default()},
+                ],
+                "relationships": [
+                    {"objectId": a.id, "qualifier": "artifact"},
+                ],
+            })
+        })
+        .collect();
+
+    let objects: Vec<serde_json::Value> = doc
+        .artifacts
+        .iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "type": "standing_artifact",
+                "attributes": [
+                    {"name": "kind", "value": format!("{:?}", a.kind), "time": doc.generated_at_utc},
+                ],
+                "relationships": [],
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "eventTypes": event_types,
+        "objectTypes": object_types,
+        "events": events,
+        "objects": objects,
+    })
+}
+
+/// Write the Shape-A OCEL snapshot as pretty JSON.
+pub fn write_standing_ocel_shape_a(doc: &StandingDocument, path: &Path) -> io::Result<()> {
+    write_json_pretty(&render_standing_ocel_shape_a(doc), path)
 }
 
 // ── Focused sub-slices ───────────────────────────────────────────────────
@@ -374,6 +470,45 @@ mod tests {
         let arr = diagnostics.as_array().unwrap();
         // "claim:..." and "web-client" both have non-empty standing + empty evidence.
         assert_eq!(arr.len(), 2);
+    }
+
+    #[test]
+    fn ocel_shape_a_has_one_event_and_object_per_artifact() {
+        let doc = sample_doc();
+        let ocel = render_standing_ocel_shape_a(&doc);
+        assert_eq!(
+            ocel["events"].as_array().unwrap().len(),
+            doc.artifacts.len()
+        );
+        assert_eq!(
+            ocel["objects"].as_array().unwrap().len(),
+            doc.artifacts.len()
+        );
+        assert_eq!(ocel["eventTypes"][0]["name"], "standing_compiled");
+        assert_eq!(ocel["objectTypes"][0]["name"], "standing_artifact");
+    }
+
+    #[test]
+    fn ocel_shape_a_event_relationship_points_at_matching_object() {
+        let ocel = render_standing_ocel_shape_a(&sample_doc());
+        let first_event = &ocel["events"][0];
+        let first_object = &ocel["objects"][0];
+        assert_eq!(
+            first_event["relationships"][0]["objectId"],
+            first_object["id"]
+        );
+        assert_eq!(first_event["relationships"][0]["qualifier"], "artifact");
+    }
+
+    #[test]
+    fn write_standing_ocel_shape_a_round_trips_as_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("standing.ocel.json");
+        write_standing_ocel_shape_a(&sample_doc(), &path).unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert!(parsed["events"].is_array());
+        assert!(parsed["objects"].is_array());
     }
 
     #[test]
