@@ -44,6 +44,7 @@ fn ingest_all(repo_dir: &str, cfg: &crate::cicd_toml::StandingConfig) -> Vec<Sta
     }
 
     let mut artifacts = vec![];
+    artifacts.extend(sources::ingest_workspace_crates("."));
     artifacts.extend(sources::ingest_doctor_json(cfg.doctor_command.as_deref()));
 
     // `ocel_logs` and `process_validation` both feed the same
