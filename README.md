@@ -1,16 +1,12 @@
-<!-- BEGIN custom:introduction -->
 # cargo-cicd
 
-**cargo-cicd is a sovereign admission controller and operational substrate for Rust workspaces, powered by star-toml.**
+`cargo-cicd` checks your Rust workspace's health, runs only the tests affected by what you changed, and gates publishing behind a passing evidence trail — a local pre-flight checklist that runs before you push or publish.
 
 [![Crates.io](https://img.shields.io/crates/v/cargo-cicd.svg)](https://crates.io/crates/cargo-cicd)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
-[![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust 1.86+](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 
-`cargo-cicd` transitions Cargo from a simple build-and-test runner into a sovereign local execution container and admission authority. Powered by `star-toml`, it treats workspace settings as operational law, enforcing strict policies locally, generating cryptographically verified execution receipts, and ensuring publication only proceeds on proven, admitted configurations ($q_{config} = 1$).
-<!-- END custom:introduction -->
-
----
+Under the hood it reads your workspace's `Cargo.toml` and git state, records what it finds in a `cicd.toml` snapshot, and — with optional features enabled — emits structured process evidence (XES/OCEL) that an external oracle can adjudicate before a release is allowed to publish.
 
 ## Install
 
@@ -31,250 +27,80 @@ If the binary is not found, ensure `~/.cargo/bin` is on your `PATH`:
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
----
-
-## Quick Start
-
-Five commands to get going in any Cargo workspace:
+## Quickstart
 
 ```sh
-# 1. Check workspace health
+# 1. Diagnose the workspace: Cargo.toml, toolchain, git repo, cicd.toml
 cargo cicd workspace doctor
 
-# 2. See overall workspace status
-cargo cicd status
+# 2. See a snapshot of dirty files, target size, and branch state
+cargo cicd status show
 
-# 3. Run only the tests affected by your changes
+# 3. Run only the tests for crates whose source changed since the last green commit
 cargo cicd test changed
 
-# 4. Check the target directory size and age
+# 4. Check how much space the target/ directory is using
 cargo cicd target show
 
-# 5. Review git state before pushing
-cargo cicd git status
+# 5. Stage, commit, and close out the current git phase
+cargo cicd git close
 ```
 
-That's the daily loop. When you're ready to publish:
+Each of these was run against this repository while writing this README and produces real output — for example, `cargo cicd status show` prints a toolchain line, a target-usage bar, branch name, dirty/untracked file counts, and a `git [PASS/FAIL]` verdict, followed by autonomic policy suggestions such as `run 'cargo cicd evidence doctor' before publish`.
 
-```sh
-cargo cicd publish run
-```
+## Command overview
 
----
+`cargo-cicd` uses a noun-verb CLI (`cargo cicd <noun> <verb>`). Every noun accepts `--help` for full detail. This table reflects the commands available in a default build (`cargo build`, no extra features):
 
-## Commands
+| Noun | Verbs | What it does |
+|------|-------|---------------|
+| `status` | `show`, `audit` | Displays workspace status: dirty files, pending tests, trybuild result, and publish readiness. |
+| `workspace` | `doctor`, `validate`, `list`, `sync` | Diagnoses the Cargo workspace for structural health: duplicate dependencies, missing feature declarations, version skew, toolchain mismatch. |
+| `target` | `show`, `prune` | Reports on and prunes stale build artefacts in the Cargo target directory. |
+| `test` | `changed`, `run`, `bench` | Runs `cargo test` restricted to crates whose source files changed since the last green commit. |
+| `trybuild` | `changed`, `full` | Runs trybuild compile-fail/compile-pass fixtures for crates changed since the last green commit. |
+| `git` | `status`, `fetch`, `stage`, `commit`, `diff`, `close` | Surfaces git working-tree status and performs the lawful branch-close sequence. |
+| `publish` | `run`, `check`, `validate` | Publishes eligible workspace crates to crates.io after verifying release readiness. |
+| `evidence` | `doctor`, `list`, `audit`, `show`, `reset` | Adjudicates and inspects recorded process evidence (XES/OCEL logs). |
+| `doctor` | — | Diagnoses repository health against a recorded baseline and reports evidence drift. |
+| `pipeline` | — | Runs, checks the status of, and validates the workspace's CI/CD pipeline definition. |
+| `sbom` | `generate`, `show` | Generates and shows a Software Bill of Materials (SBOM) via CycloneDX. |
+| `hooks` | — | Installs git hooks that integrate cargo-cicd with an external CI provider. |
+| `verify` | — | Verifies a repository against configured checks, including semver compatibility. |
+| `certification` | `show` | IEC 61508 / ISO 26262 compliance summary for cargo-cicd certification. |
 
-cargo-cicd uses a `<noun> <verb>` grammar. Every noun has a default verb, so
-bare nouns work too (`cargo cicd status` = `cargo cicd status show`).
-
-<!-- BEGIN ggen:commands -->
-<!-- Rendered from ontology/cargo-cicd.ttl. Do not edit by hand. -->
-
-| Command | Description |
-|---------|-------------|
-| `cargo cicd status show` | Displays the current workspace status: dirty files, pending tests, last-known trybuild result, and publish readiness. Read-only; emits a StatusShowEvent. |
-| `cargo cicd target show` | Reports the size and age profile of the local Cargo target directory without modifying it. |
-| `cargo cicd target prune` | Removes stale build artefacts from the Cargo target directory according to configurable age/size policy. Emits a TargetPruneEvent recording bytes freed. |
-| `cargo cicd test changed` | Runs cargo test restricted to crates whose source files have changed since the last green commit. Emits a TestChangedEvent with pass/fail counts and affected crate list. |
-| `cargo cicd trybuild changed` | Runs trybuild type-law fixtures for changed crates, verifying that compile-fail fixtures fail for the correct named law and compile-pass fixtures succeed. Emits a TrybuildChangedEvent. |
-| `cargo cicd git status` | Surfaces a structured summary of the git working-tree state: branch, ahead/behind counts, staged/unstaged/untracked file counts, and last-commit metadata. |
-| `cargo cicd git close` | Performs the lawful branch-close sequence: ensures tests pass, commits any staged evidence, merges to the trunk branch, and emits a GitCloseEvent as a receipt. |
-| `cargo cicd publish run` | Publishes eligible workspace crates to crates.io after verifying all release readiness conditions are met. Emits a PublishRunEvent that the wasm4pm oracle may audit post-release. |
-| `cargo cicd workspace doctor` | Diagnoses the Cargo workspace for structural health: duplicate dependencies, missing feature declarations, version skew, and toolchain mismatch. Emits a WorkspaceDoctorEvent. |
-| `cargo cicd certification show` | Prints an IEC 61508 / ISO 26262 / SOC2 / TOGAF compliance summary against registered certification bodies. |
-| `cargo cicd sbom generate` | Generates a CycloneDX SBOM (`sbom.json`) from the workspace via `cargo-cyclonedx`. |
-| `cargo cicd sbom show` | Displays the previously generated SBOM. |
-
-<!-- END ggen:commands -->
-
-### Compliance & Supply Chain
-
-```sh
-# Print IEC 61508 / ISO 26262 / SOC2 / TOGAF compliance summary
-cargo cicd certification show
-
-# Generate a CycloneDX SBOM (requires cargo-cyclonedx)
-cargo cicd sbom generate
-
-# Display the previously generated SBOM
-cargo cicd sbom show
-```
-
-`cargo cicd sbom generate` degrades gracefully when `cargo-cyclonedx` is not
-installed and tells you how to add it.
-
-### Global Flags
-
-| Flag | Description |
-|------|-------------|
-| `--help` | Print help for a command or noun |
-| `--version` | Print the cargo-cicd version |
-| `--cicd-toml <path>` | Use a different `cicd.toml` path (default: workspace root) |
-
-### Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Command failed (check stderr) |
-| 2 | Workspace not found or invalid |
-| 3 | Readiness check failed |
-
----
-
-## Feature Flags
-
-cargo-cicd ships a lean default binary. Optional capabilities are gated behind
-Cargo feature flags.
-
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `process-data` | no | Emits structured XES event logs for each command |
-| `autonomic` | no | Enables policy suggestions after each run (implies `process-data`) |
-| `wasm4pm` | no | Integrates with the wasm4pm oracle for external adjudication (implies `process-data`) |
-| `contrib` | no | Contributor-only diagnostics and internal tooling (implies `process-data`) |
-
-Install with a feature:
-
-```sh
-cargo install cargo-cicd --features autonomic
-```
-
-Use as a dependency:
-
-```toml
-[dependencies]
-cargo-cicd = { version = "26.6.30", features = ["process-data"] }
-```
-
-See [docs/reference/feature-flags.md](docs/reference/feature-flags.md) for full
-details.
-
----
-
-## Configuration
-
-<!-- BEGIN custom:cicd-toml -->
-cargo-cicd reads and writes `cicd.toml` in your workspace root. Add it to
-`.gitignore` — it is a local state file, not a project artifact.
-
-A minimal `cicd.toml`:
-
-```toml
-[target]
-max_size_gb = 10.0
-prune_after_days = 14
-
-[test.changed]
-base = "origin/main"
-
-[autonomic]
-enabled = false
-mode = "suggest"
-```
-
-Full schema reference: [docs/reference/cicd-toml.md](docs/reference/cicd-toml.md)
-<!-- END custom:cicd-toml -->
-
----
-
-## CI/CD Integration
-
-### GitHub Actions
-
-```yaml
-name: CI
-
-on: [push, pull_request]
-
-jobs:
-  cicd:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install cargo-cicd
-        run: cargo install cargo-cicd
-
-      - name: Workspace doctor
-        run: cargo cicd workspace doctor
-
-      - name: Status check
-        run: cargo cicd status
-
-      - name: Run changed tests
-        run: cargo cicd test changed
-
-      - name: Check target directory
-        run: cargo cicd target show
-```
-
-For release pipelines, add the wasm4pm oracle and enforce evidence gates:
-
-```yaml
-      - name: Release gate
-        env:
-          REQUIRE_WPM_ORACLE: "1"
-        run: |
-          cargo test --test wasm4pm_evidence_gate --features wasm4pm
-          cargo test --test wasm4pm_evidence_mutation --features wasm4pm
-```
-
----
+Some additional nouns (`ocel`, `receipt`, `trace`, `standing`, `gate`, `release_gate`, `claude_context`) ship in this build for evidence replay, receipt auditing, and standing-document generation; run `cargo cicd --help` for the full, current list — the surface grows as the ontology-driven pipeline generates new commands.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [docs/INDEX.md](docs/INDEX.md) | Master documentation index — find anything |
-| [docs/star-toml-refactor/PRD.md](docs/star-toml-refactor/PRD.md) | PRD: Product requirements for positioning cargo-cicd as an operational substrate |
-| [docs/star-toml-refactor/ARD.md](docs/star-toml-refactor/ARD.md) | ARD: Architectural layers (operational law, standing) and authority models |
-| [docs/star-toml-refactor/REFACTOR.md](docs/star-toml-refactor/REFACTOR.md) | Refactoring specifications (loader pipelines, diagnostics, receipt loops) |
-| [docs/contributing/README.md](docs/contributing/README.md) | Contributor Guide: onboarding, setup, and workflow |
-| [docs/DX_GUIDE.md](docs/DX_GUIDE.md) | Developer Experience Guide: quick reference and aliases |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Deep-dive: EngineState, adapters, noun-verb grammar |
-| [TESTING_GUIDE.md](TESTING_GUIDE.md) | Testing strategy, fixtures, evidence-gate patterns |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Debugging adapter failures, test issues, policy verdicts |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, commit format, PR process |
-| [SKILLS_CATALOG.md](SKILLS_CATALOG.md) | Claude Code skills for automation and release |
+- **[Tutorials](docs/tutorials/)** — learn by doing, start with [`quick-start.md`](docs/tutorials/quick-start.md)
+- **[How-to guides](docs/how-to/)** — recipes for specific tasks (CI/CD pipelines, git hooks, IDE integration, custom ontologies)
+- **[Reference](docs/reference/)** — command reference, `cicd.toml` schema, feature flags, evidence/XES format
+- **[Explanation](docs/explanation/)** — the reasoning behind local-first CI/CD, changed-test planning, evidence emission, and autonomic policies
+- **[Full index](docs/INDEX.md)** — a Diátaxis-organized map of everything above
 
----
+## Feature flags
 
-## Contributing
+The default build (no extra features) provides the full public CLI surface shown above, with no process evidence emission. Optional features add capability:
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. The short version:
+| Feature | Implies | Effect |
+|---------|---------|--------|
+| `process-data` | — | Enables the Level 5 process-data engine: adapters, `cicd.toml` state, XES/OCEL evidence emission |
+| `autonomic` | `process-data` | Adds autonomic policy suggestions (suggest-mode only, never destructive) |
+| `wasm4pm` | `process-data` | Integrates the external `wpm` oracle to adjudicate recorded evidence |
+| `affidavit` | `process-data` | Adds cryptographic provenance receipts via the `affi` CLI and the `affidavit` noun |
+| `autoarch` | `autonomic` | Autonomous architecture-enforcement layer |
+| `contrib` | `process-data` | Contributor workflow extensions |
+| `lsp` | — | LSP integration for the `explain` verb |
+| `anti-llm-cheat` | — | Anti-cheat enforcement via `lsp-max-anti-cheat` |
+| `advanced` | `process-data` | Parallel scanning, blake3, tracing, miette, moka, bitcode, petgraph, jiff, hdrhistogram, aho-corasick |
 
-```sh
-git clone https://github.com/seanchatmangpt/cargo-cicd
-cd cargo-cicd
-cargo build
-cargo test
-git checkout -b feat/your-feature
-# make changes
-git commit -m "feat(core): describe the change"
-```
+See [`docs/reference/feature-flags.md`](docs/reference/feature-flags.md) for full detail on each flag.
 
-Commit format: `feat(core|cli|target|test|git|autonomic|docs|receipts): description`
+## Roadmap and research
 
----
+`docs/vision/` holds forward-looking, aspirational, and research material — RFCs, phase plans, and a 2030 roadmap. None of it describes currently shipped behavior. Read it if you're curious where the project is headed; skip it if you just want to use the tool today.
 
 ## License
 
-Licensed under either of:
-
-- [MIT](LICENSE-MIT)
-- [Apache-2.0](LICENSE-APACHE)
-
-at your option.
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option.
