@@ -1,6 +1,7 @@
 //! The standing compiler: ingest evidence lying around the workspace,
-//! score each artifact's readiness ladder, and write a `praxis-standing.v1`
-//! document plus focused sub-slices under `target/praxis-standing/`.
+//! score each artifact's readiness ladder, and write a `cicd-standing.v1`
+//! document (schema id, `praxis-standing.v1` accepted as a read alias)
+//! plus focused sub-slices under `target/praxis-standing/`.
 
 use cargo_cicd_core::standing::{emit, score, sources, StandingArtifact, StandingDocument};
 use clap_noun_verb::Result;
@@ -25,6 +26,7 @@ pub fn load_standing_document_tolerant(repo_dir: &str) -> StandingDocument {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_else(|| StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: String::new(),
             generated_at_utc: String::new(),
             generator: String::new(),
@@ -71,6 +73,7 @@ fn ingest_all(repo_dir: &str, cfg: &crate::cicd_toml::StandingConfig) -> Vec<Sta
 
 fn build_document(release_id: &str, artifacts: Vec<StandingArtifact>) -> StandingDocument {
     StandingDocument {
+        schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
         release_id: release_id.to_string(),
         generated_at_utc: crate::evidence::now_iso8601(),
         generator: format!("cargo-cicd-standing/{}", env!("CARGO_PKG_VERSION")),
@@ -103,7 +106,12 @@ fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result
     );
 
     let trace = ExecutionTrace {
-        command: vec!["cargo".to_string(), "cicd".to_string(), "standing".to_string(), "refresh".to_string()],
+        command: vec![
+            "cargo".to_string(),
+            "cicd".to_string(),
+            "standing".to_string(),
+            "refresh".to_string(),
+        ],
         exit_code: 0,
         stdout_digest: digest,
         stderr_digest: String::new(),
@@ -121,7 +129,10 @@ fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result
         .unwrap_or_default()
         .as_nanos();
     let path = receipts_dir.join(format!("standing-refresh-{ts}.json"));
-    std::fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap_or_default())?;
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&receipt).unwrap_or_default(),
+    )?;
     Ok(path)
 }
 
@@ -215,7 +226,10 @@ fn load_persisted_artifacts(repo_dir: &str) -> Vec<StandingArtifact> {
         .unwrap_or_default()
 }
 
-fn drift_entry_for(artifact: &StandingArtifact, persisted: &[StandingArtifact]) -> Option<serde_json::Value> {
+fn drift_entry_for(
+    artifact: &StandingArtifact,
+    persisted: &[StandingArtifact],
+) -> Option<serde_json::Value> {
     match persisted.iter().find(|p| p.id == artifact.id) {
         None => Some(serde_json::json!({"artifact_id": artifact.id, "kind": "added"})),
         Some(prev) if prev.path != artifact.path || prev.standing != artifact.standing => {
@@ -230,7 +244,10 @@ fn drift_entry_for(artifact: &StandingArtifact, persisted: &[StandingArtifact]) 
     }
 }
 
-fn removed_entries(persisted: &[StandingArtifact], fresh: &[StandingArtifact]) -> Vec<serde_json::Value> {
+fn removed_entries(
+    persisted: &[StandingArtifact],
+    fresh: &[StandingArtifact],
+) -> Vec<serde_json::Value> {
     persisted
         .iter()
         .filter(|prev| !fresh.iter().any(|a| a.id == prev.id))
@@ -241,7 +258,10 @@ fn removed_entries(persisted: &[StandingArtifact], fresh: &[StandingArtifact]) -
 /// Diff a fresh ingestion against the persisted standing document:
 /// `added` (in fresh, not persisted), `changed` (path/standing differs),
 /// `removed` (in persisted, not fresh).
-fn compute_drift(persisted: &[StandingArtifact], fresh: &[StandingArtifact]) -> Vec<serde_json::Value> {
+fn compute_drift(
+    persisted: &[StandingArtifact],
+    fresh: &[StandingArtifact],
+) -> Vec<serde_json::Value> {
     let mut drift: Vec<serde_json::Value> = fresh
         .iter()
         .filter_map(|a| drift_entry_for(a, persisted))
@@ -288,7 +308,10 @@ pub fn cmd_verify(repo: Option<String>, json: bool) -> Result<()> {
 }
 
 fn print_report_table(doc: &StandingDocument) {
-    println!("{:<28} {:<10} {:<40} {:<6} scope", "id", "kind", "standing", "ladder");
+    println!(
+        "{:<28} {:<10} {:<40} {:<6} scope",
+        "id", "kind", "standing", "ladder"
+    );
     for artifact in &doc.artifacts {
         println!("{}", format_report_row(artifact));
     }
@@ -351,9 +374,7 @@ mod tests {
         let artifacts = ingest_all(dir.path().to_str().unwrap(), &cfg);
         // Every ingestor contributes at least its fallback artifact.
         assert!(artifacts.len() >= 6);
-        assert!(artifacts
-            .iter()
-            .all(|a| !a.standing.is_empty(), ));
+        assert!(artifacts.iter().all(|a| !a.standing.is_empty(),));
     }
 
     #[test]

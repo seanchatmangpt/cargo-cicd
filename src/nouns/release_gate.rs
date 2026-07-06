@@ -39,6 +39,7 @@ fn load_standing_document_tolerant(repo_dir: &str) -> StandingDocument {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or(StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: String::new(),
             generated_at_utc: String::new(),
             generator: String::new(),
@@ -60,7 +61,10 @@ fn missing_requirement(
         Some(a) if !a.standing.contains(&req.status) => Some(MissingRequirement {
             artifact_id: req.artifact_id.clone(),
             status: req.status,
-            reason: format!("artifact standing is {:?}, missing required status", a.standing),
+            reason: format!(
+                "artifact standing is {:?}, missing required status",
+                a.standing
+            ),
         }),
         _ => None,
     }
@@ -136,6 +140,7 @@ mod tests {
         let out_dir = dir.join("target").join("praxis-standing");
         fs::create_dir_all(&out_dir).unwrap();
         let doc = StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: "v26.7.4".to_string(),
             generated_at_utc: "now".to_string(),
             generator: "test".to_string(),
@@ -173,6 +178,7 @@ mod tests {
     #[test]
     fn missing_requirement_flags_absent_artifact() {
         let doc = StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: "x".to_string(),
             generated_at_utc: "x".to_string(),
             generator: "x".to_string(),
@@ -190,6 +196,7 @@ mod tests {
     #[test]
     fn missing_requirement_flags_wrong_status() {
         let doc = StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: "x".to_string(),
             generated_at_utc: "x".to_string(),
             generator: "x".to_string(),
@@ -206,6 +213,7 @@ mod tests {
     #[test]
     fn missing_requirement_none_when_status_present() {
         let doc = StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: "x".to_string(),
             generated_at_utc: "x".to_string(),
             generator: "x".to_string(),
@@ -223,7 +231,10 @@ mod tests {
     fn write_standing_doc_helper_is_used_by_future_cli_level_tests() {
         // Smoke-test the fixture helper itself so it doesn't bit-rot unused.
         let dir = tempfile::tempdir().unwrap();
-        write_standing_doc(dir.path(), vec![artifact("a", vec![StandingStatus::Tested])]);
+        write_standing_doc(
+            dir.path(),
+            vec![artifact("a", vec![StandingStatus::Tested])],
+        );
         assert!(dir
             .path()
             .join("target/praxis-standing/standing.json")

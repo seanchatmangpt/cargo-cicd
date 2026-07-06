@@ -115,6 +115,7 @@ mod tests {
     #[test]
     fn render_context_md_includes_next_action_and_evidence_pointer() {
         let doc = StandingDocument {
+            schema_id: cargo_cicd_core::standing::STANDING_SCHEMA_ID.to_string(),
             release_id: "v26.7.4".to_string(),
             generated_at_utc: "2026-07-06T00:00:00Z".to_string(),
             generator: "test".to_string(),

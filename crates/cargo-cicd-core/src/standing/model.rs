@@ -1,11 +1,42 @@
-//! Standing schema v1 (`praxis-standing.v1`).
+//! Standing schema v1 (`cicd-standing.v1`).
 //!
-//! Types matching `docs/standing/STANDING_SCHEMA.md` in the `praxis` repo.
+//! Types matching `docs/reference/standing-schema.md` (schema of record).
 //! These are the compiled, machine-checked counterpart of that document:
 //! keep field names and status tags identical to the schema doc when
 //! either side changes.
+//!
+//! ## Schema id
+//!
+//! The canonical schema id is [`STANDING_SCHEMA_ID`] (`cicd-standing.v1`).
+//! The legacy id `praxis-standing.v1` — used before the standing compiler
+//! was collapsed into `cargo-cicd` — is still accepted on read via
+//! [`is_recognized_schema_id`] so standing documents emitted by older
+//! versions (and by consumers still on the old id) keep parsing. New
+//! documents always emit the canonical id ([`default_schema_id`]).
 
 use serde::{Deserialize, Serialize};
+
+/// Canonical standing schema id emitted by this version of cargo-cicd.
+pub const STANDING_SCHEMA_ID: &str = "cicd-standing.v1";
+
+/// Legacy schema id, accepted as an alias on read for backward
+/// compatibility with standing documents emitted before the schema id
+/// rename (previously the *canonical* id, now deprecated in favor of
+/// [`STANDING_SCHEMA_ID`]).
+pub const STANDING_SCHEMA_ID_ALIAS_PRAXIS: &str = "praxis-standing.v1";
+
+/// Default used by `#[serde(default)]` when deserializing documents that
+/// predate the `schema_id` field entirely.
+fn default_schema_id() -> String {
+    STANDING_SCHEMA_ID.to_string()
+}
+
+/// True if `id` is either the canonical schema id or a recognized legacy
+/// alias. Used to validate/accept a `schema_id` on read without rejecting
+/// still-valid older artifacts.
+pub fn is_recognized_schema_id(id: &str) -> bool {
+    id == STANDING_SCHEMA_ID || id == STANDING_SCHEMA_ID_ALIAS_PRAXIS
+}
 
 /// Errors constructing or validating a [`StandingArtifact`] / [`StandingDocument`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -50,10 +81,7 @@ impl StandingStatus {
     pub fn requires_scope(&self) -> bool {
         matches!(
             self,
-            Self::ProductionReady
-                | Self::PilotReady
-                | Self::PublishReady
-                | Self::PublicationReady
+            Self::ProductionReady | Self::PilotReady | Self::PublishReady | Self::PublicationReady
         )
     }
 
@@ -76,10 +104,9 @@ impl StandingStatus {
             Self::PilotReady => Some(8),
             Self::ProductionReady => {
                 // Rung 9 (PRODUCTION_READY_FOR_SCOPE) requires a non-empty scope.
-                scope
-                    .filter(|s| !s.is_empty())
-                    .map(|_| 9)
-                    .or(Some(8) /* falls back to PILOT_READY's rung if unscoped */)
+                scope.filter(|s| !s.is_empty()).map(|_| 9).or(
+                    Some(8), /* falls back to PILOT_READY's rung if unscoped */
+                )
             }
             _ => None,
         }
@@ -186,6 +213,12 @@ impl StandingArtifact {
 /// Top-level compiled standing document for a release.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StandingDocument {
+    /// Schema id: [`STANDING_SCHEMA_ID`] for documents from this version,
+    /// or the accepted legacy alias [`STANDING_SCHEMA_ID_ALIAS_PRAXIS`] for
+    /// older/external documents. Defaults to the canonical id when absent
+    /// (older documents predating this field).
+    #[serde(default = "default_schema_id")]
+    pub schema_id: String,
     pub release_id: String,
     pub generated_at_utc: String,
     pub generator: String,
@@ -270,10 +303,7 @@ mod tests {
         let level = compute_ladder_level(&[StandingStatus::Discovered], None);
         assert_eq!(level, 0);
 
-        let level = compute_ladder_level(
-            &[StandingStatus::ProductionReady],
-            Some("prod scope"),
-        );
+        let level = compute_ladder_level(&[StandingStatus::ProductionReady], Some("prod scope"));
         assert_eq!(level, 9);
 
         let level = compute_ladder_level(&[StandingStatus::ProductionReady], None);
@@ -292,5 +322,58 @@ mod tests {
             None,
         );
         assert_eq!(level, 0);
+    }
+
+    fn empty_doc_json(schema_id: &str) -> String {
+        format!(
+            r#"{{"schema_id":"{}","release_id":"r","generated_at_utc":"t","generator":"g","standing_version":"1","artifacts":[]}}"#,
+            schema_id
+        )
+    }
+
+    #[test]
+    fn canonical_schema_id_parses() {
+        let json = empty_doc_json(STANDING_SCHEMA_ID);
+        let doc: StandingDocument = serde_json::from_str(&json).expect("canonical id must parse");
+        assert_eq!(doc.schema_id, STANDING_SCHEMA_ID);
+        assert!(is_recognized_schema_id(&doc.schema_id));
+    }
+
+    #[test]
+    fn legacy_praxis_schema_id_still_parses_as_accepted_alias() {
+        let json = empty_doc_json(STANDING_SCHEMA_ID_ALIAS_PRAXIS);
+        let doc: StandingDocument =
+            serde_json::from_str(&json).expect("legacy alias id must still parse");
+        assert_eq!(doc.schema_id, STANDING_SCHEMA_ID_ALIAS_PRAXIS);
+        assert!(is_recognized_schema_id(&doc.schema_id));
+    }
+
+    #[test]
+    fn document_missing_schema_id_field_defaults_to_canonical() {
+        // Documents written before the `schema_id` field existed at all.
+        let json = r#"{"release_id":"r","generated_at_utc":"t","generator":"g","standing_version":"1","artifacts":[]}"#;
+        let doc: StandingDocument =
+            serde_json::from_str(json).expect("document without schema_id must still parse");
+        assert_eq!(doc.schema_id, STANDING_SCHEMA_ID);
+    }
+
+    #[test]
+    fn unrecognized_schema_id_is_not_recognized() {
+        assert!(!is_recognized_schema_id("some-other-schema.v1"));
+    }
+
+    #[test]
+    fn new_emissions_default_to_canonical_schema_id() {
+        let doc = StandingDocument {
+            schema_id: default_schema_id(),
+            release_id: "r".to_string(),
+            generated_at_utc: "t".to_string(),
+            generator: "g".to_string(),
+            standing_version: "1".to_string(),
+            artifacts: vec![],
+        };
+        assert_eq!(doc.schema_id, STANDING_SCHEMA_ID);
+        let json = serde_json::to_string(&doc).unwrap();
+        assert!(json.contains("cicd-standing.v1"));
     }
 }
