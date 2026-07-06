@@ -37,6 +37,36 @@ pub fn write_standing_json(doc: &StandingDocument, path: &Path) -> io::Result<()
     write_json_pretty(doc, path)
 }
 
+/// Serialize one evidence entry for embedding in the TTL projection,
+/// **omitting** any wall-clock field it carries.
+///
+/// `EvidenceRef::Command` carries a `utc` reading of when the command was
+/// run — real information, but a wall-clock one, so if it were serialized
+/// as-is here it would make `standing.ttl` non-deterministic across runs
+/// with unchanged artifact state even after `generated_at_utc` was dropped
+/// from the document header (see `render_standing_ttl`'s doc comment). The
+/// `utc` reading is not lost: the full `EvidenceRef` (with its timestamp)
+/// is still recorded verbatim in `standing.json`; this is strictly a
+/// narrower, hash-stable projection of the same evidence for the TTL graph.
+fn ttl_safe_evidence_json(evidence: &crate::standing::model::EvidenceRef) -> String {
+    use crate::standing::model::EvidenceRef;
+    match evidence {
+        EvidenceRef::Command {
+            command,
+            exit_code,
+            artifact,
+            utc: _,
+        } => serde_json::json!({
+            "kind": "command",
+            "command": command,
+            "exit_code": exit_code,
+            "artifact": artifact,
+        })
+        .to_string(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
 /// Escape a string for embedding in a Turtle string literal.
 fn ttl_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
@@ -50,13 +80,16 @@ fn ttl_escape(s: &str) -> String {
 /// stringified) literals. Hand-templated — no RDF crate dependency, per the
 /// "smallest diff, reuse first" invariant.
 ///
-/// Deliberately **excludes** `generated_at_utc`: that field is a wall-clock
-/// timestamp that changes on every run even when the underlying artifact
-/// state is unchanged. Embedding it here would make the TTL non-deterministic
-/// (different content hash every run for identical input), which defeats
-/// content-addressed caching (e.g. praxis's `ggen.lock`). The timestamp is
-/// still recorded — in `standing.json` (the full `StandingDocument` dump) —
-/// it is simply not part of this derived, hash-stable TTL projection.
+/// Deliberately **excludes** every wall-clock reading it can reach:
+/// `generated_at_utc` on the document header, and (via
+/// [`ttl_safe_evidence_json`]) the `utc` field `EvidenceRef::Command`
+/// evidence carries. Both change on every run even when the underlying
+/// artifact state is unchanged; embedding either would make the TTL
+/// non-deterministic (different content hash every run for identical
+/// input), which defeats content-addressed caching (e.g. praxis's
+/// `ggen.lock` — this is exactly the artifact it hashes). Both timestamps
+/// are still recorded in full in `standing.json`; they are simply not part
+/// of this derived, hash-stable TTL projection.
 pub fn render_standing_ttl(doc: &StandingDocument) -> String {
     let mut out = String::new();
     out.push_str("@prefix praxis: <https://praxis.dev/ontology/standing#> .\n");
@@ -97,7 +130,7 @@ pub fn render_standing_ttl(doc: &StandingDocument) -> String {
             out.push_str(&format!("  praxis:scope \"{}\" ;\n", ttl_escape(scope)));
         }
         for evidence in &artifact.evidence {
-            let rendered = serde_json::to_string(evidence).unwrap_or_default();
+            let rendered = ttl_safe_evidence_json(evidence);
             out.push_str(&format!(
                 "  praxis:evidence \"{}\" ;\n",
                 ttl_escape(&rendered)
@@ -437,6 +470,46 @@ mod tests {
         // Also confirm stability across repeated calls with the identical doc.
         let ttl_a2 = render_standing_ttl(&doc_a);
         assert_eq!(ttl_a, ttl_a2);
+    }
+
+    /// Regression test for a real determinism gap found dogfooding this
+    /// against praxis's `doctor_command`-shaped config: `ingest_doctor_json`
+    /// attaches an `EvidenceRef::Command` whose `utc` field is a wall-clock
+    /// reading (`now_iso()`), which used to be serialized verbatim into the
+    /// TTL's `praxis:evidence` literal — making the TTL change on every
+    /// refresh even with a fully unchanged doctor report, exactly the
+    /// non-determinism `ttl_is_deterministic_across_runs` was meant to rule
+    /// out (that test's fixture doesn't carry `Command` evidence, so it
+    /// missed this). `ttl_safe_evidence_json` must drop `utc` from the TTL
+    /// projection while leaving `command`/`exit_code`/`artifact` intact.
+    #[test]
+    fn ttl_is_deterministic_with_command_evidence_carrying_wall_clock_utc() {
+        let mut doc_a = sample_doc();
+        doc_a.artifacts[0].evidence.push(EvidenceRef::Command {
+            command: "cargo doctor check".to_string(),
+            exit_code: 0,
+            utc: "unix:1000000000".to_string(),
+            artifact: None,
+        });
+        let mut doc_b = sample_doc();
+        doc_b.artifacts[0].evidence.push(EvidenceRef::Command {
+            command: "cargo doctor check".to_string(),
+            exit_code: 0,
+            utc: "unix:2000000000".to_string(),
+            artifact: None,
+        });
+
+        let ttl_a = render_standing_ttl(&doc_a);
+        let ttl_b = render_standing_ttl(&doc_b);
+        assert_eq!(
+            ttl_a, ttl_b,
+            "TTL must be independent of Command evidence's wall-clock `utc` field"
+        );
+        assert!(ttl_a.contains("cargo doctor check"));
+        assert!(
+            !ttl_a.contains("unix:1000000000") && !ttl_a.contains("unix:2000000000"),
+            "TTL must not embed the wall-clock utc reading at all"
+        );
     }
 
     #[test]
