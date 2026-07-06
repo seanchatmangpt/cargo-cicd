@@ -31,7 +31,9 @@ pub fn write_standing_json(doc: &StandingDocument, path: &Path) -> io::Result<()
 
 /// Escape a string for embedding in a Turtle string literal.
 fn ttl_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 /// Render the standing document as a minimal Turtle graph: one
@@ -39,6 +41,14 @@ fn ttl_escape(s: &str) -> String {
 /// (repeated), `praxis:ladderLevel`, and `praxis:evidence` (repeated,
 /// stringified) literals. Hand-templated — no RDF crate dependency, per the
 /// "smallest diff, reuse first" invariant.
+///
+/// Deliberately **excludes** `generated_at_utc`: that field is a wall-clock
+/// timestamp that changes on every run even when the underlying artifact
+/// state is unchanged. Embedding it here would make the TTL non-deterministic
+/// (different content hash every run for identical input), which defeats
+/// content-addressed caching (e.g. praxis's `ggen.lock`). The timestamp is
+/// still recorded — in `standing.json` (the full `StandingDocument` dump) —
+/// it is simply not part of this derived, hash-stable TTL projection.
 pub fn render_standing_ttl(doc: &StandingDocument) -> String {
     let mut out = String::new();
     out.push_str("@prefix praxis: <https://praxis.dev/ontology/standing#> .\n");
@@ -53,10 +63,6 @@ pub fn render_standing_ttl(doc: &StandingDocument) -> String {
         ttl_escape(&doc.release_id)
     ));
     out.push_str(&format!(
-        "  praxis:generatedAtUtc \"{}\" ;\n",
-        ttl_escape(&doc.generated_at_utc)
-    ));
-    out.push_str(&format!(
         "  praxis:generator \"{}\" .\n\n",
         ttl_escape(&doc.generator)
     ));
@@ -67,11 +73,11 @@ pub fn render_standing_ttl(doc: &StandingDocument) -> String {
             ttl_local_name(&artifact.id)
         ));
         out.push_str(&format!("  praxis:id \"{}\" ;\n", ttl_escape(&artifact.id)));
+        out.push_str(&format!("  praxis:kind \"{:?}\" ;\n", artifact.kind));
         out.push_str(&format!(
-            "  praxis:kind \"{:?}\" ;\n",
-            artifact.kind
+            "  praxis:path \"{}\" ;\n",
+            ttl_escape(&artifact.path)
         ));
-        out.push_str(&format!("  praxis:path \"{}\" ;\n", ttl_escape(&artifact.path)));
         for status in &artifact.standing {
             out.push_str(&format!("  praxis:standing \"{:?}\" ;\n", status));
         }
@@ -84,7 +90,10 @@ pub fn render_standing_ttl(doc: &StandingDocument) -> String {
         }
         for evidence in &artifact.evidence {
             let rendered = serde_json::to_string(evidence).unwrap_or_default();
-            out.push_str(&format!("  praxis:evidence \"{}\" ;\n", ttl_escape(&rendered)));
+            out.push_str(&format!(
+                "  praxis:evidence \"{}\" ;\n",
+                ttl_escape(&rendered)
+            ));
         }
         // Replace the trailing " ;\n" with " .\n\n" to close the resource.
         if out.ends_with(" ;\n") {
@@ -99,7 +108,13 @@ pub fn render_standing_ttl(doc: &StandingDocument) -> String {
 /// Turtle-safe local name: alphanumerics, `-`, `_` only.
 fn ttl_local_name(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -206,14 +221,23 @@ pub fn build_lsp_diagnostics(doc: &StandingDocument) -> serde_json::Value {
 /// Write all four focused sub-slices plus `LSP_DIAGNOSTICS.json` into
 /// `out_dir`, using the canonical filenames.
 pub fn write_summaries(doc: &StandingDocument, out_dir: &Path) -> io::Result<()> {
-    write_json_pretty(&build_benchmark_summary(doc), &out_dir.join("benchmark-summary.json"))?;
-    write_json_pretty(&build_receipt_summary(doc), &out_dir.join("receipt-summary.json"))?;
+    write_json_pretty(
+        &build_benchmark_summary(doc),
+        &out_dir.join("benchmark-summary.json"),
+    )?;
+    write_json_pretty(
+        &build_receipt_summary(doc),
+        &out_dir.join("receipt-summary.json"),
+    )?;
     write_json_pretty(
         &build_client_surface_summary(doc),
         &out_dir.join("client-surface-summary.json"),
     )?;
     write_json_pretty(&build_claim_index(doc), &out_dir.join("claim-index.json"))?;
-    write_json_pretty(&build_lsp_diagnostics(doc), &out_dir.join("LSP_DIAGNOSTICS.json"))?;
+    write_json_pretty(
+        &build_lsp_diagnostics(doc),
+        &out_dir.join("LSP_DIAGNOSTICS.json"),
+    )?;
     Ok(())
 }
 
@@ -224,6 +248,7 @@ mod tests {
 
     fn sample_doc() -> StandingDocument {
         StandingDocument {
+            schema_id: crate::standing::model::STANDING_SCHEMA_ID.to_string(),
             release_id: "v26.7.4".to_string(),
             generated_at_utc: "2026-07-06T00:00:00Z".to_string(),
             generator: "cargo-cicd-standing".to_string(),
@@ -282,6 +307,40 @@ mod tests {
         assert!(ttl.contains("praxis:StandingArtifact"));
         assert!(ttl.contains("praxis:ladderLevel \"3\"^^xsd:integer"));
         assert!(ttl.contains("Benchmarked") || ttl.contains("Receipted"));
+    }
+
+    /// The TTL must never embed `generated_at_utc` — that timestamp lives in
+    /// `standing.json` only. This is what makes the TTL byte-identical across
+    /// runs with unchanged artifact state (see `ttl_is_deterministic_across_runs`).
+    #[test]
+    fn ttl_does_not_contain_timestamp() {
+        let ttl = render_standing_ttl(&sample_doc());
+        assert!(!ttl.contains("generatedAtUtc"));
+        assert!(!ttl.contains("2026-07-06T00:00:00Z"));
+    }
+
+    /// Two renders of the same `StandingDocument`, differing only in
+    /// `generated_at_utc`, must produce byte-identical TTL output. This is
+    /// the core determinism guarantee that lets consumers (e.g. praxis's
+    /// `ggen.lock` content-addressed cache) treat unchanged-input runs as a
+    /// no-op instead of needing to `rm -f ggen.lock` before every run.
+    #[test]
+    fn ttl_is_deterministic_across_runs() {
+        let mut doc_a = sample_doc();
+        doc_a.generated_at_utc = "2026-07-06T00:00:00Z".to_string();
+        let mut doc_b = sample_doc();
+        doc_b.generated_at_utc = "2099-01-01T12:34:56Z".to_string();
+
+        let ttl_a = render_standing_ttl(&doc_a);
+        let ttl_b = render_standing_ttl(&doc_b);
+        assert_eq!(
+            ttl_a, ttl_b,
+            "TTL output must be independent of generated_at_utc"
+        );
+
+        // Also confirm stability across repeated calls with the identical doc.
+        let ttl_a2 = render_standing_ttl(&doc_a);
+        assert_eq!(ttl_a, ttl_a2);
     }
 
     #[test]
