@@ -124,8 +124,10 @@ impl EngineState {
 
         // Populate target state
         state.target.path = target_dir.clone();
-        state.target.total_size_bytes =
-            crate::adapters::TargetScannerAdapter::total_size_bytes(&target_dir);
+        let (target_size, target_scan_errors) =
+            crate::adapters::TargetScannerAdapter::total_size_bytes_with_errors(&target_dir);
+        state.target.total_size_bytes = target_size;
+        state.target.scan_errors = target_scan_errors;
 
         // Populate changed_files state
         let base_ref = state.config.test.changed.base.clone();

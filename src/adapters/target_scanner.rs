@@ -11,18 +11,54 @@ impl TargetScannerAdapter {
         Self
     }
 
-    pub fn total_size_bytes(target_dir: &str) -> u64 {
+    /// Total size in bytes of `target_dir`, along with a count of entries
+    /// that could not be read (permission errors, races, etc). A non-zero
+    /// error count means the returned size may be an undercount.
+    pub fn total_size_bytes_with_errors(target_dir: &str) -> (u64, usize) {
         let path = Path::new(target_dir);
         if !path.exists() {
-            return 0;
+            return (0, 0);
         }
-        WalkDir::new(path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_type().is_file())
-            .filter_map(|e| e.metadata().ok())
-            .map(|m| m.len())
-            .sum()
+
+        #[cfg(feature = "advanced")]
+        {
+            Self::scan_fast(path)
+        }
+        #[cfg(not(feature = "advanced"))]
+        {
+            Self::scan_sequential(path)
+        }
+    }
+
+    pub fn total_size_bytes(target_dir: &str) -> u64 {
+        Self::total_size_bytes_with_errors(target_dir).0
+    }
+
+    fn scan_sequential(path: &Path) -> (u64, usize) {
+        let mut total = 0u64;
+        let mut errors = 0usize;
+        for entry in WalkDir::new(path).into_iter() {
+            match entry {
+                Ok(e) => {
+                    if e.file_type().is_file() {
+                        match e.metadata() {
+                            Ok(m) => total += m.len(),
+                            Err(_) => errors += 1,
+                        }
+                    }
+                }
+                Err(_) => errors += 1,
+            }
+        }
+        (total, errors)
+    }
+
+    #[cfg(feature = "advanced")]
+    fn scan_fast(path: &Path) -> (u64, usize) {
+        match parallel_scan::reclaimable_target_bytes_with_errors(path) {
+            Ok((bytes, errors)) => (bytes, errors),
+            Err(_) => Self::scan_sequential(path),
+        }
     }
 
     pub fn total_size_gb(target_dir: &str) -> f64 {
@@ -51,7 +87,11 @@ impl TargetScannerAdapter {
 
 #[cfg(not(feature = "advanced"))]
 impl TargetScannerAdapter {
-    /// Fallback stub for when `advanced` feature is disabled.
+    /// Fallback stub for when `advanced` feature is disabled. Kept for API
+    /// symmetry with the `advanced`-gated impl above; only called by callers
+    /// built with `advanced` off, none of which currently exist in this tree,
+    /// so it warns dead here even though it is load-bearing API surface.
+    #[allow(dead_code)]
     pub fn parallel_scan_if_available(&self, _root: &Path) -> Option<()> {
         None
     }

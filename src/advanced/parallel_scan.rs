@@ -228,34 +228,58 @@ fn merge_reports(mut a: ScanReport, b: ScanReport) -> ScanReport {
 /// best-effort reclaimable estimate is more useful to callers than a hard
 /// failure.
 pub fn reclaimable_target_bytes(root: &Path) -> u64 {
+    reclaimable_target_bytes_with_errors(root)
+        .map(|(bytes, _)| bytes)
+        .unwrap_or(0)
+}
+
+/// Like [`reclaimable_target_bytes`], but also reports how many entries
+/// could not be read (permission errors, races, etc.) during the walk or
+/// per-file metadata reads, so callers can surface an undercount signal
+/// instead of silently swallowing it.
+pub fn reclaimable_target_bytes_with_errors(root: &Path) -> std::io::Result<(u64, usize)> {
     let collected: Mutex<Vec<(PathBuf, u64)>> = Mutex::new(Vec::new());
+    let errors = std::sync::atomic::AtomicUsize::new(0);
 
     let walker = build_walker(root);
 
     walker.run(|| {
         let collected = &collected;
+        let errors = &errors;
         Box::new(move |result| {
-            if let Ok(entry) = result {
-                let is_file = entry.file_type().map(|ft| ft.is_file()).unwrap_or(false);
-                if is_file && is_under_target(entry.path()) {
-                    if let Ok(meta) = entry.metadata() {
-                        collected
-                            .lock()
-                            .unwrap()
-                            .push((entry.path().to_path_buf(), meta.len()));
+            match result {
+                Ok(entry) => {
+                    let is_file = entry.file_type().map(|ft| ft.is_file()).unwrap_or(false);
+                    if is_file && is_under_target(entry.path()) {
+                        match entry.metadata() {
+                            Ok(meta) => {
+                                collected
+                                    .lock()
+                                    .unwrap()
+                                    .push((entry.path().to_path_buf(), meta.len()));
+                            }
+                            Err(_) => {
+                                errors.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            }
+                        }
                     }
+                }
+                Err(_) => {
+                    errors.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
             }
             WalkState::Continue
         })
     });
 
-    collected
+    let total: u64 = collected
         .into_inner()
         .unwrap()
         .par_iter()
         .map(|(_, size)| *size)
-        .sum()
+        .sum();
+
+    Ok((total, errors.into_inner()))
 }
 
 #[cfg(test)]

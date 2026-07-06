@@ -124,7 +124,9 @@ impl VerbCommand for WorkspaceDoctorVerb {
         }
 
         // ── autonomic policy checks ──────────────────────────────────────────
-        let target_gb = TargetScannerAdapter::total_size_gb("target");
+        let (target_size_bytes, target_scan_errors) =
+            TargetScannerAdapter::total_size_bytes_with_errors("target");
+        let target_gb = target_size_bytes as f64 / 1_073_741_824.0;
         let pinned_toolchain = read_pinned_toolchain();
         let git_dirty = GitStatusAdapter::query()
             .map(|r| r.dirty_files.len())
@@ -149,6 +151,19 @@ impl VerbCommand for WorkspaceDoctorVerb {
         };
 
         let results = run_all_policies(&workspace_info, &git_state, &evidence_state);
+
+        if !json_mode && target_scan_errors > 0 {
+            println!(
+                "{}",
+                check_row(
+                    "WARN",
+                    &format!(
+                        "target/ size may be undercounted: {} file(s) or folder(s) could not be read while scanning",
+                        target_scan_errors
+                    )
+                )
+            );
+        }
 
         if !json_mode && !results.is_empty() {
             println!();
@@ -247,6 +262,13 @@ impl VerbCommand for WorkspaceDoctorVerb {
             checks.push(serde_json::json!({ "name": "rust-toolchain file", "status": if has_toolchain_file { "OK" } else { "WARN" } }));
             checks.push(serde_json::json!({ "name": "git repository", "status": if has_git { "OK" } else { "FAIL" } }));
             checks.push(serde_json::json!({ "name": "cicd.toml", "status": if has_cicd { "OK" } else { "WARN" } }));
+            if target_scan_errors > 0 {
+                checks.push(serde_json::json!({
+                    "name": "target/ scan completeness",
+                    "status": "WARN",
+                    "value": format!("{} file(s) or folder(s) could not be read while scanning", target_scan_errors)
+                }));
+            }
             if do_fraud_scan {
                 checks.push(serde_json::json!({ "name": "Python/shell authority fraud scan", "status": if has_authority_scripts { "FAIL" } else { "OK" } }));
             }

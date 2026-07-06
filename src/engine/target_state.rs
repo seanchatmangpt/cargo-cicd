@@ -8,6 +8,10 @@ pub struct TargetState {
     pub prune_after_days: u32,
     pub stale_profiles: Vec<String>,
     pub verdict: TargetVerdict,
+    /// Number of entries under `target/` that could not be read while
+    /// scanning (permission errors, races, etc.). Non-zero means the
+    /// reported size may be an undercount.
+    pub scan_errors: usize,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
