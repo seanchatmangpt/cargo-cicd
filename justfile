@@ -5,6 +5,10 @@
 list:
 	@just --list
 
+# Build the workspace
+build:
+	cargo build
+
 # Lint and type-check without building
 check:
 	cargo check --all-targets --all-features
@@ -16,6 +20,15 @@ test:
 # Run clippy on all targets
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
+
+# Format the whole workspace in place
+fmt:
+	cargo fmt
+
+# Local definition-of-done gate: check, test, clippy, invariants (stops at first failure)
+verify-all: check test clippy
+	cargo test --test invariants
+	@echo "verify-all: check + test + clippy + invariants all passed"
 
 # Launch the terminal UI dashboard
 dx:
@@ -32,6 +45,10 @@ gate:
 # Audit the emitted OCEL evidence
 ocel-replay:
 	cargo run -q --bin cargo-cicd -- evidence audit
+
+# Run evidence gate tests (requires wpm binary)
+evidence:
+	cargo test --test wasm4pm_evidence_gate --features wasm4pm
 
 # Verify the cryptographic receipts
 receipt-verify:
