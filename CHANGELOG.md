@@ -6,6 +6,33 @@ Format: feat(scope): description — scope is core|cli|target|test|git|autonomic
 
 ---
 
+## [26.6.30] — 2026-06-26
+
+### Fixed
+- `cargo-cicd-lsp`: bundle `schemas/` into the crate and correct the `include_str!` path depth so `cargo publish` no longer fails on the bundled cicd.toml schema
+
+### Changed
+- Reduced the test suite from 799 to 200 tests: removed getter/round-trip/smoke tests that only re-asserted struct fields, keeping behavior-level coverage
+- `chicago-tdd-tools` bumped to 26.6.30; `star-toml` bumped to 26.6.30
+
+## [26.6.29] — 2026-06-22
+
+### Added
+- Full CLI integration of `chicago-tdd-tools` v26.6.29; all noun commands registered
+- `trace`, `gate`, `verify`, `ocel`, and `hooks` nouns implemented
+- Sprint 1–7 "operational physics" pass: admission control, evidence, gates, and LSP ANDON substrate hardening
+
+### Fixed
+- Wired `certification` and `sbom` CLI commands; eliminated all build warnings; closed dead-code paths
+
+### Changed
+- Removed local path parameter from the `chicago-tdd-tools` dependency (now version-only)
+
+## [26.6.22] — 2026-06-20
+
+### Changed
+- Pre-publish `Cargo.toml` updates: added version constraints to workspace-internal dependencies, removed the `readme` field from subcrates with no local README
+
 ## [26.6.19] — 2026-06-19
 
 ### Added
