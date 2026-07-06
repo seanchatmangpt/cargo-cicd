@@ -1,17 +1,15 @@
-pub mod fs;
 /// Adapters translate between external representations and the internal state model.
 /// Each adapter is responsible for a single external source (git, cargo metadata, filesystem).
-
 // New boundary adapters
 pub mod cargo_metadata;
 pub mod changed_file_detector;
 pub mod cicd_toml_writer;
+pub mod fs;
 pub mod git_status;
 pub mod manifest_parser;
 pub mod target_scanner;
 pub mod toolchain_detector;
 pub mod trybuild_detector;
-
 
 pub use cargo_metadata::CargoMetadataAdapter;
 pub use changed_file_detector::ChangedFileDetector;

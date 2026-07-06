@@ -14,7 +14,7 @@
 
 use crate::standing::glob;
 use crate::standing::model::{ArtifactKind, EvidenceRef, StandingArtifact, StandingStatus};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 fn now_iso() -> String {
@@ -81,7 +81,10 @@ pub fn ingest_doctor_json(command: Option<&str>) -> Vec<StandingArtifact> {
         return vec![fallback_artifact("doctor-report", ArtifactKind::Doc, "")];
     };
 
-    let output = std::process::Command::new("sh").arg("-c").arg(command).output();
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .output();
 
     let output = match output {
         Ok(o) => o,
@@ -197,7 +200,10 @@ fn ingest_one_process_validation(path: &Path) -> StandingArtifact {
         };
     };
 
-    let is_conforming = v.get("is_conforming").and_then(|b| b.as_bool()).unwrap_or(false);
+    let is_conforming = v
+        .get("is_conforming")
+        .and_then(|b| b.as_bool())
+        .unwrap_or(false);
     let mut standing = vec![StandingStatus::Discovered];
     if is_conforming {
         standing.push(StandingStatus::OcelProven);
@@ -238,11 +244,7 @@ fn ingest_one_process_validation(path: &Path) -> StandingArtifact {
 /// `chain_hash_hex` field.
 pub fn ingest_receipt_ledgers(paths: &[String]) -> Vec<StandingArtifact> {
     if paths.is_empty() {
-        return vec![fallback_artifact(
-            "receipt-ledgers",
-            ArtifactKind::Doc,
-            "",
-        )];
+        return vec![fallback_artifact("receipt-ledgers", ArtifactKind::Doc, "")];
     }
 
     paths.iter().map(|p| ingest_one_receipt_ledger(p)).collect()
@@ -250,7 +252,11 @@ pub fn ingest_receipt_ledgers(paths: &[String]) -> Vec<StandingArtifact> {
 
 fn ingest_one_receipt_ledger(path: &str) -> StandingArtifact {
     if !glob::path_exists(path) {
-        return fallback_artifact(&format!("receipt-ledger:{}", file_stem(Path::new(path))), ArtifactKind::Doc, path);
+        return fallback_artifact(
+            &format!("receipt-ledger:{}", file_stem(Path::new(path))),
+            ArtifactKind::Doc,
+            path,
+        );
     }
 
     let content = std::fs::read_to_string(path).unwrap_or_default();
@@ -432,7 +438,11 @@ pub fn parse_pipe_table_rows(content: &str) -> Vec<Vec<String>> {
 
 fn ingest_one_claim_table(path: &str) -> StandingArtifact {
     if !glob::path_exists(path) {
-        return fallback_artifact(&format!("claim:{}", file_stem(Path::new(path))), ArtifactKind::Doc, path);
+        return fallback_artifact(
+            &format!("claim:{}", file_stem(Path::new(path))),
+            ArtifactKind::Doc,
+            path,
+        );
     }
     let content = std::fs::read_to_string(path).unwrap_or_default();
     let rows = parse_pipe_table_rows(&content);
@@ -549,6 +559,133 @@ fn run_with_timeout(command: &str, cwd: &str, timeout: Duration) -> (Option<i32>
     }
 }
 
+// ── 8. Workspace member crates ────────────────────────────────────────────
+
+/// Discover Rust workspace member crates from the root `Cargo.toml`'s
+/// `[workspace] members` list and emit one `RustCrate` artifact per member.
+///
+/// Conservative by design: this ingestor never shells out to `cargo
+/// build`/`test`/`clippy`, so it never fabricates a `BUILDS`/`TESTED`/
+/// `LINT_CLEAN` status it cannot attribute to an actual command run.
+/// Every discovered member gets `DISCOVERED` standing only — its
+/// `Cargo.toml` parses and names a crate, nothing more is claimed. A caller
+/// wanting `BUILDS`/`TESTED` evidence per crate should pair this with a
+/// targeted `doctor_command` or a future per-crate build/test ingestor.
+pub fn ingest_workspace_crates(repo_root: &str) -> Vec<StandingArtifact> {
+    let root_cargo_toml = format!("{repo_root}/Cargo.toml");
+    let Ok(root_toml_str) = std::fs::read_to_string(&root_cargo_toml) else {
+        return vec![fallback_artifact(
+            "workspace-crates",
+            ArtifactKind::RustCrate,
+            "",
+        )];
+    };
+    let Ok(root_toml) = root_toml_str.parse::<toml::Value>() else {
+        return vec![fallback_artifact(
+            "workspace-crates",
+            ArtifactKind::RustCrate,
+            &root_cargo_toml,
+        )];
+    };
+
+    let member_patterns: Vec<String> = root_toml
+        .get("workspace")
+        .and_then(|w| w.get("members"))
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if member_patterns.is_empty() {
+        return vec![fallback_artifact(
+            "workspace-crates",
+            ArtifactKind::RustCrate,
+            &root_cargo_toml,
+        )];
+    }
+
+    let member_dirs = resolve_member_dirs(repo_root, &member_patterns);
+    if member_dirs.is_empty() {
+        return vec![fallback_artifact(
+            "workspace-crates",
+            ArtifactKind::RustCrate,
+            &root_cargo_toml,
+        )];
+    }
+
+    member_dirs
+        .iter()
+        .filter_map(|dir| ingest_one_workspace_crate(repo_root, dir))
+        .collect()
+}
+
+/// Expand each member pattern to concrete member directories relative to
+/// `repo_root`. Supports literal paths (`"."`, `"crates/foo"`) and a single
+/// trailing `/*` glob segment (`"crates/*"`) — the two shapes actually used
+/// by cargo workspace manifests in this fleet. Deliberately narrower than
+/// `crate::standing::glob`, which matches files, not directories.
+fn resolve_member_dirs(repo_root: &str, patterns: &[String]) -> Vec<PathBuf> {
+    let mut out = vec![];
+    for pattern in patterns {
+        if let Some(prefix) = pattern.strip_suffix("/*") {
+            let base = Path::new(repo_root).join(prefix);
+            let Ok(entries) = std::fs::read_dir(&base) else {
+                continue;
+            };
+            let mut subdirs: Vec<PathBuf> = entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.is_dir() && p.join("Cargo.toml").is_file())
+                .collect();
+            subdirs.sort();
+            out.extend(subdirs);
+        } else {
+            let dir = Path::new(repo_root).join(pattern);
+            if dir.join("Cargo.toml").is_file() {
+                out.push(dir);
+            }
+        }
+    }
+    out
+}
+
+fn ingest_one_workspace_crate(repo_root: &str, dir: &Path) -> Option<StandingArtifact> {
+    let cargo_toml_path = dir.join("Cargo.toml");
+    let content = std::fs::read_to_string(&cargo_toml_path).ok()?;
+    let parsed: toml::Value = content.parse().ok()?;
+    let name = parsed
+        .get("package")
+        .and_then(|p| p.get("name"))
+        .and_then(|n| n.as_str())
+        .map(|s| s.to_string())?;
+
+    let rel_path = dir.strip_prefix(repo_root).unwrap_or(dir).to_string_lossy().to_string();
+    let rel_path = if rel_path.is_empty() {
+        ".".to_string()
+    } else {
+        rel_path
+    };
+
+    let hash = proxy_hash_hex(content.as_bytes());
+
+    Some(StandingArtifact {
+        id: format!("crate:{name}"),
+        kind: ArtifactKind::RustCrate,
+        path: rel_path.clone(),
+        standing: vec![StandingStatus::Discovered],
+        scope: None,
+        ladder_level: 0,
+        evidence: vec![EvidenceRef::Artifact {
+            path: format!("{rel_path}/Cargo.toml"),
+            hash,
+        }],
+        external_operator_side_effects: vec![],
+    })
+}
+
 /// Path to a fixture under `crates/cargo-cicd-core/fixtures/standing/`.
 #[cfg(test)]
 fn fixture(name: &str) -> String {
@@ -575,10 +712,9 @@ mod tests {
         let out = ingest_ocel_process_validation(&[fixture("process-validation.json")]);
         assert_eq!(out.len(), 1);
         assert!(out[0].standing.contains(&StandingStatus::OcelProven));
-        assert!(out[0]
-            .evidence
-            .iter()
-            .any(|e| matches!(e, EvidenceRef::OcelEvent { event_id, .. } if event_id == "case-fixture-1")));
+        assert!(out[0].evidence.iter().any(
+            |e| matches!(e, EvidenceRef::OcelEvent { event_id, .. } if event_id == "case-fixture-1")
+        ));
     }
 
     #[test]
@@ -697,7 +833,9 @@ mod tests {
         let out = ingest_bench_raw(Some(&pattern));
         assert_eq!(out.len(), 1);
         assert!(out[0].standing.contains(&StandingStatus::Benchmarked));
-        assert!(matches!(&out[0].evidence[0], EvidenceRef::Artifact { hash, .. } if hash.len() == 64));
+        assert!(
+            matches!(&out[0].evidence[0], EvidenceRef::Artifact { hash, .. } if hash.len() == 64)
+        );
     }
 
     #[test]
@@ -712,9 +850,7 @@ mod tests {
         let out = ingest_claim_tables(&[file.to_str().unwrap().to_string()]);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].standing, vec![StandingStatus::Discovered]);
-        assert!(!out[0]
-            .standing
-            .contains(&StandingStatus::ProductionReady));
+        assert!(!out[0].standing.contains(&StandingStatus::ProductionReady));
     }
 
     #[test]
@@ -764,5 +900,73 @@ mod tests {
         );
         assert!(!out[0].standing.contains(&StandingStatus::Builds));
         assert_eq!(out[0].evidence.len(), 1);
+    }
+
+    fn write_crate(root: &Path, member: &str, crate_name: &str) {
+        let dir = root.join(member);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            format!("[package]\nname = \"{crate_name}\"\nversion = \"0.1.0\"\n"),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn workspace_crates_missing_root_manifest_is_unseen() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = ingest_workspace_crates(dir.path().to_str().unwrap());
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].standing, vec![StandingStatus::Unseen]);
+    }
+
+    #[test]
+    fn workspace_crates_literal_members_are_discovered_rust_crates() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\".\", \"crates/foo\"]\n",
+        )
+        .unwrap();
+        write_crate(dir.path(), ".", "root-crate");
+        write_crate(dir.path(), "crates/foo", "foo-crate");
+
+        let out = ingest_workspace_crates(dir.path().to_str().unwrap());
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().all(|a| a.kind == ArtifactKind::RustCrate));
+        assert!(out.iter().all(|a| a.standing == vec![StandingStatus::Discovered]));
+        assert!(out.iter().any(|a| a.id == "crate:root-crate"));
+        assert!(out.iter().any(|a| a.id == "crate:foo-crate"));
+        // Conservative: never fabricates BUILDS/TESTED/LINT_CLEAN.
+        assert!(out
+            .iter()
+            .all(|a| !a.standing.contains(&StandingStatus::Builds)
+                && !a.standing.contains(&StandingStatus::Tested)));
+    }
+
+    #[test]
+    fn workspace_crates_glob_member_expands_subdirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/*\"]\n",
+        )
+        .unwrap();
+        write_crate(dir.path(), "crates/a", "crate-a");
+        write_crate(dir.path(), "crates/b", "crate-b");
+
+        let out = ingest_workspace_crates(dir.path().to_str().unwrap());
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().any(|a| a.id == "crate:crate-a"));
+        assert!(out.iter().any(|a| a.id == "crate:crate-b"));
+    }
+
+    #[test]
+    fn workspace_crates_empty_members_is_unseen() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        let out = ingest_workspace_crates(dir.path().to_str().unwrap());
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].standing, vec![StandingStatus::Unseen]);
     }
 }

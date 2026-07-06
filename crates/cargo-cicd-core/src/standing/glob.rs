@@ -156,10 +156,7 @@ mod tests {
     #[test]
     fn double_star_matches_any_depth() {
         assert!(glob_match("target/**/plan.json", "target/plan.json"));
-        assert!(glob_match(
-            "target/**/plan.json",
-            "target/a/b/c/plan.json"
-        ));
+        assert!(glob_match("target/**/plan.json", "target/a/b/c/plan.json"));
         assert!(!glob_match("target/**/plan.json", "target/plan.txt"));
     }
 
