@@ -288,7 +288,7 @@ pub fn cmd_verify(repo: Option<String>, json: bool) -> Result<()> {
 }
 
 fn print_report_table(doc: &StandingDocument) {
-    println!("{:<28} {:<10} {:<40} {:<6} {}", "id", "kind", "standing", "ladder", "scope");
+    println!("{:<28} {:<10} {:<40} {:<6} scope", "id", "kind", "standing", "ladder");
     for artifact in &doc.artifacts {
         println!("{}", format_report_row(artifact));
     }
