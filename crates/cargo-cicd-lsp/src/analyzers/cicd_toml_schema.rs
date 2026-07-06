@@ -78,7 +78,11 @@ fn analyze_schema(snapshot: &WorkspaceSnapshot) -> Vec<CicdFinding> {
     let mut findings = Vec::new();
     for error in validator.iter_errors(&instance) {
         let path_str = error.instance_path.to_string();
-        let field_name = path_str.split('/').last().unwrap_or("<root>").to_string();
+        let field_name = path_str
+            .split('/')
+            .next_back()
+            .unwrap_or("<root>")
+            .to_string();
 
         // Find the line number by scanning source for the field name.
         let line_no: u32 = source_lines
