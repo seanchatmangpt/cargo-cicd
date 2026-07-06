@@ -298,6 +298,7 @@ impl Validate for CicdToml {
         v.check_non_empty("workspace.name", &self.workspace.name);
         let tc = &self.workspace.toolchain;
         let valid_toolchain = matches!(tc.as_str(), "stable" | "beta" | "nightly")
+            || tc.starts_with("nightly-") // dated rustup channel, e.g. nightly-2026-06-22
             || tc
                 .chars()
                 .next()
@@ -307,7 +308,7 @@ impl Validate for CicdToml {
             "workspace.toolchain",
             valid_toolchain,
             "invalid_toolchain",
-            "must be stable, beta, nightly, or a version string starting with a digit",
+            "must be stable, beta, nightly, a dated nightly (nightly-YYYY-MM-DD), or a version string starting with a digit",
         );
         v.check_non_empty("test.changed.base", &self.test.changed.base);
         v.check_predicate(
