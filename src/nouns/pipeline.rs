@@ -1,3 +1,4 @@
+//! Runs, checks the status of, and validates the workspace's CI/CD pipeline definition.
 use crate::legacy_nouns::pipeline::{PipelineRunVerb, PipelineStatusVerb, PipelineValidateVerb};
 use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};

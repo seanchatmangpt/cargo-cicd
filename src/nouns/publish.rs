@@ -1,3 +1,4 @@
+//! Publishes eligible workspace crates to crates.io after verifying release readiness.
 use crate::legacy_nouns::publish::{PublishCheckVerb, PublishRunVerb, PublishValidateVerb};
 use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};

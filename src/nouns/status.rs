@@ -1,3 +1,4 @@
+//! Displays workspace status: dirty files, pending tests, trybuild result, and publish readiness.
 use crate::adapters::{GitStatusAdapter, TargetScannerAdapter, ToolchainDetector};
 use crate::autonomic::policy_engine;
 use crate::engine::EngineState;

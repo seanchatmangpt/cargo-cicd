@@ -1,3 +1,4 @@
+//! Runs cargo test restricted to crates whose source files changed since the last green commit.
 use crate::legacy_nouns::test::{TestBenchVerb, TestChangedVerb, TestRunVerb};
 use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};

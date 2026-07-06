@@ -1,3 +1,4 @@
+//! Verifies a repository against configured checks, including semver compatibility.
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 

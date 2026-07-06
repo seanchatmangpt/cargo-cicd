@@ -1,3 +1,4 @@
+//! Profiles a command's execution and records a digest-backed trace for diagnosis.
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 use serde::{Deserialize, Serialize};

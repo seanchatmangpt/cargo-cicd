@@ -1,3 +1,4 @@
+//! Surfaces git working-tree status and performs the lawful branch-close sequence.
 use crate::legacy_nouns::git::{
     GitCloseVerb, GitCommitVerb, GitDiffVerb, GitFetchVerb, GitStageVerb, GitStatusVerb,
 };

@@ -1,3 +1,4 @@
+//! Verifies and audits signed execution receipts recording command provenance.
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 use serde::{Deserialize, Serialize};

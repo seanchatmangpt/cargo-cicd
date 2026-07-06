@@ -1,3 +1,5 @@
+//! Diagnoses the Cargo workspace for structural health: duplicate dependencies,
+//! missing feature declarations, version skew, and toolchain mismatch.
 use crate::legacy_nouns::workspace::{
     WorkspaceDoctorVerb, WorkspaceListVerb, WorkspaceSyncVerb, WorkspaceValidateVerb,
 };

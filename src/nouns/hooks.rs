@@ -1,3 +1,4 @@
+//! Installs git hooks that integrate cargo-cicd with an external CI provider.
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 use std::io::Read;

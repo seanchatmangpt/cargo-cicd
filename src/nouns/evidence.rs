@@ -1,3 +1,4 @@
+//! Adjudicates and inspects recorded process evidence (XES/OCEL logs).
 use crate::legacy_nouns::evidence::{
     AuditVerb, DoctorVerb, EvidenceListVerb, EvidenceResetVerb, EvidenceShowVerb,
 };

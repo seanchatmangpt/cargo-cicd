@@ -1,3 +1,4 @@
+//! Runs trybuild compile-fail/compile-pass fixtures for crates changed since the last green commit.
 use crate::legacy_nouns::trybuild::{TrybuildChangedVerb, TrybuildReviewVerb, TrybuildUpdateVerb};
 use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};

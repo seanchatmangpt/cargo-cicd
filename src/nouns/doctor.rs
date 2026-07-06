@@ -1,3 +1,4 @@
+//! Diagnoses repository health against a recorded baseline and reports evidence drift.
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 use serde::{Deserialize, Serialize};

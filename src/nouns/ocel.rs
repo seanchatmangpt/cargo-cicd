@@ -1,3 +1,4 @@
+//! Replays an OCEL 2.0 event log and verifies its causal ordering and integrity.
 use crate::ocel::{ReplayStatus, ReplaySummary};
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;

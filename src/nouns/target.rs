@@ -1,3 +1,4 @@
+//! Reports on and prunes stale build artefacts in the Cargo target directory.
 use crate::legacy_nouns::target::{TargetPruneVerb, TargetShowVerb};
 use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};
