@@ -5,6 +5,8 @@ pub mod evidence;
 pub mod gate;
 pub mod git;
 pub mod hooks;
+#[cfg(feature = "anti-llm-cheat")]
+pub mod lsp;
 pub mod ocel;
 pub mod pipeline;
 pub mod publish;
