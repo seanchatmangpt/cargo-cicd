@@ -388,7 +388,10 @@ name = "cargo-cicd-core"
 version = "26.6.30"
 dependencies = [
  "serde",
+ "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
+ "walkdir",
 ]
 
 [[package]]

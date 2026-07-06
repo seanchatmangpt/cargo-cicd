@@ -20,6 +20,11 @@ pub struct CicdToml {
     pub autonomic: AutonomicSection,
     #[serde(default)]
     pub events: Vec<EventRecord>,
+    /// The standing compiler's ingestion/gate configuration. Optional: a
+    /// `cicd.toml` written before v26.7.4 has no `[standing]` section at
+    /// all, and must still parse.
+    #[serde(default)]
+    pub standing: StandingConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -202,6 +207,56 @@ impl EventRecord {
             timestamp: None,
         }
     }
+}
+
+// ── [standing] section ──────────────────────────────────────────────────
+
+/// Configuration for the standing compiler (`cargo cicd standing ...`).
+///
+/// Every field is optional so an existing `cicd.toml` without a `[standing]`
+/// section keeps parsing, and a partial section (e.g. just
+/// `doctor_command`) is valid too — missing ingestors simply produce their
+/// tolerant `UNSEEN`/`DISCOVERED` fallback artifacts at refresh time.
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields, default)]
+pub struct StandingConfig {
+    /// Shell command that prints `doctor check --format json` shaped
+    /// output: `{build, config, frontier, receipts, tools, features}`.
+    pub doctor_command: Option<String>,
+    /// Glob patterns for OCEL process-validation JSON logs
+    /// (`{is_conforming, fitness, violations, ...}`).
+    pub ocel_logs: Vec<String>,
+    /// Glob patterns for OCEL process-validation JSON — kept distinct from
+    /// `ocel_logs` so raw OCEL event logs and conformance-check outputs can
+    /// be pointed at different directories.
+    pub process_validation: Vec<String>,
+    /// Paths to JSONL receipt ledgers (one record per line, each carrying
+    /// `chain_hash_hex`).
+    pub receipt_ledgers: Vec<String>,
+    /// Glob for `plan.json` plan-run artifacts carrying `powl_chain_hash`.
+    pub plan_runs_glob: Option<String>,
+    /// Glob for raw benchmark output files (existence/size/hash only — no
+    /// divan table parsing).
+    pub bench_raw_glob: Option<String>,
+    /// Paths to markdown claim-promotion tables. Ingested as informational
+    /// evidence only, never authoritative standing.
+    pub claim_tables: Vec<String>,
+    /// Client build targets: each gets its `build_command` shelled out
+    /// with a timeout during `standing refresh`.
+    pub clients: Vec<cargo_cicd_core::standing::sources::ClientTarget>,
+    /// Directory of release docs consulted by the `claude-context` verb.
+    pub release_docs_dir: Option<String>,
+    /// Per-release required artifact+status pairs, checked by the
+    /// `gate release` verb.
+    pub release_gates: std::collections::BTreeMap<String, Vec<RequiredArtifactStatus>>,
+}
+
+/// One required `(artifact_id, status)` pair for a release gate.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct RequiredArtifactStatus {
+    pub artifact_id: String,
+    pub status: cargo_cicd_core::standing::StandingStatus,
 }
 
 impl CicdToml {

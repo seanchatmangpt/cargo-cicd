@@ -174,6 +174,89 @@
           "timestamp": { "type": "string" }
         }
       }
+    },
+    "standing": {
+      "type": "object",
+      "description": "Standing compiler configuration (cargo cicd standing ...). Optional; a cicd.toml without this section still parses.",
+      "additionalProperties": false,
+      "properties": {
+        "doctor_command": {
+          "type": ["string", "null"],
+          "description": "Shell command printing doctor check --format json shaped output: {build, config, frontier, receipts, tools, features}."
+        },
+        "ocel_logs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for OCEL process-validation JSON logs."
+        },
+        "process_validation": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for OCEL process-validation JSON ({is_conforming, fitness, violations, ...})."
+        },
+        "receipt_ledgers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to JSONL receipt ledgers, one record per line, each carrying chain_hash_hex."
+        },
+        "plan_runs_glob": {
+          "type": ["string", "null"],
+          "description": "Glob for plan.json plan-run artifacts carrying powl_chain_hash."
+        },
+        "bench_raw_glob": {
+          "type": ["string", "null"],
+          "description": "Glob for raw benchmark output files (existence/size/hash only)."
+        },
+        "claim_tables": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to markdown claim-promotion tables. Informational only, never authoritative standing."
+        },
+        "clients": {
+          "type": "array",
+          "description": "Client build targets built and BUILDS-evidenced during standing refresh.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path", "build_command"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "build_command": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "release_docs_dir": {
+          "type": ["string", "null"],
+          "description": "Directory of release docs consulted by the claude-context verb."
+        },
+        "release_gates": {
+          "type": "object",
+          "description": "Map of release_id -> required [artifact_id, status] pairs, checked by gate release.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["artifact_id", "status"],
+              "properties": {
+                "artifact_id": { "type": "string", "minLength": 1 },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "UNSEEN", "DISCOVERED", "BUILDS", "TESTED", "LINT_CLEAN",
+                    "BENCHMARKED", "RECEIPTED", "RECEIPT_VERIFIED", "OCEL_PROVEN",
+                    "WASM4PM_PROVEN", "CLIENT_VISIBLE", "PUBLICATION_READY",
+                    "PUBLISH_READY", "PILOT_READY", "PRODUCTION_READY",
+                    "EXTERNAL_OPERATOR_SIDE_EFFECT", "NON_STANDING",
+                    "QUARANTINED", "RETIRED", "DUPLICATE"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

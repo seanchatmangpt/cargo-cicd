@@ -1,4 +1,5 @@
 pub mod certification;
+pub mod claude_context;
 pub mod doctor;
 pub mod evidence;
 pub mod gate;
@@ -9,6 +10,7 @@ pub mod pipeline;
 pub mod publish;
 pub mod receipt;
 pub mod sbom;
+pub mod standing;
 pub mod status;
 pub mod target;
 pub mod test;
