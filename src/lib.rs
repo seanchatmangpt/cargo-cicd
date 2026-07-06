@@ -41,32 +41,65 @@
 //! assert_eq!(state.git_phase.ahead, 0);
 //! assert!(!state.trybuild.run_all_by_default, "conservative mode is the default");
 //! ```
+//!
+//! ## Stability
+//!
+//! Only the types re-exported at the crate root (currently [`EngineState`],
+//! [`CicdToml`], and the `core` re-export of `cargo_cicd_core`) carry a
+//! compatibility guarantee. All other modules in this crate are internal
+//! implementation detail: they are technically reachable (marked `pub` for
+//! internal cross-crate use within the cargo-cicd workspace) but are hidden
+//! from generated documentation and may change or be removed without notice
+//! in any release, including patch releases. Do not depend on their paths,
+//! types, or signatures.
 
+#[doc(hidden)]
 pub mod adapters;
 #[cfg(feature = "advanced")]
+#[doc(hidden)]
 pub mod advanced;
+#[doc(hidden)]
 pub mod autonomic;
+#[doc(hidden)]
 pub mod barrier;
+#[doc(hidden)]
 pub mod certification;
 pub mod cicd_toml;
+#[doc(hidden)]
 pub mod code_provenance;
 pub mod engine;
+#[doc(hidden)]
 pub mod evidence;
+#[doc(hidden)]
 pub mod evidence_helpers;
+#[doc(hidden)]
 pub mod evidence_jsonl;
+#[doc(hidden)]
 pub mod evidence_manifest;
+#[doc(hidden)]
 pub mod evidence_sarif;
+#[doc(hidden)]
 pub mod evidence_xes_v2;
+#[doc(hidden)]
 pub mod integrations;
+#[doc(hidden)]
 pub mod legacy_nouns;
+#[doc(hidden)]
 pub mod nouns;
 
+#[doc(hidden)]
 pub mod ocel;
+#[doc(hidden)]
 pub mod oracle_keys;
+#[doc(hidden)]
 pub mod policies;
+#[doc(hidden)]
 pub mod receipt_validation;
+#[doc(hidden)]
 pub mod session;
+#[doc(hidden)]
 pub mod state;
+#[doc(hidden)]
 pub mod ui;
 
 pub use cicd_toml::CicdToml;
