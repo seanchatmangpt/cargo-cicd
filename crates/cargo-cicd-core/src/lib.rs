@@ -10,6 +10,7 @@ pub mod ggen;
 pub mod git;
 pub mod public_boundary;
 pub mod publish;
+pub mod standing;
 pub mod target;
 pub mod tests_changed;
 pub mod workspace;
