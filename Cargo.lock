@@ -518,9 +518,9 @@ dependencies = [
 
 [[package]]
 name = "clap-noun-verb"
-version = "26.6.2"
+version = "26.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b1b5d2fe8832d7a8a28bf96166238e471860cc122efc0fc29d520a03789c2ff"
+checksum = "3689ba963fe6e06c2dc18be5fdf0c58fe3e0ebbef7641532ab2614c550c7b214"
 dependencies = [
  "anyhow",
  "atty",
@@ -545,9 +545,9 @@ dependencies = [
 
 [[package]]
 name = "clap-noun-verb-macros"
-version = "26.6.2"
+version = "26.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b50d796926aed1d4c1c43c4fd7649d6b2ba244682cd773cf1b0e081fcef0f681"
+checksum = "d9d4162cde202813a793cffef9320a10e8084e34470d012ef2d2b7660d669ee9"
 dependencies = [
  "linkme",
  "proc-macro-error",
