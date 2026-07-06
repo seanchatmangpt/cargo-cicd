@@ -1,0 +1,20 @@
+{
+  "schema": "cargo-cicd.receipt.v1",
+  "command": [
+    "cargo",
+    "cicd",
+    "standing",
+    "refresh"
+  ],
+  "exit_code": 0,
+  "stdout_digest": "f83b0d053cce73379f94a0e095c2bc1b1b53afaddee31f5ad89e3fdc3b2234b5",
+  "stderr_digest": "",
+  "git_before": "2124607ae217964e08b9e8bf9d7fc71156ff9fcb",
+  "git_after": "2124607ae217964e08b9e8bf9d7fc71156ff9fcb",
+  "input_artifacts": {},
+  "output_artifacts": {
+    "standing.json": "./target/praxis-standing/standing.json"
+  },
+  "timestamp": "1783376495664",
+  "receipt_digest": "a379ce8abf4aec629e58ed838d337d6c52e111294e4a1c1dbf78396c5416f261"
+}

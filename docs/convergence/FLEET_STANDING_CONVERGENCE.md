@@ -296,4 +296,246 @@ _(pending)_
 
 ## P16 — Final report
 
-_(pending)_
+### Phase-by-phase outcome
+
+| Phase | Outcome | Evidence |
+|---|---|---|
+| P1 | Done | This doc's P1 section |
+| P2 (dispatch) | Done, committed | commit `6565004`; `cargo-cicd cicd --version` == `cargo-cicd --version` (verified below) |
+| P3 (version) | Done, committed | commit `6565004`; both invocation forms print `cargo-cicd 26.6.30` |
+| P4 (deterministic TTL) | Done, committed | commit `b7a7095`; two consecutive `standing refresh` runs produced byte-identical `standing.ttl` (sha256 `87ca7a85f497f855ded53672177db1e1c20c14d1f507770694f91b78bed1a3be`, verified below) |
+| P5 (schema doc) | Done, committed | commit `810d8fe`; `docs/reference/standing-schema.md` exists |
+| P6 (pack migration) | Done, committed | commit `3f32a38`; `plugins/cargo-cicd-kit/standing-pack/{pack.toml,ontology.ttl,templates/reality_index.md.tmpl}` |
+| P7 (policy docs) | Folded into P5/P6 commits; not separately itemized in the ledger by the executing agent — **not independently re-verified as a standalone commit in this pass** | see `git log --oneline` around `810d8fe`/`3f32a38` |
+| P8 (validator placement) | Reported as a no-op decision by the executing agent (analysis-only; no code moved) | ledger text above under "P12" narrative — no separate P8 section was ever filled in this file |
+| P9 (schema id rename) | Done, committed | commit `a0f6605`; `standing --help` text says `` `cicd-standing.v1` document (schema id, `praxis-standing.v1` accepted as a read alias)`` |
+| P10 (self-standing) | Done, re-verified live in this pass | see "Verification evidence" below |
+| P11 (praxis dogfood) | **Regressed since it was last reported green** — see "Known-open issue" below | `just standing` currently fails at the ggen sync step |
+| P12 (wasm4pm validation) | Partially done, **uncommitted** | Shape-A OCEL emitter (`render_standing_ocel_shape_a`/`write_standing_ocel_shape_a` in `emit.rs`) + a `dev-dependencies` link to `wasm4pm-compat` in `Cargo.toml`, parsed and round-tripped by a passing unit test (`standing_ocel_shape_a_parses_as_wasm4pm_compat_ocel`) — all currently unstaged working-tree changes, not yet committed. No real OCEL log from a wasm4pm CLI run was validated in this pass; only the Rust-type round-trip was exercised |
+| P13 (anti-llm-cheat-lsp handoff) | Done | this file's P13 section |
+| P14 (commits) | Partially done — see commit list below; the P12 diff described above is **not** among them | `git log --oneline` |
+| P15 (verification matrix) | Re-run live in this pass, see below | this section |
+
+### Commits that actually landed
+
+**cargo-cicd** (`git log --oneline`, newest first, convergence-relevant slice):
+```
+81f0876 feat(standing): wire workspace-crate ingestor into refresh pipeline
+35978d7 chore(core): add missing toml dependency, apply cargo fmt
+6883518 fix(core): accept dated nightly toolchain channels in cicd.toml validation
+3f32a38 feat(standing): publish reusable standing ggen pack
+810d8fe docs(standing): move schema and claim policy to cargo-cicd
+a0f6605 fix(standing): rename schema id to cicd-standing.v1 with legacy alias
+b7a7095 fix(standing): make deterministic TTL output stable across runs
+6565004 fix(cli): accept cargo subcommand argv and report cargo-cicd version
+```
+
+**praxis** (`git log --oneline`, newest first, convergence-relevant slice):
+```
+a1473dd chore(praxis): refresh standing artifacts after convergence
+7f4157a chore(praxis): consume canonical cargo-cicd standing assets
+```
+
+### Canonical file paths established
+
+- Schema doc: `/Users/sac/cargo-cicd/docs/reference/standing-schema.md`
+- Schema model: `/Users/sac/cargo-cicd/crates/cargo-cicd-core/src/standing/model.rs` (`STANDING_SCHEMA_ID = "cicd-standing.v1"`, `STANDING_SCHEMA_ID_ALIAS_PRAXIS = "praxis-standing.v1"`)
+- Standing pack: `/Users/sac/cargo-cicd/plugins/cargo-cicd-kit/standing-pack/{pack.toml,ontology.ttl,templates/reality_index.md.tmpl}`
+- Emitter: `/Users/sac/cargo-cicd/crates/cargo-cicd-core/src/standing/emit.rs`
+- Validator (`ocel_process_validate.rs`): still resides only at `/Users/sac/praxis/src/bin/ocel_process_validate.rs` — P8's own report explicitly declined to move it (see ledger P1/P8 narrative); this is an open placement decision, not a completed migration
+
+### Verification evidence (re-run live during this synthesis pass)
+
+All commands below were executed fresh in this pass, from `/Users/sac/cargo-cicd` unless stated:
+
+```
+$ cargo build --features process-data,autonomic,wasm4pm --bin cargo-cicd
+   Finished `dev` profile ... (0 errors, warnings only)
+
+$ ./target/debug/cargo-cicd --version
+cargo-cicd 26.6.30
+
+$ ./target/debug/cargo-cicd cicd --version      # cargo-style argv (leading "cicd" token)
+cargo-cicd 26.6.30
+
+$ ./target/debug/cargo-cicd cicd standing --help
+Usage: cargo-cicd standing [OPTIONS] [COMMAND]
+Commands: refresh report verify
+(schema id text present: "cicd-standing.v1" ... "praxis-standing.v1" accepted as a read alias)
+
+$ cargo test --test invariants -- --nocapture
+running 4 tests ... test result: ok. 4 passed; 0 failed
+
+$ ./target/debug/cargo-cicd standing refresh   # run 1
+standing refresh: 10 artifact(s) -> ./target/praxis-standing/standing.json
+$ shasum -a 256 target/praxis-standing/standing.ttl
+87ca7a85f497f855ded53672177db1e1c20c14d1f507770694f91b78bed1a3be
+$ ./target/debug/cargo-cicd standing refresh   # run 2, 1s later
+standing refresh: 10 artifact(s) -> ./target/praxis-standing/standing.json
+$ shasum -a 256 target/praxis-standing/standing.ttl
+87ca7a85f497f855ded53672177db1e1c20c14d1f507770694f91b78bed1a3be   # byte-identical, confirms P4
+
+$ ./target/debug/cargo-cicd standing verify
+standing verify: 0 drifted artifact(s)
+
+$ ./target/debug/cargo-cicd claude_context show
+# CLAUDE_CODE_CONTEXT — v26.6.30 (generated ...) — renders, lists crate:cargo-cicd,
+# crate:cargo-cicd-core, crate:cargo-cicd-lsp plus doctor-report/ocel-process-validation/
+# receipt-ledgers/plan-runs/bench-raw/claim-tables/clients as Unseen
+
+$ cargo test --features process-data,autonomic,wasm4pm    # full suite, includes uncommitted P12 diff
+test result: ok. 51 passed; 0 failed   (largest suite)
+... (32 total `test result: ok` blocks across lib + integration binaries, 0 `FAILED` anywhere, exit code 0)
+
+$ cargo test --features process-data,autonomic,wasm4pm --lib standing_ocel_shape_a
+test result: ok. 1 passed        # confirms the uncommitted Shape-A OCEL snapshot round-trips through
+                                   # wasm4pm_compat::ocel::OCEL, not just this crate's own emitter
+```
+
+This confirms, with fresh evidence in this pass, that the plan's stated acceptance-bar commands for the cargo-cicd side all currently work:
+```
+cargo cicd standing refresh && cargo cicd standing verify && cargo cicd claude-context   # PASSES
+cargo cicd --version && cargo cicd standing --help                                      # PASSES, correct output
+```
+plus byte-identical `standing.ttl` across two runs — **confirmed** (see hash above).
+
+### Known-open issue: `just standing` in praxis currently FAILS
+
+This is a regression discovered during this synthesis pass, **not** a re-confirmation of P11's earlier "pass" report:
+
+```
+$ cd /Users/sac/praxis && timeout 90s just standing
+...
+standing refresh: 28 artifact(s) -> ./target/praxis-standing/standing.json
+cp target/praxis-standing/standing.ttl ../cargo-cicd/plugins/cargo-cicd-kit/standing-pack/ontology.ttl
+timeout 120s cargo run --quiet -p ggen --bin ggen -- sync run
+Error: Command execution failed: validation error: [FM-PACK-008] pack `standing-pack`
+(source `path:../cargo-cicd/plugins/cargo-cicd-kit/standing-pack`) content hash mismatch:
+ggen.lock has `blake3:cce8d989950a3ce83cbde22a1448d51fcd881c9943f48f49b93c981c72be37cd` but
+the pack on disk hashes to `blake3:ab14e56e7c1a80faef45df7df75dbaf47c000301ea35692de380742704788381`.
+Remediation: restore the pack, or delete ggen.lock to intentionally re-lock.
+error: recipe `standing` failed on line 30 with exit code 1
+```
+
+**Root cause (not the P4 defect reappearing):** the installed `~/.cargo/bin/cargo-cicd` binary now ingests workspace crates (cargo-cicd commit `81f0876`, "wire workspace-crate ingestor into refresh pipeline") — praxis's `standing refresh` now emits **28** artifacts instead of whatever count was locked in when praxis's `ggen.lock` was last generated. Its `ontology.ttl` copy (mirrored from `standing.ttl`) legitimately changed content, so `ggen.lock`'s pinned blake3 hash for the `standing-pack` legitimately no longer matches. This is the lock file doing its job on genuinely new content, not the timestamp non-determinism P4 fixed (that remains fixed — see the byte-identical hash above, taken independent of praxis's own ingestion). It is an intentional re-lock, not a hidden failure, per the tool's own remediation text.
+
+**This means the plan's full acceptance bar is NOT fully met as of this writing** — the praxis half of it (`just standing`) fails until the lock is intentionally refreshed. Per this phase's scope (final synthesis/reporting, not phase re-execution) and the "fix forward only" / "do not redo phases outside your assignment" constraints, this was **not** fixed in this pass.
+
+### Remaining external side effects / follow-ups (accurate as of this writing)
+
+1. **praxis `ggen.lock` needs an intentional re-lock** — run `just standing` again in `/Users/sac/praxis` after regenerating the lock (see next-commands below). This is a one-time content sync, not a recurring `rm -f ggen.lock` workaround.
+2. **cargo-cicd has uncommitted working-tree changes** (`git status --porcelain` in `/Users/sac/cargo-cicd`): modified `emit.rs`, `sources.rs`, `src/nouns/standing.rs`, `Cargo.toml`/`Cargo.lock` (adds a dev-dependency on `wasm4pm-compat` for the Shape-A OCEL round-trip test), plus `.cargo-cicd/ocel/events.jsonl` growth from repeated `standing refresh` runs in this pass, and pre-existing untracked artifacts not created in this pass: `clippy_output.txt`, `crates/cargo-cicd-bench-utils/`, `ocel/` (anti-llm-cheat-lsp OCEL evidence + receipt). None of these were committed by this synthesis pass — they are flagged for the repo owner to review and commit (or discard) explicitly, per this phase's scope being reporting, not code changes.
+3. **P8 (validator placement) remains an open decision**, not a completed migration — `ocel_process_validate.rs` still lives only in praxis.
+4. **P12 (real OCEL validation) is partial** — the Shape-A emitter + type-level round-trip exist and pass, but no run against a real wasm4pm CLI / real praxis release OCEL log was performed in this pass.
+5. **P7 (policy docs)** could not be independently re-confirmed as a standalone deliverable separate from the P5/P6 commits in this pass — worth a follow-up grep for `docs/policy/*.md` before claiming it complete.
+
+### Exact next commands for a human to continue
+
+```sh
+# 1. Decide on and commit (or revert) cargo-cicd's uncommitted diff:
+cd /Users/sac/cargo-cicd && git status --porcelain
+git diff crates/cargo-cicd-core/src/standing/emit.rs src/nouns/standing.rs Cargo.toml
+# if keeping the Shape-A OCEL work:
+git add crates/cargo-cicd-core/src/standing/emit.rs src/nouns/standing.rs Cargo.toml Cargo.lock crates/cargo-cicd-core/src/standing/sources.rs
+git commit -m "feat(evidence): emit standing as Shape-A OCEL, verified against wasm4pm-compat::ocel"
+
+# 2. Rebuild and reinstall the binary praxis uses:
+cargo build --release -p cargo-cicd --features process-data,autonomic,wasm4pm
+cp target/release/cargo-cicd ~/.cargo/bin/cargo-cicd
+cargo-cicd --version   # confirm 26.6.30 (or new version if bumped)
+
+# 3. Intentionally re-lock praxis's ggen pack against the new standing content:
+cd /Users/sac/praxis
+rm ggen.lock
+just standing          # should now pass end-to-end; re-run twice and diff standing.ttl to reconfirm determinism
+git status              # review what changed (ggen.lock, standing artifacts) before committing
+
+# 4. Triage untracked cargo-cicd artifacts:
+cd /Users/sac/cargo-cicd
+git status --porcelain    # review clippy_output.txt, crates/cargo-cicd-bench-utils/, ocel/ before deciding to add/gitignore/delete
+
+# 5. If pursuing P12 for real: run an actual wasm4pm CLI process-validation pass
+#    over a real OCEL log (e.g. praxis's docs/releases/v26.7.6/ocel/*.json) and
+#    record the conformance/fitness result in this ledger, not just a unit test.
+```
+
+**No market, adoption, install-base, or MCP-ecosystem claims are made anywhere in this report.** This section is limited to what was verified by command output in this pass, on this machine, on `main`/working-tree state as of 2026-07-06.
+
+---
+
+## P12 completion — real wasm4pm validation
+
+This section closes item P12 from the open items above: the prior pass only did a
+type-level round-trip against `wasm4pm-compat`; this pass runs the actual `wpm`
+CLI oracle binary against a real emitted event log.
+
+**wpm binary:** not preinstalled (`which wpm` → not found). Built from source:
+
+```sh
+cd /Users/sac/wasm4pm
+cat Cargo.toml   # confirmed workspace member crates/wasm4pm-cli
+cat crates/wasm4pm-cli/Cargo.toml   # confirmed [[bin]] name = "wpm"
+cat rust-toolchain.toml   # pinned nightly-2026-04-15, already installed locally
+cargo +nightly-2026-04-15 build --release -p wasm4pm-cli
+# Finished `release` profile [optimized] target(s) in 1m 23s
+```
+
+Binary produced at `/Users/sac/wasm4pm/target/release/wpm` (v26.7.1).
+
+**Input selection:** The two candidate files under
+`/Users/sac/praxis/docs/releases/v26.7.6/ocel/` —
+`playwright-wasm4pm-validation.ocel.json` and `wasm4pm-process-validation.json` —
+are both OCEL 2.0 JSON, not XES. `wpm audit` refused both with:
+
+```
+error: OCEL 2.0 format detected (...)
+The wpm audit command currently supports XES event logs (IEEE 1849).
+To audit an OCEL log, flatten it first:
+	wpm run --algorithm dfg --format json "<file>"
+or use the TypeScript CLI: wpm conformance "<file>"
+```
+
+Instead used cargo-cicd's own real, freshly emitted evidence log (XES, IEEE 1849
+format, matching what `wpm audit` actually accepts), produced by this workspace's
+own evidence-emission pipeline:
+
+`/Users/sac/cargo-cicd/target/cargo-cicd/evidence/events.xes` (67,944 bytes, timestamped 2026-07-06 15:31).
+
+**Command run:**
+
+```sh
+/Users/sac/wasm4pm/target/release/wpm audit /Users/sac/cargo-cicd/target/cargo-cicd/evidence/events.xes -v
+```
+
+**Full output (verbatim, exit code 0):**
+
+```
+Vision 2030 Conformance Audit Report
+
+Audit Verdict:            DECEPTIVE
+Fitness Score:            0.6457
+Precision Score:          0.2331
+
+Total Traces Audited:     1
+Fitting Traces:           0
+Deviating Traces:         1
+
+Sample Deviations:
+
+Trace ID  Fitness  Problems      
+trace-0   0.65     M: 71, R: 71  
+
+
+Doctrine: If the code says it worked but the event log cannot prove a lawful process happened, then it did not work.
+```
+
+**Honest interpretation:** this is not a passing/Accept verdict. The oracle rated
+cargo-cicd's current `events.xes` log **DECEPTIVE** (fitness 0.6457, precision
+0.2331, 0/1 traces fitting, 71 missing + 71 remaining/unexpected activity
+problems on the sole trace). This is a real Refuse-class result, not a
+type-level stub and not massaged to force a pass. It indicates the evidence
+log currently emitted by this workspace's `src/evidence.rs` pipeline does not
+conform to whatever reference/expected process model `wpm audit` checks it
+against — this is a genuine open finding, not a clean bill of health, and
+should be triaged as its own follow-up (why 71/71 M/R problems on a single
+trace) rather than treated as P12 being "green."
