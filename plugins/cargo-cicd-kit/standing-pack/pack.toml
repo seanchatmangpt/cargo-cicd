@@ -1,0 +1,4 @@
+[pack]
+name = "standing-pack"
+version = "0.1.0"
+description = "Reusable ggen pack for cargo-cicd's standing compiler output. Consumers copy their compiled cicd-standing.v1 index (e.g. `target/<workspace>-standing/standing.ttl`) into this pack's `ontology.ttl` before running `ggen sync run`; the pack's SPARQL query then projects a REALITY_INDEX.md report grouped by kind then ladder level. See cargo-cicd docs/reference/standing-schema.md for the schema."
