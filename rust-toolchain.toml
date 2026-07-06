@@ -1,0 +1,7 @@
+# Pinned to nightly-2026-06-22 — the last known-good nightly that builds
+# wasm4pm-compat's generic_const_exprs-bound type-law kernel (Between01, Metric,
+# ConditionCell, WfNetConst soundness). Unpinned "nightly" is non-reproducible;
+# always update this date deliberately and verify the full build passes.
+[toolchain]
+channel = "nightly-2026-06-22"
+components = ["rustfmt", "clippy"]

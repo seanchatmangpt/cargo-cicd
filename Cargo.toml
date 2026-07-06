@@ -233,6 +233,3 @@ toml = { workspace = true }
 chicago-tdd-tools = { workspace = true }
 criterion = "0.5"
 proptest = "1"
-
-[patch.crates-io]
-wasm4pm-compat = { git = "https://github.com/seanchatmangpt/wasm4pm-compat" }
