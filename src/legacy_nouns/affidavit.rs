@@ -17,7 +17,7 @@ use std::path::Path;
 use crate::integrations::affidavit_shell::{
     affidavit_receipt_dir, event_type_for, object_ref_for, AffidavitShell, AffidavitVerdict,
 };
-use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
+use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
 
 pub struct AffidavitNoun;

@@ -516,13 +516,17 @@ impl VerbCommand for LspCheckVerb {
         let state = crate::engine::EngineState::from_workspace();
         let files = &state.changed_files.changed_rs_files;
 
-        let mut all_diags: Vec<lsp_max_anti_cheat::AntiLlmDiagnostic> = Vec::new();
-        for file in files {
-            let obs = lsp_max_anti_cheat::scan_file(file);
-            all_diags.extend(lsp_max_anti_cheat::evaluate_diagnostics(&obs));
-        }
+        // `lsp-max-anti-cheat` is not published on crates.io and this crate must
+        // never depend on an unpinned local/git source (see CLAUDE.md's
+        // fix-forward / unpinned-foundation lesson). Until a versioned crate
+        // exists, the scan is unavailable — treat that as a first-class Blocked
+        // state (E7 philosophy), not a compile-time hard dependency.
+        let all_diags: Vec<anti_llm_cheat_stub::AntiLlmDiagnostic> =
+            anti_llm_cheat_stub::scan_files(files);
 
-        if all_diags.is_empty() {
+        if !anti_llm_cheat_stub::is_available() {
+            println!("lsp check: diagnostic tool unavailable (lsp-max-anti-cheat not published; BLOCKED)");
+        } else if all_diags.is_empty() {
             println!("lsp check: no admissibility violations found");
         } else {
             for d in &all_diags {
@@ -535,7 +539,9 @@ impl VerbCommand for LspCheckVerb {
             }
         }
 
-        let verdict = if all_diags.iter().any(|d| d.blocking) {
+        let verdict = if !anti_llm_cheat_stub::is_available() {
+            "WARN:oracle_unavailable"
+        } else if all_diags.iter().any(|d| d.blocking) {
             "FAIL"
         } else if !all_diags.is_empty() {
             "WARN"
@@ -565,4 +571,35 @@ fn which_binary(name: &str) -> Option<String> {
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+// ---------------------------------------------------------------------------
+// anti_llm_cheat_stub — placeholder for the `lsp-max-anti-cheat` diagnostic
+// tool, which is not published on crates.io. cargo-cicd must never depend on
+// an unpinned local/git source for this, so `anti-llm-cheat` compiles against
+// this always-unavailable stub instead. When a versioned crate is published,
+// replace this module with a real `dep:lsp-max-anti-cheat` dependency and
+// wire `anti-llm-cheat = ["dep:lsp-max-anti-cheat"]` in Cargo.toml.
+// ---------------------------------------------------------------------------
+#[cfg(feature = "anti-llm-cheat")]
+mod anti_llm_cheat_stub {
+    pub struct AntiLlmDiagnostic {
+        pub code: String,
+        pub file_path: String,
+        pub line: u32,
+        pub message: String,
+        pub required_correction: String,
+        pub blocking: bool,
+    }
+
+    /// Always false: the real scanner (`lsp-max-anti-cheat`) is not published
+    /// on crates.io, so this feature is a first-class "Blocked" diagnostic
+    /// tool, not a hard compile/runtime dependency.
+    pub fn is_available() -> bool {
+        false
+    }
+
+    pub fn scan_files(_files: &[String]) -> Vec<AntiLlmDiagnostic> {
+        Vec::new()
+    }
 }

@@ -15,7 +15,7 @@ use crate::autonomic::policies::{
     run_all_policies_with_config, EvidenceState, GitState, PolicyConfig, PolicyVerdict,
     WorkspaceInfo,
 };
-use crate::nouns::evidence_helpers::{finish_evidence, init_evidence};
+use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
 use crate::ui::theme::Role;
 use crate::ui::{panel, symbols, theme};
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
