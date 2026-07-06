@@ -136,5 +136,5 @@ is skipped and its previous diagnostics for affected URIs are cleared.
 
 ## See Also
 
-- [DIAGNOSTICS.md](DIAGNOSTICS.md) — Full code catalog by family
-- [README.md](README.md) — What the server does and does not do
+- [Diagnostics](diagnostics.md) — Full code catalog by family
+- [LSP overview](../../lsp/README.md) — What the server does and does not do

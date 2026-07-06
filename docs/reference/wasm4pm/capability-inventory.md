@@ -1,6 +1,6 @@
 # wasm4pm Capability Inventory — Scan Results
 
-**Authority:** Inspection Gate  
+**Authority:** Certification Gate  
 **Date:** 2026-06-02  
 **Status:** CAPABILITY SCAN ARTIFACTS
 
@@ -54,7 +54,7 @@ let ocel_json = cargo_cicd.emit_ocel_json()?;
 let receipt = wasm4pm::client::import_ocel(ocel_json)?;
 ```
 
-**Prerequisite:** Receipt ledger schema immutable + audited by Inspection Gate
+**Prerequisite:** Receipt ledger schema immutable + audited by Certification Gate
 
 ---
 
@@ -231,7 +231,7 @@ impl WitnessLattice {
 }
 ```
 
-**Prerequisite:** Witness lattice = DAG, 100% coverage, nightly test suite ALIVE
+**Prerequisite:** Witness lattice = DAG, 100% coverage, nightly test suite GREEN
 
 ---
 
@@ -373,5 +373,5 @@ pub fn collect_performance_metrics(
 ---
 
 **Document Version:** 001  
-**Status:** INSPECTION GATE CERTIFIED  
+**Status:** CERTIFICATION GATE CERTIFIED  
 **Distribution:** cargo-cicd/docs/wasm4pm/WASM4PM_CAPABILITY_INVENTORY.md

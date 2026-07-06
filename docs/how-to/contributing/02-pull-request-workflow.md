@@ -251,6 +251,6 @@ If a PR is merged and later causes issues:
 
 ## Further Reading
 
-- [CLAUDE.md](../../CLAUDE.md) — architecture details referenced in reviews
+- [CLAUDE.md](../../../CLAUDE.md) — architecture details referenced in reviews
 - [03-adding-features.md](./03-adding-features.md) — patterns for common changes
 - [04-code-style.md](./04-code-style.md) — style expectations in detail

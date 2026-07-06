@@ -11,12 +11,11 @@ For different use cases, start here:
 
 | You Want To... | Start Here |
 |---|---|
-| Get started quickly | [Quick Start Guide](CLI_QUICK_START.md) |
+| Get started quickly | [Quick Start Guide](../tutorials/quick-start.md) |
 | Look up a specific command | [Complete Command Reference](COMMANDS.md) |
-| Remember commands on one page | [Cheat Sheet](CLI_CHEAT_SHEET.md) |
 | Solve a problem | [Troubleshooting Guide](CLI_TROUBLESHOOTING.md) |
-| Use in CI/CD pipelines | [CI/CD Integration](../integration-examples/CI_CD_PIPELINES.md) |
-| Set up IDE shortcuts | [IDE Integration](../integration-examples/IDE_INTEGRATION.md) |
+| Use in CI/CD pipelines | [CI/CD Integration](../how-to/ci-cd-pipelines.md) |
+| Set up IDE shortcuts | [IDE Integration](../how-to/ide-integration.md) |
 
 ---
 
@@ -24,7 +23,7 @@ For different use cases, start here:
 
 ### 1. Quick Start (5 minutes)
 
-**File:** [CLI_QUICK_START.md](CLI_QUICK_START.md)
+**File:** [../tutorials/quick-start.md](../tutorials/quick-start.md)
 
 Perfect for new users. Covers:
 - Installation
@@ -63,24 +62,7 @@ Each command includes:
 
 **Read this to understand all available commands in detail.**
 
-### 3. One-Page Cheat Sheet
-
-**File:** [CLI_CHEAT_SHEET.md](CLI_CHEAT_SHEET.md)
-
-Quick reference for common commands and workflows:
-- Status & diagnosis commands
-- Running tests & fixtures
-- Managing target directory
-- Publishing & git
-- Evidence & auditing
-- Common workflows (pre-commit, pre-release, cleanup)
-- Flag reference
-- Exit codes
-- Troubleshooting quick links
-
-**Print this or bookmark it for quick lookups during development.**
-
-### 4. Troubleshooting Guide
+### 3. Troubleshooting Guide
 
 **File:** [CLI_TROUBLESHOOTING.md](CLI_TROUBLESHOOTING.md)
 
@@ -102,9 +84,9 @@ Each section includes:
 
 **Read this when something doesn't work.**
 
-### 5. CI/CD Integration Examples
+### 4. CI/CD Integration Examples
 
-**File:** [../integration-examples/CI_CD_PIPELINES.md](../integration-examples/CI_CD_PIPELINES.md)
+**File:** [../how-to/ci-cd-pipelines.md](../how-to/ci-cd-pipelines.md)
 
 Production-ready examples for:
 - GitHub Actions (basic, modular, matrix testing, pre-release)
@@ -117,9 +99,9 @@ Production-ready examples for:
 
 **Read this to integrate cargo-cicd into your CI/CD system.**
 
-### 6. IDE Integration Guide
+### 5. IDE Integration Guide
 
-**File:** [../integration-examples/IDE_INTEGRATION.md](../integration-examples/IDE_INTEGRATION.md)
+**File:** [../how-to/ide-integration.md](../how-to/ide-integration.md)
 
 Setup instructions for:
 - VS Code (tasks, keyboard shortcuts, watch mode)
@@ -476,20 +458,20 @@ Git-specific concept: ensuring working tree is clean before release:
 
 ### Beginner (0-30 minutes)
 
-1. [Quick Start](CLI_QUICK_START.md) — Installation and basic workflow
+1. [Quick Start](../tutorials/quick-start.md) — Installation and basic workflow
 2. Run basic commands: `cargo cicd status`, `cargo cicd workspace`
-3. Review [Cheat Sheet](CLI_CHEAT_SHEET.md) for common patterns
+3. Review [Reference Index](#quick-navigation) for common patterns
 
 ### Intermediate (30-120 minutes)
 
 1. Read [Complete Command Reference](COMMANDS.md) — Understand all commands
 2. Try workflows: pre-commit checklist, pre-push validation
-3. Set up IDE integration: [IDE Integration](../integration-examples/IDE_INTEGRATION.md)
+3. Set up IDE integration: [IDE Integration](../how-to/ide-integration.md)
 
 ### Advanced (120+ minutes)
 
-1. Integrate into CI/CD: [CI/CD Integration](../integration-examples/CI_CD_PIPELINES.md)
-2. Read [Architecture](../SOLUTION_ARCHITECTURE.md) for internal details
+1. Integrate into CI/CD: [CI/CD Integration](../how-to/ci-cd-pipelines.md)
+2. Read [Architecture](../../ARCHITECTURE.md) for internal details
 3. Troubleshoot issues: [Troubleshooting Guide](CLI_TROUBLESHOOTING.md)
 4. Explore evidence and wasm4pm integration
 
@@ -527,17 +509,17 @@ Common issues and where to find solutions:
 
 ### Related Documentation
 
-- [Architecture](../SOLUTION_ARCHITECTURE.md) — How cargo-cicd works internally
-- [cicd.toml Schema](../reference/cicd-toml.md) — Configuration file format
-- [Evidence Format](../reference/evidence-format.md) — Process evidence format
-- [Feature Flags](../reference/feature-flags.md) — Compile-time options
+- [Architecture](../../ARCHITECTURE.md) — How cargo-cicd works internally
+- [cicd.toml Schema](cicd-toml.md) — Configuration file format
+- [Evidence Format](evidence-format.md) — Process evidence format
+- [Feature Flags](feature-flags.md) — Compile-time options
 - [Autonomic Policies](../explanation/autonomic-policies.md) — Policy-based suggestions
 
 ### Contributing
 
-- [Development Setup](../contributing/01-development-setup.md)
-- [Pull Request Workflow](../contributing/02-pull-request-workflow.md)
-- [Code Style](../contributing/04-code-style.md)
+- [Development Setup](../how-to/contributing/01-development-setup.md)
+- [Pull Request Workflow](../how-to/contributing/02-pull-request-workflow.md)
+- [Code Style](../how-to/contributing/04-code-style.md)
 
 ### Community
 
@@ -561,9 +543,8 @@ cargo cicd target prune --help
 
 ### Detailed Documentation
 
-- **Quick Start:** [CLI_QUICK_START.md](CLI_QUICK_START.md)
+- **Quick Start:** [../tutorials/quick-start.md](../tutorials/quick-start.md)
 - **Full Reference:** [COMMANDS.md](COMMANDS.md)
-- **Quick Lookup:** [CLI_CHEAT_SHEET.md](CLI_CHEAT_SHEET.md)
 - **Problem Solving:** [CLI_TROUBLESHOOTING.md](CLI_TROUBLESHOOTING.md)
 
 ### Community Support

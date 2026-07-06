@@ -31,7 +31,7 @@ cargo install cargo-cicd-lsp
 
 ## Editor setup
 
-See [EDITOR_INTEGRATION.md](EDITOR_INTEGRATION.md)
+See [Editor integration](../how-to/lsp-editor-integration.md)
 
 ## Usage
 
@@ -43,6 +43,7 @@ cargo cicd lsp explain <CODE>
 
 ## See Also
 
-- [DIAGNOSTICS.md](DIAGNOSTICS.md) — Full catalog of diagnostic codes by family
-- [LIFECYCLE.md](LIFECYCLE.md) — How diagnostics are raised, routed, and cleared
-- [EDITOR_INTEGRATION.md](EDITOR_INTEGRATION.md) — VS Code, Neovim, Helix, Zed setup
+- [Diagnostics](../reference/lsp/diagnostics.md) — Full catalog of diagnostic codes by family
+- [Lifecycle](../reference/lsp/lifecycle.md) — How diagnostics are raised, routed, and cleared
+- [Editor integration](../how-to/lsp-editor-integration.md) — VS Code, Neovim, Helix, Zed setup
+- [Conformance](../reference/lsp/conformance.md) — Which LSP protocol capabilities are implemented

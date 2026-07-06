@@ -225,9 +225,9 @@ Evidence gate invariant E3 violated: external oracle required.
 
 ---
 
-## ALIVE condition
+## GREEN condition
 
-The wasm4pm evidence gate is ALIVE when:
+The wasm4pm evidence gate is GREEN when:
 
 > wasm4pm accepts positive evidence and refuses corrupted variants.
 
@@ -238,7 +238,7 @@ Specifically:
 4. `evidence_gate_oracle_discover` passes without panicking (E7 compliance).
 5. Invariant tests E1, E2, E3 pass structurally.
 
-The gate is not ALIVE if any positive case returns `Refuse` or any mutation case returns `Accept`.
+The gate is not GREEN if any positive case returns `Refuse` or any mutation case returns `Accept`.
 
 ---
 

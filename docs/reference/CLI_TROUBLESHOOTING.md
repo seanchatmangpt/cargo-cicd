@@ -903,10 +903,9 @@ wpm --version
    ```
 
 4. **Consult documentation:**
-   - [Quick Start](CLI_QUICK_START.md) — Installation and first steps
+   - [Quick Start](../tutorials/quick-start.md) — Installation and first steps
    - [Complete Command Reference](COMMANDS.md) — All commands explained
-   - [Cheat Sheet](CLI_CHEAT_SHEET.md) — Common patterns
-   - [Architecture](../SOLUTION_ARCHITECTURE.md) — How it works internally
+   - [Reference Index](CLI_REFERENCE_INDEX.md) — Common patterns
 
 5. **Report the issue:**
    - GitHub repository: Include full output and evidence files

@@ -219,10 +219,10 @@ The `target prune` command has a special flag:
 
 ## Next Steps
 
-- Read the [Complete Command Reference](COMMANDS.md) for all available commands
-- Check the [Cheat Sheet](CLI_CHEAT_SHEET.md) for quick lookups
-- Explore [Integration Examples](../integration-examples/CI_CD_PIPELINES.md) for using cargo-cicd in your CI/CD setup
-- See [Troubleshooting Guide](CLI_TROUBLESHOOTING.md) for detailed solutions
+- Read the [Complete Command Reference](../reference/COMMANDS.md) for all available commands
+- Check the [Reference Index](../reference/CLI_REFERENCE_INDEX.md) for quick lookups
+- Explore [Integration Examples](../how-to/ci-cd-pipelines.md) for using cargo-cicd in your CI/CD setup
+- See [Troubleshooting Guide](../reference/CLI_TROUBLESHOOTING.md) for detailed solutions
 
 ## Getting Help
 
@@ -242,7 +242,6 @@ cargo cicd --help
 
 ## Learn More
 
-- **Architecture:** See [SOLUTION_ARCHITECTURE.md](../SOLUTION_ARCHITECTURE.md)
-- **Feature Flags:** See [feature-flags.md](feature-flags.md)
-- **cicd.toml Schema:** See [cicd-toml.md](cicd-toml.md)
-- **Evidence Format:** See [evidence-format.md](evidence-format.md)
+- **Feature Flags:** See [feature-flags.md](../reference/feature-flags.md)
+- **cicd.toml Schema:** See [cicd-toml.md](../reference/cicd-toml.md)
+- **Evidence Format:** See [evidence-format.md](../reference/evidence-format.md)

@@ -15,13 +15,13 @@ git commit -m "feat(scope): your change"
 git push -u origin feat/your-feature
 ```
 
-Then open a pull request. See [02-pull-request-workflow.md](./02-pull-request-workflow.md) for details.
+Then open a pull request. See [02-pull-request-workflow.md](../how-to/contributing/02-pull-request-workflow.md) for details.
 
 ## The Guides
 
 This contributor guide is organized into 7 focused documents:
 
-### 1. **[Development Setup](./01-development-setup.md)** — Getting Started
+### 1. **[Development Setup](../how-to/contributing/01-development-setup.md)** — Getting Started
 - Prerequisites (Rust 1.85+, cargo-make, git)
 - One-command setup
 - Build and test commands
@@ -30,7 +30,7 @@ This contributor guide is organized into 7 focused documents:
 
 **Read this if:** You're setting up your development environment for the first time.
 
-### 2. **[Pull Request Workflow](./02-pull-request-workflow.md)** — Collaboration
+### 2. **[Pull Request Workflow](../how-to/contributing/02-pull-request-workflow.md)** — Collaboration
 - Branch naming conventions
 - Commit message format (feat/fix/docs/etc.)
 - PR checklist and description template
@@ -39,7 +39,7 @@ This contributor guide is organized into 7 focused documents:
 
 **Read this if:** You're preparing to submit code for review.
 
-### 3. **[Adding Features](./03-adding-features.md)** — Implementation Patterns
+### 3. **[Adding Features](../how-to/contributing/03-adding-features.md)** — Implementation Patterns
 - Adding new CLI nouns and verbs
 - Creating adapters (external data translators)
 - Extending EngineState (workspace state model)
@@ -49,7 +49,7 @@ This contributor guide is organized into 7 focused documents:
 
 **Read this if:** You're implementing a new feature or extending the system.
 
-### 4. **[Code Style & Patterns](./04-code-style.md)** — Quality Standards
+### 4. **[Code Style & Patterns](../how-to/contributing/04-code-style.md)** — Quality Standards
 - Rust conventions and formatting
 - Naming patterns (modules, types, functions, variables)
 - Comment and documentation guidelines
@@ -59,7 +59,7 @@ This contributor guide is organized into 7 focused documents:
 
 **Read this if:** You want to understand our code quality expectations.
 
-### 5. **[Documentation Standards](./05-documentation-standards.md)** — Visibility & Clarity
+### 5. **[Documentation Standards](../how-to/contributing/05-documentation-standards.md)** — Visibility & Clarity
 - Public API documentation (doc comments with examples)
 - Feature-gated documentation
 - Updating CLAUDE.md for architectural changes
@@ -69,7 +69,7 @@ This contributor guide is organized into 7 focused documents:
 
 **Read this if:** You're documenting new features or updating architecture docs.
 
-### 6. **[Release Process](./06-release-process.md)** — Shipping
+### 6. **[Release Process](../how-to/contributing/06-release-process.md)** — Shipping
 - Semantic versioning (MAJOR.MINOR.PATCH)
 - Changelog format (Keep a Changelog style)
 - wasm4pm evidence validation gates (required for releases)
@@ -80,7 +80,7 @@ This contributor guide is organized into 7 focused documents:
 
 **Read this if:** You're preparing a release or want to understand our release gates.
 
-### 7. **[Known Gotchas](./07-known-gotchas.md)** — Pitfalls & Prevention
+### 7. **[Known Gotchas](../how-to/contributing/07-known-gotchas.md)** — Pitfalls & Prevention
 - Forbidden terms in public output
 - State mutation patterns to avoid
 - Test isolation failures
@@ -149,7 +149,7 @@ Each noun is a module in `src/nouns/` implementing `NounCommand`. Each verb impl
 4. Write tests in `tests/cli/`
 5. Check: no forbidden terms in help text (`cargo test --test invariants`)
 
-See [03-adding-features.md](./03-adding-features.md) for step-by-step.
+See [03-adding-features.md](../how-to/contributing/03-adding-features.md) for step-by-step.
 
 ### I want to add a new state dimension
 
@@ -159,7 +159,7 @@ See [03-adding-features.md](./03-adding-features.md) for step-by-step.
 4. Update CLAUDE.md with the new dimension
 5. Test with `FixtureWorkspace`
 
-See [03-adding-features.md](./03-adding-features.md) for details.
+See [03-adding-features.md](../how-to/contributing/03-adding-features.md) for details.
 
 ### I want to add a policy
 
@@ -169,7 +169,7 @@ See [03-adding-features.md](./03-adding-features.md) for details.
 4. Test policy verdicts
 5. Document in CLAUDE.md
 
-See [03-adding-features.md](./03-adding-features.md) for patterns.
+See [03-adding-features.md](../how-to/contributing/03-adding-features.md) for patterns.
 
 ### I found a bug
 
@@ -181,7 +181,7 @@ See [03-adding-features.md](./03-adding-features.md) for patterns.
 
 ### My test is failing
 
-1. Check [07-known-gotchas.md](./07-known-gotchas.md) for common causes
+1. Check [07-known-gotchas.md](../how-to/contributing/07-known-gotchas.md) for common causes
 2. Run test with output: `cargo test test_name -- --nocapture`
 3. Use `FixtureWorkspace` to isolate from external state
 4. Check git state in the test: `git status --porcelain`
@@ -213,9 +213,9 @@ See [03-adding-features.md](./03-adding-features.md) for patterns.
 ## Getting Help
 
 - **For architecture questions** — Read [CLAUDE.md](../../CLAUDE.md) first
-- **For style questions** — See [04-code-style.md](./04-code-style.md)
-- **For test failures** — Check [07-known-gotchas.md](./07-known-gotchas.md)
-- **For release questions** — Read [06-release-process.md](./06-release-process.md)
+- **For style questions** — See [04-code-style.md](../how-to/contributing/04-code-style.md)
+- **For test failures** — Check [07-known-gotchas.md](../how-to/contributing/07-known-gotchas.md)
+- **For release questions** — Read [06-release-process.md](../how-to/contributing/06-release-process.md)
 - **For design decisions** — Open an issue or ask a maintainer
 
 ## Before You Commit
@@ -252,11 +252,11 @@ git push -u origin feat/your-feature
 
 ## Next Steps
 
-1. **Read [01-development-setup.md](./01-development-setup.md)** to set up your environment
+1. **Read [01-development-setup.md](../how-to/contributing/01-development-setup.md)** to set up your environment
 2. **Read [CLAUDE.md](../../CLAUDE.md)** to understand the architecture
 3. **Find an issue to work on** or plan a feature
-4. **Follow [02-pull-request-workflow.md](./02-pull-request-workflow.md)** when submitting code
-5. **Reference [03-adding-features.md](./03-adding-features.md)** for implementation patterns
+4. **Follow [02-pull-request-workflow.md](../how-to/contributing/02-pull-request-workflow.md)** when submitting code
+5. **Reference [03-adding-features.md](../how-to/contributing/03-adding-features.md)** for implementation patterns
 
 ## License
 

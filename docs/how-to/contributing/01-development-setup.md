@@ -287,7 +287,7 @@ std::process::Command::new("git")
 
 Once setup is complete:
 
-1. **Read [CLAUDE.md](../../CLAUDE.md)** for a deep dive into architecture
+1. **Read [CLAUDE.md](../../../CLAUDE.md)** for a deep dive into architecture
 2. **Review [02-pull-request-workflow.md](./02-pull-request-workflow.md)** before making your first commit
 3. **Check [03-adding-features.md](./03-adding-features.md)** if you're implementing new functionality
 4. **Browse tests/** for examples of how features are tested

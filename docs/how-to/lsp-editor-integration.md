@@ -122,6 +122,6 @@ declared as unsupported in the `initialize` response.
 
 ## See Also
 
-- [README.md](README.md) — Installation and commands
-- [DIAGNOSTICS.md](DIAGNOSTICS.md) — Full code catalog by family
-- [LIFECYCLE.md](LIFECYCLE.md) — How diagnostics are raised and cleared
+- [LSP overview](../lsp/README.md) — Installation and commands
+- [Diagnostics](../reference/lsp/diagnostics.md) — Full code catalog by family
+- [Lifecycle](../reference/lsp/lifecycle.md) — How diagnostics are raised and cleared

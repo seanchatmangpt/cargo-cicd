@@ -1201,7 +1201,6 @@ jobs:
 
 ## Further Reading
 
-- [Quick Start Guide](../reference/CLI_QUICK_START.md)
+- [Quick Start Guide](../tutorials/quick-start.md)
 - [Complete Command Reference](../reference/COMMANDS.md)
 - [Troubleshooting Guide](../reference/CLI_TROUBLESHOOTING.md)
-- [Architecture Documentation](../SOLUTION_ARCHITECTURE.md)

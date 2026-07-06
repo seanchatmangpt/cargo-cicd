@@ -351,6 +351,6 @@ fn test_show_verb_displays_metric() {
 
 ## Further Reading
 
-- [CLAUDE.md](../../CLAUDE.md) — where to document architectural decisions
+- [CLAUDE.md](../../../CLAUDE.md) — where to document architectural decisions
 - [04-code-style.md](./04-code-style.md) — doc comment format specifics
 - [03-adding-features.md](./03-adding-features.md) — patterns for common additions

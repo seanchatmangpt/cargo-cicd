@@ -1,12 +1,12 @@
 [workspace]
 name = "cargo-cicd"
-toolchain = "nightly-aarch64-apple-darwin"
+toolchain = "nightly-2026-06-22-aarch64-apple-darwin"
 target_dir = "target"
 
 [state]
 dirty = true
-target_size_gb = 10.09
-changed_files = 224
+target_size_gb = 13.09
+changed_files = 268
 changed_tests = 21
 changed_trybuild_fixtures = 0
 
@@ -33,3 +33,12 @@ mode = "suggest"
 [[events]]
 kind = "status"
 verdict = "pass"
+
+[standing]
+ocel_logs = []
+process_validation = []
+receipt_ledgers = []
+claim_tables = []
+clients = []
+
+[standing.release_gates]

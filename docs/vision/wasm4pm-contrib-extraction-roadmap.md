@@ -1,6 +1,6 @@
 # Deferred wasm4pm Contributions — v26.6.3+ Roadmap
 
-**Authority:** Inspection Gate (Process Intelligence Core)  
+**Authority:** Certification Gate (Process Intelligence Core)  
 **Date Composed:** 2026-06-02  
 **Status:** CONTRIBUTOR ROADMAP FOR v26.6.3+
 
@@ -33,7 +33,7 @@ This document maps all **DEFER_CONTRIB** capabilities that are **blocked on wasm
 - Witness lattice registration incomplete
 
 **Blocked On:**
-1. wasm4pm-compat type-law court nightly test suite = ALIVE ✓
+1. wasm4pm-compat type-law court nightly test suite = GREEN ✓
 2. Motion struct definition = immutable signature
 3. Receipt struct definition = immutable signature
 4. Witness lattice = audit-certified
@@ -121,7 +121,7 @@ pub fn execute_motion_from_ocel(
 1. Receipt struct immutable signature (see Contribution 1)
 2. Receipt ledger schema = finalized and immutable
 3. Cryptographic signing infrastructure (TBD)
-4. Inspection Gate ledger certification
+4. Certification Gate ledger certification
 
 **Expected v26.6.3+ Behavior:**
 
@@ -176,11 +176,11 @@ pub fn issue_receipt_to_ledger(
    - Test: `test_ledger_replay_conforms_to_declared_process` passes
 
 5. Implement authority signature validation
-   - Requirement: Verify Inspection Gate signature on each ledger entry
+   - Requirement: Verify Certification Gate signature on each ledger entry
    - Test: `test_authority_signature_verified` passes
 
 **Acceptance Criteria:**
-- [ ] Receipt ledger schema is published and immutable (Inspection Gate signed)
+- [ ] Receipt ledger schema is published and immutable (Certification Gate signed)
 - [ ] Receipt signing is deterministic (same receipt → same signature)
 - [ ] Receipt ledger append-only invariant enforced (no deletions, no mutations)
 - [ ] Ledger entries include authority signatures
@@ -201,12 +201,12 @@ pub fn issue_receipt_to_ledger(
 **Why Deferred:**
 - Nightly Rust `-Z stable-mir` is unstable (not production-ready in v26.6.2)
 - Type signatures still in flux during v26.6.2
-- Compilation court not yet audited by Inspection Gate
+- Compilation court not yet audited by Certification Gate
 
 **Blocked On:**
 1. Type signatures stabilized (Contribution 1, Motion & Receipt structs)
 2. Nightly Rust stable-mir stabilization (or Rust 1.85+ if promoted to stable)
-3. Type-law court audit by Inspection Gate
+3. Type-law court audit by Certification Gate
 4. Witness lattice proof-of-work completed
 
 **Expected v26.6.3+ Behavior:**
@@ -274,7 +274,7 @@ pub fn generate_type_law_verdict(
 - [ ] Type-law court compiles with nightly `-Z stable-mir` without warnings
 - [ ] Verdict generation is deterministic (same types → same verdict hash)
 - [ ] Verdict includes proof of witness lattice coverage
-- [ ] Verdict timestamp is immutable (signed by Inspection Gate)
+- [ ] Verdict timestamp is immutable (signed by Certification Gate)
 - [ ] Nightly test suite runs 24/7 (automated, gated to `#[cfg(nightly)]`)
 - [ ] All verdicts recorded in immutable verdict ledger
 - [ ] Zero verdicts issued without witness lattice proof
@@ -298,7 +298,7 @@ pub fn generate_type_law_verdict(
 1. Motion & Receipt struct signatures finalized (Contribution 1)
 2. Type-law court audit passing (Contribution 3)
 3. Witness lattice proof-of-work algorithm designed
-4. Inspection Gate certification protocol finalized
+4. Certification Gate certification protocol finalized
 
 **Expected v26.6.3+ Behavior:**
 
@@ -306,7 +306,7 @@ pub fn generate_type_law_verdict(
 // cargo-cicd/src/integrations/witness_lattice.rs
 use wasm4pm::{WitnessLattice, WitnessProof};
 
-/// Certify witness lattice with Inspection Gate signature
+/// Certify witness lattice with Certification Gate signature
 pub fn certify_witness_lattice(
     lattice: &WitnessLattice,
     authority: &InspectionGate,
@@ -323,7 +323,7 @@ pub fn certify_witness_lattice(
     // 3. Generate proof-of-work witness
     let proof = lattice.generate_witness_proof()?;
 
-    // 4. Sign certification by Inspection Gate
+    // 4. Sign certification by Certification Gate
     let receipt = authority.sign_certification(&proof)?;
 
     Ok(receipt)
@@ -351,7 +351,7 @@ pub fn certify_witness_lattice(
 
 5. Implement certification receipt
    - Location: `wasm4pm-compat/src/certification_receipt.rs`
-   - Requirement: Immutable proof with Inspection Gate signature and timestamp
+   - Requirement: Immutable proof with Certification Gate signature and timestamp
    - Test: `test_certification_receipt_immutable` passes
 
 **Acceptance Criteria:**
@@ -359,7 +359,7 @@ pub fn certify_witness_lattice(
 - [ ] 100% of signatures covered by witnesses
 - [ ] Lattice is Copy and serializable
 - [ ] Coverage verified by automated nightly tests
-- [ ] Certification receipt signed by Inspection Gate
+- [ ] Certification receipt signed by Certification Gate
 - [ ] Lattice immutable after certification
 - [ ] Zero new signatures added after certification (enforced by type system)
 
@@ -376,7 +376,7 @@ pub fn certify_witness_lattice(
 **Why Deferred:**
 - Requires complete process mining output from cargo-cicd
 - Requires receipt ledger replay (Contribution 2)
-- Requires pm4py integration (depends on Truex + Blue River Dam)
+- Requires pm4py integration (depends on the pm4py bridge and downstream analytics dependencies)
 
 **Blocked On:**
 1. Receipt ledger populated (Contribution 2)
@@ -561,7 +561,7 @@ pub fn collect_performance_metrics(
 Before claiming a contribution, verify:
 
 ### Phase 1: Prerequisites (Before Starting)
-- [ ] All blocked-on dependencies are ALIVE (Inspection Gate certified)
+- [ ] All blocked-on dependencies are GREEN (Certification Gate certified)
 - [ ] Acceptance criteria are understood and testable
 - [ ] Test infrastructure exists (unit + integration tests)
 - [ ] Documentation is clear (no ambiguity in specification)
@@ -598,28 +598,28 @@ Before claiming a contribution, verify:
 
 ---
 
-## INSPECTION GATE AUTHORITY SIGN-OFF
+## CERTIFICATION GATE AUTHORITY SIGN-OFF
 
-**Authority:** Inspection Gate (Process Intelligence Core)
+**Authority:** Certification Gate (Process Intelligence Core)
 
 ```
-Inspection Gate Verdict:
+Certification Gate Verdict:
 
 This roadmap correctly identifies all wasm4pm contributions as DEFER_CONTRIB
 for v26.6.3+. All contributions are blocked on wasm4pm-compat stabilization.
 Prerequisites are documented. Acceptance criteria are testable. Critical path
 is clear. Extraction requirements are specific and measurable.
 
-Inspection Gate certifies this as SAFE FOR CONTRIBUTION in v26.6.3.
+Certification Gate certifies this as SAFE FOR CONTRIBUTION in v26.6.3.
 
-Signed (Inspection Gate Authority):
+Signed (Certification Gate Authority):
 _________________________________
 Process Intelligence Core Lead / CTO
 
 Date: 2026-06-02
 
 Attestation: This roadmap becomes IMMUTABLE upon signature. Contributions
-must follow this roadmap exactly. No deviations without Inspection Gate
+must follow this roadmap exactly. No deviations without Certification Gate
 approval.
 ```
 

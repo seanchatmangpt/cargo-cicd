@@ -1,7 +1,7 @@
 # wasm4pm Leverage Matrix — Integration Opportunity Assessment
 
 **Authority:** Water Gate (Delivery Lead)  
-**Secondary Authority:** Inspection Gate (Process Intelligence Core)  
+**Secondary Authority:** Certification Gate (Process Intelligence Core)  
 **Date:** 2026-06-02  
 **Status:** LEVERAGE ASSESSMENT & OPPORTUNITY MATRIX
 
@@ -78,7 +78,7 @@ This document evaluates the leverage opportunity of each wasm4pm capability for 
 - **Blocked By:** 2 prerequisites (Type-law audit, enum finalization)
 - **Leverage Ratio:** 6:8 = 0.75 ✗ POOR
 - **Verdict:** DEFER_CONTRIB 3
-- **Recommendation:** DEFER until enum finalized by Inspection Gate
+- **Recommendation:** DEFER until enum finalized by Certification Gate
 - **Timeline:** v26.6.3-rc (type-law audit prerequisite)
 - **ROI:** Low (needed, but only after type system settles)
 
@@ -98,7 +98,7 @@ This document evaluates the leverage opportunity of each wasm4pm capability for 
 - **Blocked By:** 3 prerequisites (Lattice structure stable, audit complete, witness corpus certified)
 - **Leverage Ratio:** 7:9 = 0.78 ✗ POOR
 - **Verdict:** FEATURE_GATE (witness-lattice) + DEFER_CONTRIB 4
-- **Recommendation:** DEFER until witness lattice audit-certified by Inspection Gate
+- **Recommendation:** DEFER until witness lattice audit-certified by Certification Gate
 - **Timeline:** v26.6.3-beta (late in critical path)
 - **ROI:** Medium-Low (needed for admission, but prerequisites must stabilize)
 
@@ -198,7 +198,7 @@ PHASE 4 (Parallel) — Performance:
 **Mitigation:**
 1. ✓ Lock receipt ledger schema in v26.6.3-alpha
 2. ✓ Cross-validate OCEL JSON with pm4py reference implementation
-3. ✓ Gate integration on schema immutability (Inspection Gate signed)
+3. ✓ Gate integration on schema immutability (Certification Gate signed)
 4. ✓ Add round-trip tests (cargo-cicd → OCEL → wasm4pm → cargo-cicd)
 
 **Success Criteria:**
@@ -236,7 +236,7 @@ PHASE 4 (Parallel) — Performance:
 1. ✓ DEFER all direct API usage to v26.6.3+
 2. ✓ Use file exchange (CAP-001) as API buffer
 3. ✓ Never wrap unstable types directly
-4. ✓ Require Inspection Gate certification before integration
+4. ✓ Require Certification Gate certification before integration
 
 **Success Criteria:**
 - Zero API imports in v26.6.2
@@ -294,12 +294,12 @@ PHASE 4 (Parallel) — Performance:
 **Risk:** None (deferral is intentional)  
 **Timeline:** Ready for v26.6.2 release
 
-### For Process Intelligence (Inspection Gate)
+### For Process Intelligence (Certification Gate)
 
 **Impact:** wasm4pm-compat can evolve freely until v26.6.3  
 **Benefit:** No coupling lock; time to stabilize core APIs  
 **Risk:** None (cargo-cicd is decoupled)  
-**Timeline:** Nightly test suite must reach ALIVE status by v26.6.3-alpha
+**Timeline:** Nightly test suite must reach GREEN status by v26.6.3-alpha
 
 ### For Contributors
 

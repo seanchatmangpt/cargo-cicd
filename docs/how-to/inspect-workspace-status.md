@@ -43,4 +43,4 @@ publish ready: no (dirty files present)
 - "Publish ready" is false whenever there are dirty files or pending tests,
   even if the last run of each command passed.
 - For a complete health check that diagnoses structural issues, see
-  [workspace doctor](run-changed-tests.md).
+  [workspace doctor](../reference/commands/workspace-doctor.md).

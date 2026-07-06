@@ -1,7 +1,7 @@
 # wasm4pm Integration Recommendation for v26.6.2
 
 **Authority:** Water Gate (Delivery Lead)  
-**Gate Authority:** Secondary: Inspection Gate  
+**Gate Authority:** Secondary: Certification Gate  
 **Date Composed:** 2026-06-02  
 **Status:** INTEGRATION PATH DECISION
 
@@ -187,7 +187,7 @@ Create `/src/integrations/wasm4pm_future.rs`:
 //! In v26.6.3, this will implement FILE_EXCHANGE path (Path A).
 //!
 //! Integration prerequisite:
-//! - wasm4pm-compat type-law court nightly test suite ALIVE
+//! - wasm4pm-compat type-law court nightly test suite GREEN
 //! - Receipt ledger schema finalized and audited
 //! - OCEL JSON schema cross-validated with wasm4pm
 //!
@@ -207,8 +207,8 @@ Create `/src/integrations/wasm4pm_future.rs`:
 
 Before integrating wasm4pm in v26.6.3, verify:
 
-- [ ] wasm4pm-compat nightly test suite is 100% passing (Inspection Gate certification)
-- [ ] Receipt ledger schema is IMMUTABLE (signed by Inspection Gate)
+- [ ] wasm4pm-compat nightly test suite is 100% passing (Certification Gate certification)
+- [ ] Receipt ledger schema is IMMUTABLE (signed by Certification Gate)
 - [ ] OCEL JSON schema is cross-validated with pm4py
 - [ ] Witness lattice corpus is audit-certified
 - [ ] Type-law audit trail is complete (zero violations)
@@ -219,7 +219,7 @@ Before integrating wasm4pm in v26.6.3, verify:
 1. **Finalize Receipt Ledger Schema**
    - Lock OCEL JSON format
    - Publish schema documentation
-   - Certify schema with Inspection Gate
+   - Certify schema with Certification Gate
 
 2. **Implement FILE_EXCHANGE Path (A)**
    - Add OCEL JSON export from cargo-cicd
@@ -291,9 +291,9 @@ Each capability is mapped to v26.6.3+ owner + acceptance criteria.
 
 ---
 
-## INSPECTION GATE AUTHORITY SIGN-OFF
+## CERTIFICATION GATE AUTHORITY SIGN-OFF
 
-**Authority:** Inspection Gate + Water Gate (Delivery Authority)
+**Authority:** Certification Gate + Water Gate (Delivery Authority)
 
 ```
 Water Gate Verdict (Delivery Authority):
@@ -310,12 +310,12 @@ Delivery Lead
 
 Date: 2026-06-02
 
-Secondary Authority (Inspection Gate):
-This matrix aligns with Inspection Gate doctrine. Type-law court is not
+Secondary Authority (Certification Gate):
+This matrix aligns with Certification Gate doctrine. Type-law court is not
 yet production-ready. Receipt ledger schema not immutable. Deferral is
 the correct choice. v26.6.3 integration prerequisites documented.
 
-Signed (Inspection Gate Authority):
+Signed (Certification Gate Authority):
 _________________________________
 Process Intelligence Core / CTO
 

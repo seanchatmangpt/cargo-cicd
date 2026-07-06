@@ -794,6 +794,6 @@ cargo-cicd should be fast, but:
 
 ## Further Reading
 
-- [Quick Start Guide](../reference/CLI_QUICK_START.md)
-- [Cheat Sheet](../reference/CLI_CHEAT_SHEET.md)
-- [CI/CD Pipelines](./CI_CD_PIPELINES.md)
+- [Quick Start Guide](../tutorials/quick-start.md)
+- [Command Reference Index](../reference/CLI_REFERENCE_INDEX.md)
+- [CI/CD Pipelines](./ci-cd-pipelines.md)

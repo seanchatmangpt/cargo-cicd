@@ -212,6 +212,6 @@ wpm audit target/cargo-cicd/evidence/events.ocel.json
 for backwards compatibility with process mining tools that consume XES (ProM,
 Disco, Celonis) but it is **not** the oracle audit target.
 
-See [XES-2.0-SPECIFICATION.md](../XES-2.0-SPECIFICATION.md) for the full XES
+See [XES format](xes-format.md) for the full XES
 attribute contract. The primary oracle call uses `events.ocel.json`; do not
 pass `events.xes` to `wpm audit` in new integrations.

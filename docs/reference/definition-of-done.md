@@ -2,7 +2,7 @@
 
 **Version:** v26.6.2
 **Date:** 2026-06-14
-**Authority:** CLAUDE.md, SOLUTION_ARCHITECTURE.md, docs/testing/INVARIANTS.md
+**Authority:** CLAUDE.md, docs/reference/testing/invariants.md
 
 ---
 
