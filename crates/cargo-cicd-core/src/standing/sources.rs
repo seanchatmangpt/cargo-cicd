@@ -662,7 +662,11 @@ fn ingest_one_workspace_crate(repo_root: &str, dir: &Path) -> Option<StandingArt
         .and_then(|n| n.as_str())
         .map(|s| s.to_string())?;
 
-    let rel_path = dir.strip_prefix(repo_root).unwrap_or(dir).to_string_lossy().to_string();
+    let rel_path = dir
+        .strip_prefix(repo_root)
+        .unwrap_or(dir)
+        .to_string_lossy()
+        .to_string();
     let rel_path = if rel_path.is_empty() {
         ".".to_string()
     } else {
@@ -923,18 +927,24 @@ mod tests {
     #[test]
     fn workspace_crates_literal_members_are_discovered_rust_crates() {
         let dir = tempfile::tempdir().unwrap();
+        // Root manifest combines `[package]` (the "." member) and
+        // `[workspace]` in one file — the real shape a root-crate-plus-
+        // members workspace takes (root.join(".") is the same file as
+        // root's own Cargo.toml, so it cannot be written separately via
+        // `write_crate`).
         std::fs::write(
             dir.path().join("Cargo.toml"),
-            "[workspace]\nmembers = [\".\", \"crates/foo\"]\n",
+            "[package]\nname = \"root-crate\"\nversion = \"0.1.0\"\n\n[workspace]\nmembers = [\".\", \"crates/foo\"]\n",
         )
         .unwrap();
-        write_crate(dir.path(), ".", "root-crate");
         write_crate(dir.path(), "crates/foo", "foo-crate");
 
         let out = ingest_workspace_crates(dir.path().to_str().unwrap());
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|a| a.kind == ArtifactKind::RustCrate));
-        assert!(out.iter().all(|a| a.standing == vec![StandingStatus::Discovered]));
+        assert!(out
+            .iter()
+            .all(|a| a.standing == vec![StandingStatus::Discovered]));
         assert!(out.iter().any(|a| a.id == "crate:root-crate"));
         assert!(out.iter().any(|a| a.id == "crate:foo-crate"));
         // Conservative: never fabricates BUILDS/TESTED/LINT_CLEAN.
@@ -962,11 +972,14 @@ mod tests {
     }
 
     #[test]
-    fn workspace_crates_empty_members_is_unseen() {
+    fn workspace_crates_empty_members_is_discovered_not_fabricated() {
+        // The root Cargo.toml exists and parses (hence `DISCOVERED`, matching
+        // every other ingestor's fallback contract) but declares zero
+        // members, so no per-crate artifact is fabricated.
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
         let out = ingest_workspace_crates(dir.path().to_str().unwrap());
         assert_eq!(out.len(), 1);
-        assert_eq!(out[0].standing, vec![StandingStatus::Unseen]);
+        assert_eq!(out[0].standing, vec![StandingStatus::Discovered]);
     }
 }
