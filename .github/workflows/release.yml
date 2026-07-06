@@ -48,8 +48,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-06-22
+          components: rustfmt, clippy
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
@@ -76,9 +79,8 @@ jobs:
       - name: Build with all release features
         run: cargo build --features autonomic,wasm4pm,contrib
 
-      - name: Run evidence gate (continue on oracle unavailability)
+      - name: Run evidence gate (Blocked verdict is a valid pass when wpm absent)
         run: cargo test --test wasm4pm_evidence_gate --features wasm4pm
-        continue-on-error: true
 
       - name: Install wpm oracle
         run: |
@@ -91,7 +93,6 @@ jobs:
 
       - name: status audit (wasm4pm evidence gate)
         run: cargo run -- status audit
-        continue-on-error: true
 
   build-release:
     name: Build Release Binary
@@ -101,8 +102,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-06-22
+          components: rustfmt, clippy
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
