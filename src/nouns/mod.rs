@@ -9,6 +9,7 @@ pub mod ocel;
 pub mod pipeline;
 pub mod publish;
 pub mod receipt;
+pub mod release_gate;
 pub mod sbom;
 pub mod standing;
 pub mod status;

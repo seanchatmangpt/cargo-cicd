@@ -1,0 +1,8 @@
+{
+  "build": true,
+  "config": { "valid": true },
+  "frontier": { "pass_rate": 0.94 },
+  "receipts": { "record_count": 12 },
+  "tools": { "wpm": true },
+  "features": ["process-data"]
+}

@@ -549,9 +549,45 @@ fn run_with_timeout(command: &str, cwd: &str, timeout: Duration) -> (Option<i32>
     }
 }
 
+/// Path to a fixture under `crates/cargo-cicd-core/fixtures/standing/`.
+#[cfg(test)]
+fn fixture(name: &str) -> String {
+    format!("{}/fixtures/standing/{name}", env!("CARGO_MANIFEST_DIR"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn doctor_json_fixture_yields_builds_and_evidence() {
+        let cmd = format!("cat {}", fixture("doctor.json"));
+        let out = ingest_doctor_json(Some(&cmd));
+        assert_eq!(out.len(), 1);
+        assert!(out[0].standing.contains(&StandingStatus::Builds));
+        assert!(out[0].evidence.iter().any(
+            |e| matches!(e, EvidenceRef::Artifact { path, .. } if path == "doctor:frontier.pass_rate")
+        ));
+    }
+
+    #[test]
+    fn process_validation_fixture_yields_ocel_proven() {
+        let out = ingest_ocel_process_validation(&[fixture("process-validation.json")]);
+        assert_eq!(out.len(), 1);
+        assert!(out[0].standing.contains(&StandingStatus::OcelProven));
+        assert!(out[0]
+            .evidence
+            .iter()
+            .any(|e| matches!(e, EvidenceRef::OcelEvent { event_id, .. } if event_id == "case-fixture-1")));
+    }
+
+    #[test]
+    fn receipt_log_fixture_yields_two_receipts() {
+        let out = ingest_receipt_ledgers(&[fixture("receipt-log.jsonl")]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].standing, vec![StandingStatus::Receipted]);
+        assert_eq!(out[0].evidence.len(), 2);
+    }
 
     #[test]
     fn doctor_json_none_command_is_unseen() {
