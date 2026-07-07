@@ -348,7 +348,7 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "cargo-cicd"
-version = "26.6.30"
+version = "26.7.6"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-cicd-core"
-version = "26.6.30"
+version = "26.7.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-cicd-lsp"
-version = "26.6.30"
+version = "26.7.6"
 dependencies = [
  "cargo-cicd-core",
  "jsonschema",
@@ -437,9 +437,9 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "chicago-tdd-tools"
-version = "26.6.121"
+version = "26.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71c28192f85de9e12d5abfed7c4cb82ab4fbe5cd52a0d151d252cd6170229660"
+checksum = "568a1ea3e883b5726dbad687663231d2e90cef65cfc8d0598346a9db713abc46"
 dependencies = [
  "chicago-tdd-tools-proc-macros",
  "chrono",
@@ -458,9 +458,9 @@ dependencies = [
 
 [[package]]
 name = "chicago-tdd-tools-proc-macros"
-version = "26.6.121"
+version = "26.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b924dfbfd54a6fe85b4ac8bc2031d7bee0217377deaf538e4964cb0c5105177"
+checksum = "fe617a9430f246b98ba149736d5c8988dc07d662e9dff40031e99b91fa3dde2e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2559,9 +2559,9 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "star-toml"
-version = "26.6.30"
+version = "26.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ee0a7627e1cb8d33dfc96f0252bba1983cc172fecdb57bd2a67500f5ebc9bc7"
+checksum = "f094130943ff3ccf0c6064decc9329945349e1e0a3cd34bf37c335c66c0a42e0"
 dependencies = [
  "blake3",
  "serde",
@@ -2663,7 +2663,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

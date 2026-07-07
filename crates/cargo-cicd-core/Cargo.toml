@@ -1,6 +1,6 @@
 [package]
 name = "cargo-cicd-core"
-version = "26.6.30"
+version = "26.7.6"
 edition = "2021"
 rust-version = "1.86"
 description = "Shared workspace/process-state domain for cargo-cicd tooling"

@@ -1,6 +1,6 @@
 [package]
 name = "cargo-cicd-lsp"
-version = "26.6.30"
+version = "26.7.6"
 edition = "2021"
 rust-version = "1.86"
 description = "Author-time LSP witness for cargo-cicd local software manufacturing state"
