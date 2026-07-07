@@ -15,9 +15,9 @@ Every test in this repository must trace to at least one invariant below.
 **Assertion:** No public-facing output surface (stdout, stderr, `--help`, README, generated
 `cicd.toml` comments) contains any forbidden internal term.
 
-**Forbidden terms:** ALIVE, Inspection Gate, wall, Nehemiah, Field8, Instinct8, Cargo Court,
-AGI, Truex, CONSTRUCT8, and any other project-internal covenant label not part of the
-`cargo-cicd` public API.
+**Forbidden terms:** any project-internal codename, covenant label, or working-name — such as
+internal names for the evidence gate, code review process, policy engine, or other internal
+subsystems — that is not part of the `cargo-cicd` public API.
 
 **Test method:** Capture full stdout and stderr for every command under all feature flag
 combinations. Scan output bytes for each forbidden term. Assert zero matches.

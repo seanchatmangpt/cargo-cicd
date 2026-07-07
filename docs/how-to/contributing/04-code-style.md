@@ -152,9 +152,9 @@ pub fn empty() -> Self { }  // Use `fn new()` instead
 ```rust
 const DEFAULT_TARGET_LIMIT_GB: f64 = 10.0;
 const FORBIDDEN_TERMS: &[&str] = &[
-    "ALIVE",
-    "Nehemiah",
-    "CONSTRUCT8",
+    "INTERNAL_CODENAME_ONE",
+    "INTERNAL_CODENAME_TWO",
+    "INTERNAL_CODENAME_THREE",
 ];
 ```
 

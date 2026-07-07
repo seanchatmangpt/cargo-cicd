@@ -111,7 +111,7 @@ fn test_mynoun_show_help() {
         .unwrap();
     assert!(output.status.success());
     let text = String::from_utf8_lossy(&output.stdout);
-    assert!(!text.contains("ALIVE")); // Forbidden term check
+    assert!(!text.contains("INTERNAL_CODENAME")); // Forbidden term check
 }
 ```
 
@@ -465,7 +465,7 @@ fn test_noun_on_clean_workspace() {
 - [ ] **Tests added** — unit and/or integration tests
 - [ ] **Fixtures used** — tests isolated from external state
 - [ ] **Feature-gated** — new engine code behind `process-data` / `autonomic` / etc.
-- [ ] **Forbidden terms checked** — no ALIVE, Nehemiah, etc. in public output
+- [ ] **Forbidden terms checked** — no internal codenames or non-public vocabulary in public output
 - [ ] **Commit message** — follows `type(scope): description` format
 - [ ] **CLAUDE.md updated** — if architectural changes
 - [ ] **Invariants pass** — `cargo test --test invariants`

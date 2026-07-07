@@ -193,7 +193,7 @@ https://claude.ai/code/session_01GTNEZYe16QF5TzVZUZSvsA
 
 6. **Forbidden Terms**
    - Does the PR introduce any forbidden terms in public output?
-   - (List: ALIVE, Nehemiah, CONSTRUCT8, Instinct8, Inspection Gate, Cargo Court, AGI, Truex, Field8, wall)
+   - (See the forbidden-terms table in `CLAUDE.md` for the full, current list)
 
 ### Common Review Comments
 

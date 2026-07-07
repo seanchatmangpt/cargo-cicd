@@ -79,8 +79,8 @@ cargo test --test autonomic_policies
 ### 1.5 Documentation
 
 - [ ] Public-facing help text (`about()` strings) uses only public-safe language
-- [ ] No forbidden term appears in any `about()`, error message, or generated output:
-  `ALIVE`, `Inspection Gate`, `wall`, `Nehemiah`, `Field8`, `Instinct8`, `Cargo Court`, `AGI`, `Truex`, `CONSTRUCT8`
+- [ ] No forbidden term appears in any `about()`, error message, or generated output —
+  see the forbidden terms list in CLAUDE.md for the current set of restricted internal vocabulary
 - [ ] Command added to `docs/reference/commands.md` table (or regenerated via `ggen`)
 - [ ] If a new noun/verb: command reference file added under `docs/reference/commands/`
 - [ ] CLAUDE.md Architecture section updated if new dimension added to `EngineState`
@@ -234,11 +234,12 @@ A documentation change is Done when all of the following boxes are checked.
 ### 4.3 Forbidden Term Scan
 
 - [ ] Forbidden terms absent from all files in `docs/commands/`, `docs/reference/`, `docs/tutorials/`, `README.md`, `src/`
-- [ ] Verify with: `grep -rE "ALIVE|Inspection Gate|wall|Nehemiah|Field8|Instinct8|Cargo Court|AGI|Truex|CONSTRUCT8" docs/commands/ docs/reference/ docs/tutorials/ README.md src/`
+- [ ] Verify with a grep across those paths for the restricted internal vocabulary listed in CLAUDE.md's forbidden terms table
 - [ ] `cargo test --test invariants invariant_public_boundary_no_forbidden_terms_in_all_help` passes
 
 ```sh
-grep -rE "ALIVE|Inspection Gate|Nehemiah|Field8|Instinct8|Cargo Court|AGI|Truex|CONSTRUCT8" \
+# Build the pattern from CLAUDE.md's forbidden terms table, then:
+grep -rE "$FORBIDDEN_TERMS_PATTERN" \
   docs/commands/ docs/reference/ docs/tutorials/ README.md src/ || echo "CLEAN"
 ```
 

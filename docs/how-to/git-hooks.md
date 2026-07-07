@@ -47,15 +47,10 @@ Runs automatically on every `git commit`. Must complete in under 30 seconds.
 | Invariants | `cargo test --test invariants --quiet` | Reject; see `tests/invariants.rs` |
 | Forbidden terms | grep on staged files | Reject; remove flagged terms |
 
-**Forbidden terms** scanned in every staged file:
-
-```
-ALIVE  Nehemiah  CONSTRUCT8  Inspection Gate  Cargo Court
-AGI  Truex  wall  Field8  Instinct8
-```
-
-These terms must not appear in any committed file. See `CLAUDE.md §FORBIDDEN`
-for the rationale.
+**Forbidden terms** scanned in every staged file: a fixed list of internal
+codenames and project-private vocabulary that must never leak into
+committed content. See `CLAUDE.md §FORBIDDEN` for the exact list and the
+rationale.
 
 The forbidden-term scan reads staged file contents via `git show :$file` so
 it checks what will actually be committed, not the working-tree version.

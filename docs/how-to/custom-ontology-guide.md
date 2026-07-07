@@ -653,7 +653,7 @@ per = "all"
 **Symptom**:
 ```
 test invariant_public_boundary_no_forbidden_terms_in_all_help FAILED
-  "ALIVE" found in 'cargo cicd gate check --help' output
+  "readiness state" found in 'cargo cicd gate check --help' output
 ```
 
 **Cause**: Your verb description or output contains a forbidden term. See `CLAUDE.md` for the complete list.
@@ -663,7 +663,7 @@ test invariant_public_boundary_no_forbidden_terms_in_all_help FAILED
 ```turtle
 # WRONG:
 myorg:gate-check a skos:Concept ;
-    dcterms:description "Check ALIVE status of quality gates" .  # ALIVE is forbidden
+    dcterms:description "Check readiness state of quality gates" .  # forbidden internal term
 
 # CORRECT:
 myorg:gate-check a skos:Concept ;

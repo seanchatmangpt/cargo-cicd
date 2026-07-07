@@ -188,9 +188,10 @@ These are implementation details and can change:
 
 These should **never** appear in public output:
 
-- ALIVE, Nehemiah, CONSTRUCT8, Instinct8
-- Inspection Gate, Cargo Court, AGI, Truex, Field8
-- "wall" or other internal terminology
+- Internal codenames and project-internal terminology not defined in public docs
+- References to the internal evidence gate or oracle adjudication process by codename (use "evidence gate" or "oracle adjudication" instead)
+- References to internal code/pull-request review steps by codename (use "code review" or "pull request review" instead)
+- References to internal scoring or pressure mechanisms by codename (use "policy engine" instead)
 - Process-data engine details (unless explicitly documented as public)
 
 ### Checking Visibility

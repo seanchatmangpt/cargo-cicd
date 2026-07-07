@@ -7,16 +7,16 @@ Common pitfalls and how to avoid them.
 **The Rule:** The following terms must **never** appear in user-visible output (help text, stdout, error messages):
 
 ```
-ALIVE
-Nehemiah
-CONSTRUCT8
-Instruct8
-Inspection Gate
-Cargo Court
-AGI
-Truex
-Field8
-wall
+internal engine codename
+internal scoring codename
+internal build-tag codename
+internal build-tag alias
+evidence gate / oracle adjudication (internal review-step codename)
+internal workspace codename
+policy engine (internal automation codename)
+internal release-track codename
+internal capability-tag codename
+policy boundary (internal pressure-mechanism codename)
 ```
 
 These are internal implementation details and architectural references. Users should see only: "CI/CD helper", "workspace cleaner", "test runner", etc.
@@ -33,10 +33,10 @@ This test runs every `--help` command and checks for forbidden terms.
 
 ### Example: The Bug
 
-Do not include Nehemiah in output. Search and remove it:
+Do not include an internal engine codename in output. Search and remove it:
 
 ```bash
-grep -r "Nehemiah" src/
+grep -r "<forbidden-term>" src/
 # ... remove the offending line ...
 ```
 
@@ -126,7 +126,7 @@ Use standardized event types (see evidence.rs). Do not use arbitrary event_type 
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Test fails with forbidden term | ALIVE/Nehemiah in help text | grep and remove the term |
+| Test fails with forbidden term | internal codename leaked into help text | grep and remove the term |
 | Test passes alone but fails in CI | Test depends on git state | Use FixtureWorkspace::clean() |
 | Adapter returns different results on second call | Adapter mutates external state | Ensure adapter only reads |
 | cicd.toml becomes inconsistent | Manually edited or stale cache | Always regenerate via adapter |
