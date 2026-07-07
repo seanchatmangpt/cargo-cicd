@@ -113,9 +113,16 @@ impl PipelineRunVerb {
         // Three full passes of the 9-activity sequence yields fitness ≈ 0.964,
         // crossing the 0.95 TRUTHFUL threshold.
         //
-        // Written to `audit-events.ocel.json` (dedicated path) so subsequent
+        // Written to `audit-events.xes` (dedicated path) so subsequent
         // append_events() calls do not overwrite the canonical form used by the oracle.
-        let audit_ocel = evidence_dir.join("audit-events.ocel.json");
+        //
+        // NOTE: this used to be written as OCEL (`audit-events.ocel.json`) and
+        // fed to `wpm receipt verify-ocel2`, which expects a receipt document
+        // (expected/observed logs + proof envelope), not a bare event log — it
+        // always structurally rejected the input regardless of conformance.
+        // `wpm audit <file.xes>` is the correct tool for conformance-auditing
+        // a plain event log; see `Wasm4pmShell::audit`.
+        let audit_xes = evidence_dir.join("audit-events.xes");
         {
             let declared_pipeline: &[&str] = &[
                 "status:show",
@@ -136,8 +143,8 @@ impl PipelineRunVerb {
                     canonical_events.push(ev);
                 }
             }
-            if let Err(e) = crate::evidence::emit_ocel_fresh(&canonical_events, &audit_ocel) {
-                eprintln!("warning: canonical audit OCEL write failed: {}", e);
+            if let Err(e) = crate::evidence::emit_xes_filtered(&canonical_events, &audit_xes) {
+                eprintln!("warning: canonical audit XES write failed: {}", e);
             }
         }
 
@@ -150,11 +157,11 @@ impl PipelineRunVerb {
 
         let wpm = crate::integrations::Wasm4pmShell::detect();
         let audit_result = if let Some(wpm_shell) = &wpm {
-            if audit_ocel.exists() {
+            if audit_xes.exists() {
                 let r = wpm_shell
-                    .receipt_verify_ocel2(audit_ocel.to_str().unwrap_or(""))
+                    .audit(audit_xes.to_str().unwrap_or(""))
                     .unwrap_or_else(|e| crate::integrations::WpmResult {
-                        command: "wpm receipt-verify-ocel2".to_string(),
+                        command: "wpm audit".to_string(),
                         success: false,
                         stdout: String::new(),
                         stderr: e.to_string(),
@@ -169,9 +176,20 @@ impl PipelineRunVerb {
         };
 
         let audit_elapsed_ms = audit_start.elapsed().as_millis() as u64;
+        // Map wpm's TRUTHFUL/VARIANCE/DECEPTIVE fitness bands (surfaced via
+        // WpmVerdict::Pass/Warn/Fail by `infer_audit_verdict`) to the
+        // pipeline's ACCEPT/WARN/REFUSE self-check vocabulary. E1: this is
+        // purely a label remap of the oracle's own verdict — cargo-cicd never
+        // substitutes its own judgment for wpm's.
         let oracle_verdict = audit_result
             .as_ref()
-            .map(|r| if r.success { "ACCEPT" } else { "REFUSE" })
+            .map(|r| match r.verdict {
+                crate::integrations::WpmVerdict::Pass => "ACCEPT",
+                crate::integrations::WpmVerdict::Warn
+                | crate::integrations::WpmVerdict::Partial => "WARN",
+                crate::integrations::WpmVerdict::Fail
+                | crate::integrations::WpmVerdict::NotAvailable => "REFUSE",
+            })
             .unwrap_or("SKIP");
         println!("{} ({}ms)", oracle_verdict, audit_elapsed_ms);
 
