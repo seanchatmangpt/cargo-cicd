@@ -8,7 +8,7 @@ Format: feat(scope): description — scope is core|cli|target|test|git|autonomic
 
 ## [Unreleased]
 
-Everything below has landed on `main` since the `26.6.30` version bump; `Cargo.toml` is still pinned at `26.6.30` pending the next release tag.
+## [26.7.6] — 2026-07-06
 
 ### Added
 - Standing compiler: a new subsystem that ingests workspace signals (crates, toolchain, CI) and scores them against a versioned schema, with `refresh`, `verify`, `report`, and `claude-context` verbs
@@ -33,6 +33,7 @@ Everything below has landed on `main` since the `26.6.30` version bump; `Cargo.t
 - Target scanning now runs in parallel by default, and scan errors that were previously swallowed are now surfaced to the caller
 - Replaced a deprecated iterator call (`Iterator::last`) with `next_back` to clear a clippy lint in the LSP crate
 - Pinned CI to a fixed nightly toolchain date and removed an unpinned git dependency patch for the wasm4pm-compat crate, stabilizing CI builds
+- Silenced an `unused_mut` warning on the pipeline noun's steps when building without the `affidavit` feature
 
 ### Changed
 - Narrowed the public API surface of the core crate and documented its stability boundary
@@ -42,6 +43,10 @@ Everything below has landed on `main` since the `26.6.30` version bump; `Cargo.t
 ### Docs
 - Added an ERRC (Eliminate-Reduce-Raise-Create) review of the project, informing the fixes and cleanups above
 - Moved the standing schema and claim policy documentation into this repository
+- Scrubbed forbidden internal vocabulary from the Diataxis-relocated docs (how-to/contributing, custom-ontology-guide, git-hooks, reference/definition-of-done, reference/testing/invariants)
+
+### Chore
+- Refreshed the standing-evidence receipts from the final verification runs
 
 ---
 

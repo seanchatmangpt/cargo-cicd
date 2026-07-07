@@ -18,7 +18,7 @@ Verify:
 
 ```sh
 cargo cicd --version
-# cargo-cicd 26.6.30
+# cargo-cicd 26.7.6
 ```
 
 If the binary is not found, ensure `~/.cargo/bin` is on your `PATH`:

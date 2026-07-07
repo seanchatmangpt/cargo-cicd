@@ -15,7 +15,7 @@ The seanchatmangpt Rust fleet (praxis, wasm4pm, wasm4pm-compat, star-toml, chica
 | chicago-tdd-tools | 26.7.1 | nightly-2026-04-15 | justfile | Test framework |
 | ggen | 26.7.4 | nightly-2026-06-22 | justfile | Codegen |
 | clap-noun-verb | 26.7.4 | none | justfile | CLI framework; contains a stale embedded cargo-cicd fork at v26.6.2 |
-| cargo-cicd | 26.6.30 | nightly-2026-06-22 (as of this fix) | justfile | The front door |
+| cargo-cicd | 26.7.6 | nightly-2026-06-22 (as of this fix) | justfile | The front door |
 
 The dependency seam runs bottom-up. wasm4pm-compat sits at the base of the fleet: it defines structural types and type-law only, with no engine logic, so its toolchain pin is the tightest constraint in the fleet and everything downstream must be able to build against it. wasm4pm builds on top of wasm4pm-compat and ships the `wpm` binary — the oracle that adjudicates process evidence. cargo-cicd is the front-door CLI: it emits evidence (XES/JSONL) and calls out to `wpm` for adjudication, but it never adjudicates itself. praxis sits above all of this as the house style and law layer, and notably it consumes cargo-cicd as a CLI dependency — a binary it shells out to — not as a Cargo (`Cargo.toml`) dependency. That distinction matters: cargo-cicd's Rust API surface is not part of the contract praxis relies on, only its command-line behavior is.
 
