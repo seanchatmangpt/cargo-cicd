@@ -189,7 +189,7 @@ fn build_sarif(
             tool: SarifTool {
                 driver: SarifDriver {
                     name: "cargo-cicd-gate",
-                    version: "26.6.28",
+                    version: env!("CARGO_PKG_VERSION"),
                     rules,
                 },
             },
@@ -261,7 +261,7 @@ fn compute_gate(repo_dir: &str, json: bool, sarif: bool) -> Result<()> {
 
     let report = GateReport {
         schema: "cargo-cicd.gate.v1".to_string(),
-        release: "v26.6.28".to_string(),
+        release: format!("v{}", env!("CARGO_PKG_VERSION")),
         q_release,
         failset_cardinality: counterexamples.len(),
         counterexamples,

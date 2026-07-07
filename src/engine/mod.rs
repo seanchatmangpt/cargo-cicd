@@ -190,8 +190,8 @@ impl EngineState {
             recommendation: None,
         }];
 
-        // Populate projection profile with v26.6.19
-        state.projection = ProjectionProfile::v26_6_19();
+        // Populate projection profile with current package version
+        state.projection = ProjectionProfile::v26_7_6();
 
         state
     }
