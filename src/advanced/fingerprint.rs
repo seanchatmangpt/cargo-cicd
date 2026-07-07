@@ -52,7 +52,7 @@ impl Fingerprint {
     }
 
     /// Render the digest as a lowercase hexadecimal string.
-    pub fn to_hex(&self) -> String {
+    pub fn to_hex(self) -> String {
         let mut out = String::with_capacity(FINGERPRINT_LEN * 2);
         use fmt::Write as _;
         for byte in &self.0 {

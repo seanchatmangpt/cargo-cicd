@@ -25,7 +25,7 @@ pub struct TraceProfileOutput {
 
 fn get_git_hash(repo_dir: &str) -> String {
     std::process::Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .current_dir(repo_dir)
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -128,7 +128,7 @@ pub fn cmd_profile(
         serde_json::json!({"receipt_digest": receipt.receipt_digest}),
         "",
     )
-    .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e))?;
+    .map_err(clap_noun_verb::error::NounVerbError::execution_error)?;
     let ocel_event_id = ocel_event.event_id;
 
     let git_provenance =

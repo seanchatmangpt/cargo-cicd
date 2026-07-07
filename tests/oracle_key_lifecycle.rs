@@ -5,18 +5,11 @@
 //! - `oracle_keys::key_is_valid` — not-expired and expired keys
 //! - `oracle_keys::oracle_key_trace_attributes` — non-empty attribute list
 //! - `oracle_keys::compute_fingerprint` — non-empty hex string
-//! - `receipt_validation::validate_receipt_file` — NotFound for missing file
-//! - `receipt_validation::parse_receipt_json` — valid and malformed JSON
-//! - `receipt_validation::receipt_has_required_fields` — missing field detection
 
 use cargo_cicd::oracle_keys::{
     compute_fingerprint, key_is_valid, load_oracle_key_from_env, oracle_key_trace_attributes,
     OraclePublicKey,
 };
-use cargo_cicd::receipt_validation::{
-    parse_receipt_json, receipt_has_required_fields, validate_receipt_file, ReceiptValidationResult,
-};
-use std::path::Path;
 
 // ── oracle_keys tests ─────────────────────────────────────────────────────────
 

@@ -145,7 +145,7 @@ fn diff_baseline_logic(repo_dir: &Path, baseline: Option<String>) -> Result<()> 
     Ok(())
 }
 
-fn normal_doctor_logic(repo_dir: &Path, json: bool) -> Result<()> {
+fn normal_doctor_logic(repo_dir: &Path, _json: bool) -> Result<()> {
     let mut counterexamples = do_doctor(repo_dir);
     counterexamples.sort();
     counterexamples.dedup();
@@ -158,11 +158,7 @@ fn normal_doctor_logic(repo_dir: &Path, json: bool) -> Result<()> {
         counterexamples,
     };
 
-    if json {
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-    } else {
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-    }
+    println!("{}", serde_json::to_string_pretty(&output).unwrap());
 
     if q_doctor == 0 {
         return Err(clap_noun_verb::error::NounVerbError::execution_error(

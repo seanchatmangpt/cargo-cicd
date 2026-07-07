@@ -126,7 +126,7 @@ const AI_TOOLS: &[&str] = &["claude", "copilot", "gpt", "gemini", "codeium"];
 /// Never panics.
 pub fn detect_provenance_from_git(repo_dir: &std::path::Path) -> CodeProvenance {
     let output = match std::process::Command::new("git")
-        .args(&[
+        .args([
             "log",
             "--format=%aN <%ae>%n%(trailers:key=Co-Authored-By,valueonly)",
             "-20",

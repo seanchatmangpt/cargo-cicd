@@ -128,21 +128,21 @@ impl VerbCommand for HooksInstallVerb {
             print!("  Install pre-commit hook environments? (y/n): ");
             let _ = std::io::stdout().flush();
             let mut input = String::new();
-            if std::io::stdin().read_line(&mut input).is_ok() && input.trim() == "y" {
-                if std::process::Command::new("pre-commit")
+            if std::io::stdin().read_line(&mut input).is_ok()
+                && input.trim() == "y"
+                && std::process::Command::new("pre-commit")
                     .arg("install")
                     .status()
                     .is_ok()
-                {
-                    println!(
-                        "{}",
-                        theme::paint("✓ Pre-commit environments installed", Role::Success)
-                    );
-                    let _ = std::process::Command::new("pre-commit")
-                        .arg("run")
-                        .arg("--all-files")
-                        .status();
-                }
+            {
+                println!(
+                    "{}",
+                    theme::paint("✓ Pre-commit environments installed", Role::Success)
+                );
+                let _ = std::process::Command::new("pre-commit")
+                    .arg("run")
+                    .arg("--all-files")
+                    .status();
             }
         } else {
             println!("⚠ pre-commit framework not installed");
@@ -317,17 +317,17 @@ impl VerbCommand for HooksUninstallVerb {
             print!("Uninstall pre-commit framework? (y/n): ");
             let _ = std::io::stdout().flush();
             let mut input = String::new();
-            if std::io::stdin().read_line(&mut input).is_ok() && input.trim() == "y" {
-                if std::process::Command::new("pre-commit")
+            if std::io::stdin().read_line(&mut input).is_ok()
+                && input.trim() == "y"
+                && std::process::Command::new("pre-commit")
                     .arg("uninstall")
                     .status()
                     .is_ok()
-                {
-                    println!(
-                        "{}",
-                        theme::paint("✓ Pre-commit framework uninstalled", Role::Success)
-                    );
-                }
+            {
+                println!(
+                    "{}",
+                    theme::paint("✓ Pre-commit framework uninstalled", Role::Success)
+                );
             }
         }
 

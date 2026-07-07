@@ -112,12 +112,11 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                 }
 
                 // Agents.md specific
-                if name == "AGENTS.md" {
-                    if content_lower.contains("research_allowlist")
-                        && content_lower.contains("locked_mode")
-                    {
-                        has_research_allowlist_in_locked = true;
-                    }
+                if name == "AGENTS.md"
+                    && content_lower.contains("research_allowlist")
+                    && content_lower.contains("locked_mode")
+                {
+                    has_research_allowlist_in_locked = true;
                 }
 
                 // Various heuristics
@@ -149,7 +148,7 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                     has_just_called_by_agent = true;
                 }
                 // gate_without_trace_receipt: fn gate( in a .rs file without receipt evidence
-                if path.extension().map_or(false, |e| e == "rs")
+                if path.extension().is_some_and(|e| e == "rs")
                     && content.contains("fn gate(")
                     && !content.contains("receipt_digest")
                     && !content.contains(".cargo-cicd/receipts")
@@ -160,28 +159,27 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                     }
                 }
                 // verify_without_trace_receipt: fn verify( in a .rs file without receipt_digest
-                if path.extension().map_or(false, |e| e == "rs")
+                if path.extension().is_some_and(|e| e == "rs")
                     && content.contains("fn verify(")
                     && !content.contains("receipt_digest")
                 {
                     has_verify_without_receipt = true;
                 }
-                if content_lower.contains("implemented")
+                if (content_lower.contains("implemented")
                     || content_lower.contains("completed")
-                    || content_lower.contains("done")
+                    || content_lower.contains("done"))
+                    && name != "barrier.rs"
+                    && name != "DoD_v26.6.27.md"
+                    && name != "AGENTS.md"
+                    && !name.ends_with(".json")
                 {
-                    if name != "barrier.rs"
-                        && name != "DoD_v26.6.27.md"
-                        && name != "AGENTS.md"
-                        && !name.ends_with(".json")
-                    {
-                        has_prose_completion_claim = true;
-                    }
+                    has_prose_completion_claim = true;
                 }
-                if content_lower.contains("compiles") || content_lower.contains("cargo check") {
-                    if name.ends_with(".md") && !name.starts_with("DoD") {
-                        has_compilation_as_standing = true;
-                    }
+                if (content_lower.contains("compiles") || content_lower.contains("cargo check"))
+                    && name.ends_with(".md")
+                    && !name.starts_with("DoD")
+                {
+                    has_compilation_as_standing = true;
                 }
                 if content.contains("\"missing_fields\": true")
                     || content_lower.contains("receipt_without_execution_trace")
@@ -197,12 +195,11 @@ pub fn detect_barriers(repo_dir: &Path) -> Vec<Counterexample> {
                         {
                             has_python_authority = true;
                         }
-                    } else if ext == "sh" || ext == "bash" {
-                        if content.contains("cargo ")
-                            && (content.contains("if ") || content.contains("case "))
-                        {
-                            has_shell_authority = true;
-                        }
+                    } else if (ext == "sh" || ext == "bash")
+                        && content.contains("cargo ")
+                        && (content.contains("if ") || content.contains("case "))
+                    {
+                        has_shell_authority = true;
                     }
                 }
             }

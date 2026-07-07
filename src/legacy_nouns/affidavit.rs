@@ -2,10 +2,10 @@
 //! the **affidavit** cryptographic provenance engine via its `affi` CLI.
 //!
 //! - `affidavit seal`   replay the accumulated evidence journal into affidavit
-//!                      (`affi receipt emit` per event) and seal it into a
-//!                      content-addressed BLAKE3 receipt (`affi receipt assemble`).
+//!   (`affi receipt emit` per event) and seal it into a
+//!   content-addressed BLAKE3 receipt (`affi receipt assemble`).
 //! - `affidavit verify` certify the sealed receipt (`affi receipt verify`) and
-//!                      report ACCEPT / REJECT.
+//!   report ACCEPT / REJECT.
 //!
 //! affidavit is invoked as an external binary — never linked — so this works on
 //! the stable toolchain and degrades gracefully when `affi` is not installed

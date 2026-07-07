@@ -5,8 +5,6 @@
 //!
 //! These tests prove that verdict parsing is schema-aligned.
 
-use cargo_cicd_core::diagnostics::CicdCode;
-
 /// Verdict JSON with the authoritative top-level key `overall_fitness`.
 const VERDICT_WITH_OVERALL_FITNESS: &str = r#"{
   "overall_fitness": 0.9636,

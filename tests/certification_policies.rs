@@ -4,7 +4,7 @@
 // Vision 2030 — Phase 1, Weeks 3-7: Safety & Certification.
 
 use cargo_cicd::certification::iec_61508::{self, Sil};
-use cargo_cicd::certification::iso_26262::{self, Asil};
+use cargo_cicd::certification::iso_26262::Asil;
 use cargo_cicd::certification::registry::{is_certified, SafetyCriticalEntry};
 use cargo_cicd::certification::{
     bodies_for_standard, cert_body_recommendation, known_cert_bodies, ComplianceStandard,

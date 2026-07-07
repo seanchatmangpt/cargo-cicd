@@ -212,6 +212,20 @@ fn detect_toolchain() -> String {
     "stable".into()
 }
 
+/// Detect rust edition from Cargo.toml
+fn detect_rust_edition() -> String {
+    if let Ok(content) = std::fs::read_to_string("Cargo.toml") {
+        for line in content.lines() {
+            if line.trim().starts_with("edition") {
+                if let Some(edition) = line.split('"').nth(1) {
+                    return edition.to_string();
+                }
+            }
+        }
+    }
+    "2021".into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,18 +298,4 @@ mode = "suggest"
         assert_eq!(state.config.test.changed.base, "origin/main");
         assert!(state.config_witness_hash.is_none());
     }
-}
-
-/// Detect rust edition from Cargo.toml
-fn detect_rust_edition() -> String {
-    if let Ok(content) = std::fs::read_to_string("Cargo.toml") {
-        for line in content.lines() {
-            if line.trim().starts_with("edition") {
-                if let Some(edition) = line.split('"').nth(1) {
-                    return edition.to_string();
-                }
-            }
-        }
-    }
-    "2021".into()
 }

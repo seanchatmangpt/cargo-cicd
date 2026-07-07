@@ -66,8 +66,8 @@ fn run_maximalist_pipeline() {
     let digest = workspace_digest(
         &scan
             .per_extension
-            .iter()
-            .map(|(ext, _)| {
+            .keys()
+            .map(|ext| {
                 let bytes = ext.as_bytes();
                 (std::path::PathBuf::from(ext), hash_bytes(bytes))
             })

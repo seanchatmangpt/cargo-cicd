@@ -182,8 +182,6 @@ impl VerbCommand for DepOrderVerb {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(feature = "advanced")]
     #[test]
     fn test_dep_order_builds_graph_and_orders() {

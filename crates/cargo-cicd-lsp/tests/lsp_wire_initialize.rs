@@ -95,6 +95,7 @@ fn lsp_wire_initialize_returns_diagnostic_capabilities() {
 
     // Clean up the child process regardless of assertion outcome.
     child.kill().ok();
+    child.wait().ok();
 
     // --- assertions ---
 
@@ -165,6 +166,7 @@ fn lsp_wire_initialize_echoes_string_id() {
     let handle = std::thread::spawn(move || read_lsp_response(&mut stdout));
     let response = handle.join().expect("reader thread panicked");
     child.kill().ok();
+    child.wait().ok();
 
     assert_eq!(
         response["id"], "req-42",

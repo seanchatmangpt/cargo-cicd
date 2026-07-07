@@ -300,9 +300,8 @@ pub fn cmd_repo(repo: Option<String>, json: bool, sarif: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::Command;
 
-    fn run_gate_sarif(dir: &str) -> serde_json::Value {
+    fn run_gate_sarif(_dir: &str) -> serde_json::Value {
         // Call compute_gate directly by building sarif from an empty counterexample list.
         let start = std::time::SystemTime::now();
         let counterexamples: Vec<Counterexample> = vec![];

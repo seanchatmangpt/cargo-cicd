@@ -2,9 +2,7 @@
 //! E5: Every positive path must have a mutated negative that wasm4pm refuses.
 //! Invariant tests E1-E3 prove structural properties of the evidence API.
 
-use cargo_cicd::evidence::{
-    assert_wpm_verdict, emit_xes, ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
-};
+use cargo_cicd::evidence::{assert_wpm_verdict, ExpectedWpmVerdict, WpmEvidenceOracle};
 use tempfile::TempDir;
 
 #[test]

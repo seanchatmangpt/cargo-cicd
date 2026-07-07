@@ -7,7 +7,7 @@
 //! Each test targets a specific structural requirement from the specification.
 
 use cargo_cicd::evidence::ProcessEvent;
-use cargo_cicd::evidence_jsonl::{event_to_jsonl_line, write_jsonl};
+use cargo_cicd::evidence_jsonl::write_jsonl;
 use cargo_cicd::evidence_xes_v2::{to_xes_v2, write_xes_v2_with_meta, XesWorkspaceMeta};
 use tempfile::TempDir;
 

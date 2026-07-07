@@ -1172,6 +1172,10 @@ pub fn append_ocel_event(
     if events_file.exists() {
         let file = File::open(&events_file).map_err(|e| e.to_string())?;
         let reader = BufReader::new(file);
+        // Not `.lines().flatten()`: clippy::lines_filter_map_ok warns that pattern
+        // can spin forever on a persistently erroring reader. Iterate the raw
+        // Result stream and match explicitly instead, which always advances.
+        #[allow(clippy::manual_flatten)]
         for line in reader.lines() {
             if let Ok(l) = line {
                 if let Ok(last_event) = serde_json::from_str::<OcelEventRecord>(&l) {

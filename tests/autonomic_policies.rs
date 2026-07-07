@@ -1,6 +1,6 @@
 use cargo_cicd::autonomic::policies::{
     check_git_phase_dirty, check_target_pressure, check_toolchain_mismatch, check_trybuild_changed,
-    PolicyMode, PolicyVerdict,
+    PolicyVerdict,
 };
 
 // ── target pressure ──────────────────────────────────────────────────────────

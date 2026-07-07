@@ -83,6 +83,7 @@ impl FixtureWorkspace {
     /// artifact, simulating a target dir that exceeds size thresholds.
     ///
     /// Expected verdict: **warn** (target over limit).
+    #[allow(dead_code)] // kept for future target-pressure fixture coverage
     pub fn with_target_over_limit() -> Self {
         let fixture = Self::clean();
 
@@ -100,6 +101,7 @@ impl FixtureWorkspace {
     /// Clean workspace plus a `cicd.toml` that contains invalid TOML syntax.
     ///
     /// Expected verdict: **fail** or **refuse** (corrupted config cannot be parsed).
+    #[allow(dead_code)] // kept for future corrupted-config fixture coverage
     pub fn with_corrupted_cicd_toml() -> Self {
         let fixture = Self::clean();
 
@@ -113,6 +115,7 @@ impl FixtureWorkspace {
     /// the workspace actually has untracked files. Simulates stale cached state.
     ///
     /// Expected verdict: **warn** (stale cicd.toml state detected).
+    #[allow(dead_code)] // kept for future stale-state fixture coverage
     pub fn with_stale_cicd_toml() -> Self {
         let fixture = Self::clean();
 
@@ -132,6 +135,7 @@ impl FixtureWorkspace {
     /// the one changed fixture.
     ///
     /// Expected verdict: **pass** (only changed fixture is run).
+    #[allow(dead_code)] // kept for future trybuild-selection fixture coverage
     pub fn with_changed_trybuild_fixture() -> Self {
         let fixture = Self::clean();
 

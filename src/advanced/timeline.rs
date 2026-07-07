@@ -94,7 +94,7 @@ impl ProcessTimeline {
     pub fn span_between(&self, from_label: &str, to_label: &str) -> Option<Span> {
         let from = self.find(from_label)?;
         let to = self.find(to_label)?;
-        Some(to.at.since(from.at).ok()?)
+        to.at.since(from.at).ok()
     }
 
     /// Span from the earliest-recorded event to the latest-recorded event.
