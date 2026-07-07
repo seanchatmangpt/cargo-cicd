@@ -1,4 +1,4 @@
-use super::{CicdPolicy, PolicyMode, PolicyResult};
+use super::{CicdPolicy, PolicyResult};
 
 pub struct TargetPressurePolicy {
     pub max_gb: f64,
@@ -16,9 +16,6 @@ impl CicdPolicy for TargetPressurePolicy {
     }
     fn enabled(&self) -> bool {
         true
-    }
-    fn mode(&self) -> PolicyMode {
-        PolicyMode::Suggest
     }
     fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
         let size_gb = state.target.total_size_bytes as f64 / 1_000_000_000.0;
@@ -43,12 +40,8 @@ impl CicdPolicy for TargetPressurePolicy {
             ("pass", None)
         };
         PolicyResult {
-            name: self.name().into(),
-            enabled: true,
-            mode: "suggest".into(),
             verdict: verdict.into(),
             recommendation: rec,
-            event_kind: "target_pressure".into(),
         }
     }
 }

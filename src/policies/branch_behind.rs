@@ -1,5 +1,5 @@
 //! Autonomic policy: branch behind remote blocks close.
-use super::{CicdPolicy, PolicyMode, PolicyResult};
+use super::{CicdPolicy, PolicyResult};
 
 pub struct BranchBehindPolicy;
 
@@ -10,10 +10,6 @@ impl CicdPolicy for BranchBehindPolicy {
 
     fn enabled(&self) -> bool {
         true
-    }
-
-    fn mode(&self) -> PolicyMode {
-        PolicyMode::Suggest
     }
 
     fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
@@ -37,12 +33,8 @@ impl CicdPolicy for BranchBehindPolicy {
         };
 
         PolicyResult {
-            name: self.name().into(),
-            enabled: true,
-            mode: "suggest".into(),
             verdict: verdict.into(),
             recommendation: rec,
-            event_kind: "branch_behind".into(),
         }
     }
 }

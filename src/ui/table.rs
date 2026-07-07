@@ -91,6 +91,7 @@ impl Table {
     }
 
     /// Replace all body rows at once.
+    #[allow(dead_code, reason = "builder-completeness sibling of push_row(), used by simple()")]
     pub fn rows(mut self, rows: Vec<Vec<String>>) -> Self {
         self.rows = rows;
         self
@@ -103,6 +104,7 @@ impl Table {
     }
 
     /// Render a header + underline rule + aligned rows, with no outer box.
+    #[allow(dead_code, reason = "builder-completeness sibling of box_style(), used by simple()")]
     pub fn borderless(mut self, on: bool) -> Self {
         self.borderless = on;
         self
@@ -110,6 +112,7 @@ impl Table {
 
     /// Cap each cell to at most `max` display columns, truncating with an
     /// ellipsis. Applies per-cell, before column widths are computed.
+    #[allow(dead_code, reason = "builder-completeness sibling of headers()/row(), no noun caps cell width yet")]
     pub fn max_width(mut self, max: usize) -> Self {
         self.max_width = Some(max);
         self
@@ -312,6 +315,7 @@ impl Default for Table {
 ///
 /// Renders a styled header, an underline rule, and aligned rows with no outer
 /// box — handy for compact, log-friendly listings.
+#[allow(dead_code, reason = "convenience wrapper, no noun needs a log-friendly borderless table yet")]
 pub fn simple(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     Table::new()
         .headers(headers)

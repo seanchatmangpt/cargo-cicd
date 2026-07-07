@@ -47,7 +47,10 @@ pub struct Iec61508Requirement {
     pub number: String,
     /// Brief requirement text.
     pub text: String,
-    /// How cargo-cicd process evidence satisfies this requirement.
+    /// How cargo-cicd process evidence satisfies this requirement. Authored
+    /// audit-justification prose; not yet surfaced by `certification show`
+    /// (which only prints satisfied/missing per requirement number today).
+    #[allow(dead_code, reason = "authored compliance documentation, not yet surfaced by certification show")]
     pub evidence_mapping: String,
     /// Minimum SIL level this requirement applies to.
     pub min_sil: Sil,

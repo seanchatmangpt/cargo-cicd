@@ -3,12 +3,16 @@
 // SOC2 Trust Service Criteria evidence mapping for cargo-cicd process evidence.
 
 /// The five SOC2 Trust Service Categories.
+///
+/// No `Soc2Criterion` in `criteria()` is categorized `Privacy` yet; kept so
+/// the category taxonomy stays complete for the next criterion added.
 #[derive(Debug, Clone)]
 pub enum TrustCategory {
     Security,
     Availability,
     ProcessingIntegrity,
     Confidentiality,
+    #[allow(dead_code, reason = "no criteria() entry uses this category yet; taxonomy placeholder")]
     Privacy,
 }
 
@@ -34,9 +38,12 @@ pub struct Soc2Criterion {
     pub category: TrustCategory,
     /// Human-readable description of the criterion.
     pub description: String,
-    /// How cargo-cicd process evidence covers this criterion.
+    /// How cargo-cicd process evidence covers this criterion. Authored
+    /// audit-justification prose; not yet surfaced by `certification show`.
+    #[allow(dead_code, reason = "authored compliance documentation, not yet surfaced by certification show")]
     pub evidence_mapping: String,
     /// The cargo-cicd command(s) that produce relevant evidence.
+    #[allow(dead_code, reason = "authored compliance documentation, not yet surfaced by certification show")]
     pub covered_by_commands: Vec<String>,
     /// Whether cargo-cicd evidence satisfies this criterion.
     pub satisfied: bool,

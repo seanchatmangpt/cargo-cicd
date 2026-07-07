@@ -234,6 +234,7 @@ pub fn barchart(rows: &[(&str, f64)], width: usize) -> String {
 ///
 /// Each row is labeled with its bin's lower bound. Returns an empty string when
 /// there is no data or `buckets == 0`. Non-finite samples are ignored.
+#[allow(dead_code, reason = "part of chart's declared frozen public surface, not yet called by a noun")]
 pub fn histogram(data: &[f64], buckets: usize, width: usize) -> String {
     if buckets == 0 {
         return String::new();
@@ -284,6 +285,7 @@ pub fn histogram(data: &[f64], buckets: usize, width: usize) -> String {
 ///
 /// Rising series show an up arrow in green, falling series a down arrow in red,
 /// and flat series a neutral dot. The delta is the absolute first→last change.
+#[allow(dead_code, reason = "part of chart's declared frozen public surface, not yet called by a noun")]
 pub fn trend(data: &[f64]) -> String {
     if data.is_empty() {
         return String::new();
@@ -318,6 +320,7 @@ pub fn trend(data: &[f64]) -> String {
 }
 
 /// Down-pointing arrow with ASCII fallback, mirroring [`symbols::arrow`].
+#[allow(dead_code, reason = "only used by trend(), see its allow")]
 fn down_arrow() -> &'static str {
     if crate::ui::caps::unicode_enabled() {
         "\u{2193}"

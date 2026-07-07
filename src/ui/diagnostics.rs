@@ -141,6 +141,7 @@ pub fn line(sev: Severity, msg: &str) -> String {
 
 /// Render an error and its `causes` as an indented chain. The head is an
 /// error-severity line; each cause hangs under a dim `caused by:` gutter.
+#[allow(dead_code, reason = "documented module purpose (anyhow-style cause chains); no noun renders one yet")]
 pub fn error_chain(err: &str, causes: &[&str]) -> String {
     let mut out = line(Severity::Error, err);
     let bar = gutter_style().paint(gutter_bar());

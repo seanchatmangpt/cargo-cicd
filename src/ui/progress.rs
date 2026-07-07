@@ -10,6 +10,12 @@
 //! [`ProgressBar::finish`]/[`ProgressBar::render`], and the free functions
 //! [`bar`] and [`steps`].
 
+// This module is a declared-stable API surface (see "Frozen public API"
+// above) for long-running verbs that don't exist yet in this binary; no noun
+// currently drives a spinner or progress bar, so the whole item set below
+// reads as dead to `cargo build`'s main()-rooted reachability scan.
+#![allow(dead_code)]
+
 use std::io::{stderr, IsTerminal, Write};
 
 use crate::ui::caps;

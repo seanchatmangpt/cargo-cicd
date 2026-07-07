@@ -27,11 +27,13 @@ glyph!(/// Warning triangle.
     warning, "\u{25b2}", "!");
 glyph!(/// Information mark.
     info, "\u{2139}", "i");
-glyph!(/// Question mark.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a bare question mark yet")]
+    /// Question mark.
     question, "?", "?");
 glyph!(/// Round bullet.
     bullet, "\u{2022}", "*");
-glyph!(/// Middle dot.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a middle dot yet")]
+    /// Middle dot.
     dot, "\u{00b7}", ".");
 glyph!(/// Right arrow.
     arrow, "\u{2192}", "->");
@@ -41,34 +43,44 @@ glyph!(/// Heavy right pointer.
     chevron, "\u{276f}", ">");
 glyph!(/// Horizontal ellipsis.
     ellipsis, "\u{2026}", "...");
-glyph!(/// Filled radio.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders a filled radio yet")]
+    /// Filled radio.
     radio_on, "\u{25c9}", "(*)");
 glyph!(/// Empty radio.
     radio_off, "\u{25ef}", "( )");
-glyph!(/// Checked box.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders a checked box yet")]
+    /// Checked box.
     box_checked, "\u{2611}", "[x]");
-glyph!(/// Unchecked box.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders an unchecked box yet")]
+    /// Unchecked box.
     box_unchecked, "\u{2610}", "[ ]");
-glyph!(/// Right-pointing triangle.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a pointer glyph yet")]
+    /// Right-pointing triangle.
     pointer, "\u{25b8}", ">");
 glyph!(/// Filled star.
     star, "\u{2605}", "*");
 glyph!(/// Lightning bolt.
     bolt, "\u{26a1}", "!");
-glyph!(/// Full gauge cell.
+glyph!(#[allow(dead_code, reason = "complete glyph set; superseded by symbols::hblocks() for bars")]
+    /// Full gauge cell.
     gauge_full, "\u{2588}", "#");
 glyph!(/// Empty gauge cell.
     gauge_empty, "\u{2591}", "-");
 
 /// Spinner animation frames.
+///
+/// Only consumed by `ui::progress`'s frozen-but-not-yet-wired spinner API.
+#[allow(dead_code, reason = "only consumer is ui::progress's frozen-but-not-yet-wired spinner API")]
 pub const SPINNER_UNICODE: &[&str] = &[
     "\u{280b}", "\u{2819}", "\u{2839}", "\u{2838}", "\u{283c}", "\u{2834}", "\u{2826}", "\u{2827}",
     "\u{2807}", "\u{280f}",
 ];
 /// ASCII spinner frames.
+#[allow(dead_code, reason = "only consumer is ui::progress's frozen-but-not-yet-wired spinner API")]
 pub const SPINNER_ASCII: &[&str] = &["|", "/", "-", "\\"];
 
 /// Active spinner frame set for the current terminal.
+#[allow(dead_code, reason = "only consumer is ui::progress's frozen-but-not-yet-wired spinner API")]
 pub fn spinner_frames() -> &'static [&'static str] {
     if uni() {
         SPINNER_UNICODE
@@ -109,10 +121,14 @@ pub fn hblocks() -> [&'static str; 9] {
 }
 
 /// Selects a family of box-drawing characters.
+///
+/// Complete set of standard box-drawing families; `Double` isn't chosen by any
+/// caller yet but `box_chars` already handles it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoxStyle {
     Light,
     Heavy,
+    #[allow(dead_code, reason = "complete box-drawing family set; not selected by any caller yet")]
     Double,
     Rounded,
     Ascii,

@@ -7,7 +7,12 @@
 use crate::ui::caps;
 
 /// A terminal color: the 16 ANSI colors, a 256-palette index, or 24-bit RGB.
+///
+/// This is meant to be the *complete* standard 16-color palette so any
+/// `Theme` can reach any ANSI color; several variants aren't picked by any
+/// theme in this codebase yet, which is expected for a from-scratch palette.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code, reason = "complete standard 16-color ANSI palette; not every color is used by a theme yet")]
 pub enum Color {
     Black,
     Red,
@@ -120,6 +125,7 @@ impl Style {
         self.dim = true;
         self
     }
+    #[allow(dead_code, reason = "builder-completeness sibling of bold()/dim()/underline(), which are used")]
     pub const fn italic(mut self) -> Self {
         self.italic = true;
         self
@@ -171,9 +177,4 @@ impl Style {
         }
         format!("\u{1b}[{}m{}\u{1b}[0m", self.sgr(), text)
     }
-}
-
-/// Free-function form: `paint("hi", Style::new().bold())`.
-pub fn paint(text: impl AsRef<str>, style: Style) -> String {
-    style.paint(text)
 }

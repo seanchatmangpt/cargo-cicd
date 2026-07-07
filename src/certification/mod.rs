@@ -12,7 +12,14 @@ pub mod soc2;
 pub mod togaf;
 
 /// A certification body that can issue process evidence receipts.
+///
+/// `id` and `submission_url` are read by `cert_body_recommendation`, and
+/// `oracle_fingerprint` is reserved for the not-yet-wired receipt-verification
+/// path; all three are exercised today only via the
+/// `tests/certification_policies.rs` integration suite, which the `cargo
+/// build` dead-code scan (rooted at `main()`, not the test crate) cannot see.
 #[derive(Debug, Clone)]
+#[allow(dead_code, reason = "fields read by cert_body_recommendation, exercised by integration tests, not yet a live CLI path")]
 pub struct CertificationBody {
     /// Short identifier, e.g. "ferrous-systems".
     pub id: String,
@@ -33,9 +40,14 @@ pub enum ComplianceStandard {
     Iec61508 { sil_level: u8 },
     /// ISO 26262 automotive functional safety — ASIL A through ASIL D.
     Iso26262 { asil_level: char },
-    /// DO-178C airborne software standard — DAL A through DAL E.
+    /// DO-178C airborne software standard — DAL A through DAL E. No body in
+    /// `known_cert_bodies()` registers this yet; kept so `standards_match`'s
+    /// DAL-ordering path and future body registrations have a variant to use.
+    #[allow(dead_code, reason = "no registered body offers DO-178C yet; taxonomy placeholder for a future known_cert_bodies() entry")]
     Do178c { dal_level: char },
-    /// FDA 21 CFR Part 11 electronic records and signatures.
+    /// FDA 21 CFR Part 11 electronic records and signatures. Same status as
+    /// `Do178c` — modeled, not yet backed by a registered body.
+    #[allow(dead_code, reason = "no registered body offers FDA 21 CFR Part 11 yet; taxonomy placeholder for a future known_cert_bodies() entry")]
     Fda21CfrPart11,
     /// Organisation-specific or domain-specific custom standard.
     Custom(String),
@@ -56,17 +68,6 @@ impl ComplianceStandard {
             }
             ComplianceStandard::Fda21CfrPart11 => "FDA 21 CFR Part 11".to_string(),
             ComplianceStandard::Custom(name) => name.clone(),
-        }
-    }
-
-    /// Short code suitable for use in file names or identifiers.
-    pub fn short_code(&self) -> &'static str {
-        match self {
-            ComplianceStandard::Iec61508 { .. } => "IEC-61508",
-            ComplianceStandard::Iso26262 { .. } => "ISO-26262",
-            ComplianceStandard::Do178c { .. } => "DO-178C",
-            ComplianceStandard::Fda21CfrPart11 => "FDA-21CFR11",
-            ComplianceStandard::Custom(_) => "CUSTOM",
         }
     }
 }
@@ -122,6 +123,10 @@ pub fn known_cert_bodies() -> Vec<CertificationBody> {
 ///
 /// Matching is by standard variant type and, for leveled standards, the body
 /// must support the requested level or higher.
+///
+/// Exercised by `tests/certification_policies.rs`; not yet called from a live
+/// CLI path, so the `main()`-rooted dead-code scan cannot see that use.
+#[allow(dead_code, reason = "exercised by tests/certification_policies.rs, not yet wired into a live CLI path")]
 pub fn bodies_for_standard(standard: &ComplianceStandard) -> Vec<CertificationBody> {
     known_cert_bodies()
         .into_iter()
@@ -130,11 +135,13 @@ pub fn bodies_for_standard(standard: &ComplianceStandard) -> Vec<CertificationBo
 }
 
 /// Internal: test whether a body supports a given standard.
+#[allow(dead_code, reason = "only reachable via bodies_for_standard, see its allow")]
 fn body_supports(body: &CertificationBody, target: &ComplianceStandard) -> bool {
     body.standards.iter().any(|s| standards_match(s, target))
 }
 
 /// Flexible matching for standard variants: exact match or level-superset.
+#[allow(dead_code, reason = "only reachable via bodies_for_standard, see its allow")]
 fn standards_match(supported: &ComplianceStandard, requested: &ComplianceStandard) -> bool {
     match (supported, requested) {
         (
@@ -156,6 +163,7 @@ fn standards_match(supported: &ComplianceStandard, requested: &ComplianceStandar
 }
 
 /// ASIL ordering: A < B < C < D (QM not included in cert body matching).
+#[allow(dead_code, reason = "only reachable via bodies_for_standard, see its allow")]
 fn asil_gte(a: char, b: char) -> bool {
     fn rank(c: char) -> u8 {
         match c {
@@ -170,6 +178,7 @@ fn asil_gte(a: char, b: char) -> bool {
 }
 
 /// DAL ordering: E < D < C < B < A (A is most stringent for DO-178C).
+#[allow(dead_code, reason = "only reachable via standards_match, see its allow")]
 fn dal_gte(a: char, b: char) -> bool {
     fn rank(c: char) -> u8 {
         match c {
@@ -186,6 +195,10 @@ fn dal_gte(a: char, b: char) -> bool {
 
 /// Format a recommendation for obtaining a receipt from a certification body
 /// that covers the requested standard.
+///
+/// Exercised by `tests/certification_policies.rs`; not yet called from a live
+/// CLI path.
+#[allow(dead_code, reason = "exercised by tests/certification_policies.rs, not yet wired into a live CLI path")]
 pub fn cert_body_recommendation(standard: &ComplianceStandard) -> String {
     let bodies = bodies_for_standard(standard);
     if bodies.is_empty() {

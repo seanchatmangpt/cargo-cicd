@@ -1,4 +1,4 @@
-use super::{CicdPolicy, PolicyMode, PolicyResult};
+use super::{CicdPolicy, PolicyResult};
 
 pub struct GitPhaseDirtyPolicy;
 
@@ -8,9 +8,6 @@ impl CicdPolicy for GitPhaseDirtyPolicy {
     }
     fn enabled(&self) -> bool {
         true
-    }
-    fn mode(&self) -> PolicyMode {
-        PolicyMode::Suggest
     }
     fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
         let is_dirty =
@@ -24,12 +21,8 @@ impl CicdPolicy for GitPhaseDirtyPolicy {
             ("pass", None)
         };
         PolicyResult {
-            name: self.name().into(),
-            enabled: true,
-            mode: "suggest".into(),
             verdict: verdict.into(),
             recommendation: rec,
-            event_kind: "git_phase_dirty".into(),
         }
     }
 }

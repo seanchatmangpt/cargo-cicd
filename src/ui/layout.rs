@@ -17,11 +17,13 @@ pub fn indent(text: &str, n: usize) -> String {
 }
 
 /// Center a single line within `width` columns.
+#[allow(dead_code, reason = "documented module purpose (centering); no noun centers a line yet")]
 pub fn center(text: &str, width: usize) -> String {
     text::pad(text, width, Align::Center)
 }
 
 /// A horizontal rule of `width` columns built from `ch`.
+#[allow(dead_code, reason = "documented module purpose (rules); no noun draws a rule yet")]
 pub fn rule(width: usize, ch: &str) -> String {
     text::fill(ch, width)
 }
@@ -33,6 +35,7 @@ pub fn rule(width: usize, ch: &str) -> String {
 /// rather than split mid-word. Width is measured with [`text::display_width`],
 /// so already-styled input wraps by visible width. Returns the original text
 /// unchanged when `width` is `0`.
+#[allow(dead_code, reason = "documented module purpose (word-wrapping); no noun wraps text yet")]
 pub fn wrap(text: &str, width: usize) -> String {
     if width == 0 {
         return text.to_string();

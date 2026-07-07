@@ -53,14 +53,6 @@ impl GitStatusAdapter {
 
         Ok(result)
     }
-
-    pub fn is_dirty() -> bool {
-        Command::new("git")
-            .args(["status", "--porcelain"])
-            .output()
-            .map(|o| !o.stdout.is_empty())
-            .unwrap_or(true)
-    }
 }
 
 impl Default for GitStatusAdapter {

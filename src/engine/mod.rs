@@ -38,8 +38,6 @@ pub use workspace_state::WorkspaceState;
 /// ```
 #[derive(Debug, Default)]
 pub struct Pending;
-#[derive(Debug, Default)]
-pub struct Adjudicated;
 
 #[derive(Debug, Default)]
 pub struct EngineStateInner<State> {
@@ -74,7 +72,6 @@ pub struct EngineStateInner<State> {
 }
 
 pub type EngineState = EngineStateInner<Pending>;
-pub type AdjudicatedEngineState = EngineStateInner<Adjudicated>;
 
 impl EngineState {
     /// Build a real EngineState by querying all available adapters.
@@ -197,27 +194,6 @@ impl EngineState {
         state.projection = ProjectionProfile::v26_6_19();
 
         state
-    }
-
-    /// Consumes the pending EngineState and returns an Adjudicated state.
-    /// This enforces the branchless typestate transition.
-    pub fn adjudicate(self) -> AdjudicatedEngineState {
-        AdjudicatedEngineState {
-            workspace: self.workspace,
-            toolchain: self.toolchain,
-            target: self.target,
-            changed_files: self.changed_files,
-            test_plan: self.test_plan,
-            trybuild: self.trybuild,
-            git_phase: self.git_phase,
-            process_events: self.process_events,
-            artifacts: self.artifacts,
-            policies: self.policies,
-            projection: self.projection,
-            config: self.config,
-            config_witness_hash: self.config_witness_hash,
-            _state: std::marker::PhantomData,
-        }
     }
 }
 

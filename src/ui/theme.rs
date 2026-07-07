@@ -96,6 +96,7 @@ pub fn paint(text: &str, role: Role) -> String {
 
 /// Convenience: render a `label: value` pair with the [`Role::Label`] and
 /// [`Role::Value`] styles, separated by a single space.
+#[allow(dead_code, reason = "DRY helper for the label/value pattern repeated inline in several nouns; not yet adopted there")]
 pub fn field(label: &str, value: &str) -> String {
     format!(
         "{} {}",

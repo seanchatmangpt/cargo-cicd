@@ -17,7 +17,6 @@ pub mod nouns;
 pub mod ocel;
 mod policies;
 pub mod session;
-mod state;
 mod ui;
 
 /// When cargo invokes this binary as a subcommand (`cargo cicd ...`), it

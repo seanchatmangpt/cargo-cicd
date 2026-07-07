@@ -34,12 +34,6 @@ pub fn set_color_override(mode: Option<bool>) {
     COLOR_MODE.with(|c| c.set(encode(mode)));
 }
 
-/// Force Unicode glyphs on/off for the current thread, or `None` for
-/// auto-detection.
-pub fn set_unicode_override(mode: Option<bool>) {
-    UNICODE_MODE.with(|c| c.set(encode(mode)));
-}
-
 /// Whether ANSI styling should be emitted to stdout right now.
 ///
 /// Precedence: explicit override → `NO_COLOR` → `CLICOLOR_FORCE` → `CLICOLOR`

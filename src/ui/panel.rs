@@ -111,6 +111,7 @@ impl Panel {
 
     /// Set the number of blank columns between the vertical border and the
     /// content on each side (default `1`).
+    #[allow(dead_code, reason = "builder-completeness sibling of width()/style(), which are used")]
     pub fn padding(mut self, n: usize) -> Self {
         self.padding = n;
         self
@@ -123,6 +124,7 @@ impl Panel {
     }
 
     /// Append a blank separator row, for visual grouping inside a panel.
+    #[allow(dead_code, reason = "builder-completeness sibling of push(), which is used")]
     pub fn push_blank(self) -> Self {
         self.push(String::new())
     }
@@ -130,6 +132,7 @@ impl Panel {
     /// Append a full-width inner rule (a horizontal line spanning the content
     /// area), for sectioning a panel's body. The rule uses the panel's own box
     /// family so it matches the border.
+    #[allow(dead_code, reason = "builder-completeness sibling of push(), which is used")]
     pub fn push_rule(self) -> Self {
         let bx = symbols::box_chars(self.box_style);
         let inner = self.inner_width();

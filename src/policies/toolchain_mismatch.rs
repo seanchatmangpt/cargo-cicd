@@ -1,4 +1,4 @@
-use super::{CicdPolicy, PolicyMode, PolicyResult};
+use super::{CicdPolicy, PolicyResult};
 
 pub struct ToolchainMismatchPolicy;
 
@@ -8,9 +8,6 @@ impl CicdPolicy for ToolchainMismatchPolicy {
     }
     fn enabled(&self) -> bool {
         true
-    }
-    fn mode(&self) -> PolicyMode {
-        PolicyMode::Suggest
     }
     fn evaluate(&self, state: &crate::engine::EngineState) -> PolicyResult {
         let active = &state.toolchain.active;
@@ -34,12 +31,8 @@ impl CicdPolicy for ToolchainMismatchPolicy {
             _ => ("pass", None),
         };
         PolicyResult {
-            name: self.name().into(),
-            enabled: true,
-            mode: "suggest".into(),
             verdict: verdict.into(),
             recommendation: rec,
-            event_kind: "toolchain_mismatch".into(),
         }
     }
 }

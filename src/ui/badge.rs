@@ -128,6 +128,7 @@ fn pill_style(v: Verdict) -> Style {
 ///
 /// This is the deliberately literal form: use it where the exact bytes matter
 /// (machine-readable lines, logs) and color would be noise or harmful.
+#[allow(dead_code, reason = "third rendering mode alongside tag()/inline(), no noun needs the literal form yet")]
 pub fn bracket(v: Verdict) -> String {
     format!("[{}]", v.label())
 }

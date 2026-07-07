@@ -3,17 +3,26 @@
 // ISO 26262 automotive safety compliance requirement definitions and evidence mappings.
 
 /// ISO 26262 Automotive Safety Integrity Level.
+///
+/// `certification show` currently hardcodes a single baseline (`Asil::A`);
+/// the other variants are real ISO 26262 levels that `name`/`severity`/
+/// `description` already handle exhaustively, exercised via
+/// `tests/certification_policies.rs`, and become reachable in production the
+/// moment the baseline is made configurable.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Asil {
     /// QM — Quality Management only, no specific safety measures required.
+    #[allow(dead_code, reason = "real ASIL level, not yet selected by certification show's hardcoded baseline")]
     Qm,
     /// ASIL A — lowest functional safety level.
     A,
     /// ASIL B.
     B,
     /// ASIL C.
+    #[allow(dead_code, reason = "real ASIL level, not yet selected by certification show's hardcoded baseline")]
     C,
     /// ASIL D — highest functional safety level.
+    #[allow(dead_code, reason = "real ASIL level, exercised only via tests/certification_policies.rs")]
     D,
 }
 
@@ -51,22 +60,22 @@ impl Asil {
         }
     }
 
-    /// Return true if this ASIL is at least as strict as `other`.
-    pub fn at_least(&self, other: &Asil) -> bool {
-        self.severity() >= other.severity()
-    }
 }
 
 /// ISO 26262 work product / requirement.
 #[derive(Debug)]
 pub struct Iso26262Requirement {
     /// ISO 26262 part number (e.g. 6 = Software, 8 = Safety management).
+    /// Authored classification data; not yet surfaced by `certification show`.
+    #[allow(dead_code, reason = "authored compliance documentation, not yet surfaced by certification show")]
     pub part: u8,
     /// Clause reference, e.g. "6.7.2".
     pub clause: String,
     /// Short title.
     pub title: String,
-    /// How cargo-cicd process evidence satisfies this requirement.
+    /// How cargo-cicd process evidence satisfies this requirement. Authored
+    /// audit-justification prose; not yet surfaced by `certification show`.
+    #[allow(dead_code, reason = "authored compliance documentation, not yet surfaced by certification show")]
     pub evidence_mapping: String,
     /// Minimum ASIL level this requirement applies to.
     pub min_asil: Asil,

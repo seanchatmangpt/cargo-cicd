@@ -16,7 +16,3 @@ pub use affidavit_shell::{
 };
 
 pub use wasm4pm_shell::{discover_wpm_binary, Wasm4pmShell, WpmResult, WpmVerdict};
-
-pub use cargo_cicd_core::diagnostics::CicdCode;
-/// Re-exported core types for wpm verdict handling.
-pub use cargo_cicd_core::wpm::verdict::WpmVerdict as CoreWpmVerdict;

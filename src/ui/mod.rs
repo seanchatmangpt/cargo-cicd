@@ -29,8 +29,3 @@ pub mod progress;
 pub mod table;
 pub mod theme;
 pub mod tree;
-
-// ── curated prelude re-exports ──────────────────────────────────────────────
-pub use caps::{color_enabled, unicode_enabled, width};
-pub use style::{paint, Color, Style};
-pub use text::{display_width, pad, truncate, Align};

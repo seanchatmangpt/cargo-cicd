@@ -76,6 +76,7 @@ impl Tree {
         self
     }
     /// Mutable child append.
+    #[allow(dead_code, reason = "builder-completeness sibling of child(), which is used")]
     pub fn push(&mut self, c: Tree) {
         self.children.push(c);
     }
@@ -123,68 +124,4 @@ impl Tree {
             child.render_into(out, &child_prefix, child_last, g);
         }
     }
-}
-
-/// An intermediate node used while folding a flat path list into a real tree.
-struct PathNode {
-    name: String,
-    children: Vec<PathNode>,
-}
-
-impl PathNode {
-    fn root() -> Self {
-        Self {
-            name: String::new(),
-            children: Vec::new(),
-        }
-    }
-
-    /// Find or create a direct child named `name`.
-    fn entry(&mut self, name: &str) -> &mut PathNode {
-        // Linear search keeps merging order-independent; small sibling sets.
-        if let Some(idx) = self.children.iter().position(|c| c.name == name) {
-            return &mut self.children[idx];
-        }
-        self.children.push(PathNode {
-            name: name.to_string(),
-            children: Vec::new(),
-        });
-        let last = self.children.len() - 1;
-        &mut self.children[last]
-    }
-
-    /// Sort this subtree's children lexicographically, recursively.
-    fn sort(&mut self) {
-        self.children.sort_by(|a, b| a.name.cmp(&b.name));
-        for c in &mut self.children {
-            c.sort();
-        }
-    }
-
-    /// Convert into a renderable [`Tree`] with the given label.
-    fn into_tree(self, label: String) -> Tree {
-        let mut t = Tree::new(label);
-        for c in self.children {
-            let name = c.name.clone();
-            t.children.push(c.into_tree(name));
-        }
-        t
-    }
-}
-
-/// Render a flat list of slash-separated paths as a directory tree.
-///
-/// Paths are split on `/`, common prefixes are merged into shared parent nodes,
-/// siblings are sorted, and the result is drawn with connector glyphs. A path
-/// that is a prefix of another simply becomes a parent node.
-pub fn from_paths(paths: &[&str]) -> String {
-    let mut root = PathNode::root();
-    for path in paths {
-        let mut cursor = &mut root;
-        for seg in path.split('/').filter(|s| !s.is_empty()) {
-            cursor = cursor.entry(seg);
-        }
-    }
-    root.sort();
-    root.into_tree(".".to_string()).render()
 }

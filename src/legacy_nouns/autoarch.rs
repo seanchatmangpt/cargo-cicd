@@ -129,7 +129,6 @@ fn collect_workspace_info() -> WorkspaceInfo {
     let toolchain = ToolchainDetector::active_toolchain();
     WorkspaceInfo {
         target_gb,
-        max_gb: 20.0,
         active_toolchain: toolchain,
         pinned_toolchain: None,
         changed_trybuild_fixtures: 0,

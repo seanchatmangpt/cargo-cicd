@@ -134,7 +134,6 @@ impl VerbCommand for WorkspaceDoctorVerb {
 
         let workspace_info = WorkspaceInfo {
             target_gb,
-            max_gb: 20.0,
             active_toolchain: toolchain.clone(),
             pinned_toolchain,
             changed_trybuild_fixtures: 0,

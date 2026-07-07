@@ -98,8 +98,6 @@ pub mod receipt_validation;
 #[doc(hidden)]
 pub mod session;
 #[doc(hidden)]
-pub mod state;
-#[doc(hidden)]
 pub mod ui;
 
 pub use cicd_toml::CicdToml;

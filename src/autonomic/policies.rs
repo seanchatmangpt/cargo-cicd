@@ -26,15 +26,10 @@ pub struct PolicyResult {
     pub event: String,
 }
 
-/// Autonomic policy marker — zero-sized type carrying policy identity.
-pub struct AutomicPolicy;
-
 /// Workspace snapshot passed to `run_all_policies`.
 pub struct WorkspaceInfo {
     /// Current size of the `target/` directory in gigabytes.
     pub target_gb: f64,
-    /// Maximum allowed target directory size in gigabytes.
-    pub max_gb: f64,
     /// Active rustup toolchain string (e.g. `"nightly-2026-05-30"`).
     pub active_toolchain: String,
     /// Channel pinned in `rust-toolchain.toml`, if present.

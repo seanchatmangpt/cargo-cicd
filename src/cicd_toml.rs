@@ -267,11 +267,6 @@ impl CicdToml {
         Ok(config)
     }
 
-    /// Write configuration to a TOML file (compat alias).
-    pub fn write_to_file(&self, path: &Path) -> Result<()> {
-        self.write(path)
-    }
-
     /// Build from current workspace state
     pub fn from_current_workspace() -> Self {
         let mut cicd = Self::default();

@@ -392,7 +392,7 @@ fn collect_dashboard_data() -> crate::ui::dashboard::DashboardData {
 
     // Best-effort autonomic policy results, mapped to (verdict, message) pairs the
     // dashboard renders. Runs in suggest mode only (never mutates anything).
-    let policies = collect_policies(&toolchain, target_gb, target_cap_gb, git.dirty_files.len());
+    let policies = collect_policies(&toolchain, target_gb, git.dirty_files.len());
 
     crate::ui::dashboard::DashboardData {
         toolchain,
@@ -411,12 +411,7 @@ fn collect_dashboard_data() -> crate::ui::dashboard::DashboardData {
 
 /// Run the suggest-mode autonomic policies and project each result onto a
 /// `(verdict_label, name)` pair for the dashboard.
-fn collect_policies(
-    toolchain: &str,
-    target_gb: f64,
-    target_cap_gb: f64,
-    dirty: usize,
-) -> Vec<(String, String)> {
+fn collect_policies(toolchain: &str, target_gb: f64, dirty: usize) -> Vec<(String, String)> {
     use crate::autonomic::policies::{
         run_all_policies, EvidenceState, GitState, PolicyVerdict, WorkspaceInfo,
     };
@@ -424,7 +419,6 @@ fn collect_policies(
     let pinned_toolchain = read_pinned_toolchain();
     let workspace_info = WorkspaceInfo {
         target_gb,
-        max_gb: target_cap_gb,
         active_toolchain: toolchain.to_string(),
         pinned_toolchain,
         changed_trybuild_fixtures: 0,
