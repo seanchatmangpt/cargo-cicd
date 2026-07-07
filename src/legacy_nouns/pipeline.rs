@@ -60,6 +60,7 @@ impl PipelineRunVerb {
 
         // The declared activities executed as sub-processes in partial-order order.
         // status:audit (+ evidence:audit + receipt:write) is handled inline at the end.
+        #[cfg_attr(not(feature = "affidavit"), allow(unused_mut))]
         let mut steps: Vec<(&str, Vec<&str>)> = vec![
             ("status:show", vec!["status", "show"]),
             ("target:show", vec!["target", "show"]),
