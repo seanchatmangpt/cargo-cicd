@@ -13,6 +13,12 @@
 //! the engine's event stream, where the encoding overhead dominates payload
 //! size. The accompanying test suite asserts this size advantage directly.
 
+// This module's public API is exercised by `examples/03_max_pipeline.rs`
+// (tutorial anchor for docs/tutorials/03-full-pipeline.md) and by its own
+// `#[cfg(test)]` suite below, both compiled as separate cargo targets whose
+// usage doesn't suppress `cargo build`'s dead_code lint on the library crate.
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 /// Schema version of the current [`EngineSnapshot`] layout.

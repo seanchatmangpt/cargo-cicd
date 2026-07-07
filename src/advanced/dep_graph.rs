@@ -110,6 +110,12 @@ impl WorkspaceGraph {
     }
 
     /// Return `true` if the workspace graph contains a dependency cycle.
+    // `has_cycle`/`strongly_connected_components`/`dependents_of` are public
+    // API completing `WorkspaceGraph` (documented cross-references on
+    // `CycleError` above point at them) but have no current call site beyond
+    // this module's own unit tests; kept as diagnostics API for future
+    // cycle-reporting consumers rather than deleted outright.
+    #[allow(dead_code)]
     pub fn has_cycle(&self) -> bool {
         is_cyclic_directed(&self.graph)
     }
@@ -119,6 +125,7 @@ impl WorkspaceGraph {
     /// Any component with more than one crate (or a single crate with a
     /// self-edge) is a cyclic cluster that must be broken before the workspace
     /// can be built. Components are returned as lists of crate names.
+    #[allow(dead_code)] // see has_cycle note above
     pub fn strongly_connected_components(&self) -> Vec<Vec<String>> {
         tarjan_scc(&self.graph)
             .into_iter()
@@ -137,6 +144,7 @@ impl WorkspaceGraph {
     /// computed by following incoming edges (dependent -> dependency) outward
     /// from `name`. The result excludes `name` itself and is unspecified in
     /// order.
+    #[allow(dead_code)] // see has_cycle note above
     pub fn dependents_of(&self, name: &str) -> Vec<String> {
         let start = match self.indices.get(name) {
             Some(&idx) => idx,

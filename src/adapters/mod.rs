@@ -15,12 +15,11 @@ pub use target_scanner::TargetScannerAdapter;
 pub use toolchain_detector::ToolchainDetector;
 pub use trybuild_detector::TrybuildDetector;
 
-// Advanced capability integrations (feature-gated)
-#[cfg(feature = "advanced")]
-pub mod cached;
-#[cfg(feature = "advanced")]
-pub mod fingerprint;
-#[cfg(feature = "advanced")]
-pub mod governance_patterns;
-#[cfg(feature = "advanced")]
-pub mod state_snapshot;
+// Note: the former `cached`, `fingerprint`, `governance_patterns`, and
+// `state_snapshot` adapter shims were removed as orphaned scaffolding — they
+// were never constructed by `EngineState::from_workspace()` or any noun, and
+// their only exercise was self-contained unit tests validating their own
+// logic in isolation. The underlying capabilities they wrapped
+// (`advanced::cache`, `advanced::fingerprint`, `advanced::pattern`,
+// `advanced::snapshot`) remain and are exercised directly by
+// `examples/03_max_pipeline.rs`.

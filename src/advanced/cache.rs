@@ -22,6 +22,11 @@ use moka::sync::Cache;
 /// The `bytes` field holds the (already serialized) cached value; `label` is a
 /// short, human-readable tag identifying the source or kind of the entry —
 /// useful when inspecting or instrumenting the cache.
+// Public API surface exercised by `examples/03_max_pipeline.rs` (tutorial
+// anchor for docs/tutorials/03-full-pipeline.md), which is compiled as a
+// separate cargo target and so doesn't suppress `cargo build`'s dead_code
+// lint on the library crate.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct CachedEntry {
     /// The cached payload bytes.
@@ -30,6 +35,7 @@ pub struct CachedEntry {
     pub label: String,
 }
 
+#[allow(dead_code)] // exercised by examples/03_max_pipeline.rs
 impl CachedEntry {
     /// Construct a new entry from owned bytes with an empty label.
     pub fn new(bytes: Vec<u8>) -> Self {
@@ -61,11 +67,13 @@ impl CachedEntry {
 /// A concurrent, bounded, TTL-aware cache for engine metadata and adapter results.
 ///
 /// Clones share the same underlying store and are cheap to create.
+#[allow(dead_code)] // exercised by examples/03_max_pipeline.rs
 #[derive(Clone)]
 pub struct EngineCache {
     inner: Cache<String, Arc<CachedEntry>>,
 }
 
+#[allow(dead_code)] // exercised by examples/03_max_pipeline.rs
 impl EngineCache {
     /// Create a new cache bounded to at most `capacity` entries, where each
     /// entry expires `ttl` after it was last inserted.

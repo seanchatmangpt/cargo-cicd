@@ -13,6 +13,11 @@ use thiserror::Error;
 
 /// A diagnostic describing a policy or engine-state violation discovered while
 /// reading `cicd.toml` or evaluating workspace state.
+// This whole module's public API is exercised by
+// `examples/03_max_pipeline.rs` (tutorial anchor for
+// docs/tutorials/03-full-pipeline.md), a separate cargo target whose usage
+// doesn't suppress `cargo build`'s dead_code lint on the library crate.
+#[allow(dead_code)]
 #[derive(Debug, Error, Diagnostic)]
 pub enum EngineDiagnostic {
     /// The pinned toolchain in `cicd.toml` does not match the active toolchain.
@@ -69,6 +74,7 @@ pub enum EngineDiagnostic {
 ///
 /// `file_name` is used only for display in rendered output. If `needle` is not
 /// found, the span collapses to the start of the file so rendering still succeeds.
+#[allow(dead_code)] // see examples/03_max_pipeline.rs note above
 pub fn toolchain_mismatch_at(
     file_name: impl AsRef<str>,
     source: impl Into<String>,
@@ -88,6 +94,7 @@ pub fn toolchain_mismatch_at(
 
 /// Compute the byte-offset span of `needle` inside `source`. Falls back to a
 /// zero-length span at offset 0 when the substring is absent.
+#[allow(dead_code)] // helper for toolchain_mismatch_at, see note above
 fn locate_span(source: &str, needle: &str) -> SourceSpan {
     match source.find(needle) {
         Some(offset) => SourceSpan::from((offset, needle.len())),
@@ -97,6 +104,7 @@ fn locate_span(source: &str, needle: &str) -> SourceSpan {
 
 /// Render a diagnostic to a `String` using a deterministic (no-color, unicode)
 /// graphical report handler, suitable for logs, receipts, and stable tests.
+#[allow(dead_code)] // see examples/03_max_pipeline.rs note above
 pub fn render(diag: &EngineDiagnostic) -> String {
     let handler = GraphicalReportHandler::new_themed(GraphicalTheme::unicode_nocolor());
     let mut out = String::new();
@@ -110,6 +118,7 @@ pub fn render(diag: &EngineDiagnostic) -> String {
 
 /// Convenience: the severity advertised by a diagnostic, defaulting to `Error`
 /// when a variant declares none.
+#[allow(dead_code)] // see examples/03_max_pipeline.rs note above
 pub fn severity_of(diag: &EngineDiagnostic) -> Severity {
     diag.severity().unwrap_or(Severity::Error)
 }

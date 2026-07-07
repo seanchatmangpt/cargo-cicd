@@ -80,6 +80,10 @@ impl TargetScannerAdapter {
 impl TargetScannerAdapter {
     /// Use the parallel_scan module to scan a workspace root and return
     /// detailed scan report. Only available when the `advanced` feature is enabled.
+    // Exercised by this module's own `#[cfg(test)]` suite below
+    // (`advanced_tests::parallel_scan_if_available_*`); `cargo build`
+    // doesn't compile test code, so the lib crate sees no call site.
+    #[allow(dead_code)]
     pub fn parallel_scan_if_available(&self, root: &Path) -> Option<parallel_scan::ScanReport> {
         parallel_scan::scan(root).ok()
     }

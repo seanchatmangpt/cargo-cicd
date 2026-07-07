@@ -11,6 +11,17 @@
 //! parallel mode; file sizing is then aggregated with rayon so large trees are
 //! processed without serial bottlenecks.
 
+// Most of this module's API (`scan`, `ScanReport`/`ExtensionStats` and their
+// accessors, `merge_reports`, `reclaimable_target_bytes`) is exercised by
+// this module's own `#[cfg(test)]` suite below and by
+// `examples/03_max_pipeline.rs` (tutorial anchor for
+// docs/tutorials/03-full-pipeline.md); `reclaimable_target_bytes_with_errors`
+// is separately used in production by
+// `adapters::target_scanner::TargetScannerAdapter::scan_fast`. None of that
+// suppresses `cargo build`'s dead_code lint on the library crate, since
+// tests and examples are compiled as separate targets.
+#![allow(dead_code)]
+
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;

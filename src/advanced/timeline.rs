@@ -7,6 +7,13 @@
 //! between events are computed with signed [`jiff::Span`] arithmetic so callers
 //! can measure stage latency or reconstruct the full first-to-last duration.
 
+// This module's public API is exercised by `examples/03_max_pipeline.rs`
+// (tutorial anchor for docs/tutorials/03-full-pipeline.md) and by
+// `engine::process_event_state::ProcessEventState`'s own test, both compiled
+// as separate cargo targets/paths whose usage doesn't suppress `cargo
+// build`'s dead_code lint on the library crate.
+#![allow(dead_code)]
+
 use jiff::{Span, Timestamp};
 use serde::{Deserialize, Serialize};
 

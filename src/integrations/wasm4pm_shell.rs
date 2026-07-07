@@ -3,7 +3,9 @@
 //! ## Scan finding (2026-06-02, wasm4pm commit 65169e62)
 //!
 //! Selected path: SHELL_OUT — 7 confirmed working commands via the wpm binary.
-//! Library coupling deferred (see wasm4pm_current.rs).
+//! Library coupling was deferred to a future integration; the deferred stub
+//! (`wasm4pm_current.rs`) was removed as orphaned scaffolding since it never
+//! gained a consumer.
 //!
 //! ## Confirmed working commands
 //!

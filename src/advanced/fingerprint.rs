@@ -9,6 +9,13 @@
 //!   single deterministic root that is order-independent of the input order but
 //!   sensitive to any path or content change.
 
+// This module's public API (`hash_bytes`, `workspace_digest`, and
+// transitively `Fingerprint`/`hash_file`/the size constants) is exercised by
+// `examples/03_max_pipeline.rs` (tutorial anchor for
+// docs/tutorials/03-full-pipeline.md), a separate cargo target whose usage
+// doesn't suppress `cargo build`'s dead_code lint on the library crate.
+#![allow(dead_code)]
+
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};

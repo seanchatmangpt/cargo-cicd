@@ -10,6 +10,12 @@
 //! [`Percentiles`] snapshot, and histograms from independent workers can be
 //! [`merge`](StageLatencies::merge)d to aggregate latency across a parallel run.
 
+// This module's public API is exercised by `examples/03_max_pipeline.rs`
+// (tutorial anchor for docs/tutorials/03-full-pipeline.md), a separate cargo
+// target whose usage doesn't suppress `cargo build`'s dead_code lint on the
+// library crate.
+#![allow(dead_code)]
+
 use std::time::Duration;
 
 use hdrhistogram::Histogram;

@@ -20,7 +20,11 @@ pub struct ProcessEvent {
 
 impl ProcessEventState {
     /// Record a labeled event to the timeline (if advanced feature is enabled and timeline is initialized).
+    // Exercised by this module's own `#[cfg(test)]` suite below (see
+    // `test_record_timeline_event`); `cargo build` doesn't compile test code,
+    // so the lib crate sees no call site.
     #[cfg(feature = "advanced")]
+    #[allow(dead_code)]
     pub fn record_timeline_event(&mut self, label: &str) {
         if let Some(timeline) = &mut self.timeline {
             timeline.record(label);
@@ -29,6 +33,7 @@ impl ProcessEventState {
 
     /// Access the timeline, if available (requires advanced feature).
     #[cfg(feature = "advanced")]
+    #[allow(dead_code)] // see record_timeline_event note above
     pub fn timeline(&self) -> Option<&ProcessTimeline> {
         self.timeline.as_ref()
     }

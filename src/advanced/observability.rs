@@ -101,6 +101,7 @@ impl PipelineStage {
     }
 
     /// The name of the stage this guard is instrumenting.
+    #[allow(dead_code)] // accessor with no current call site; kept for API symmetry
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -128,6 +129,7 @@ impl Drop for PipelineStage {
 /// reporting that it successfully populated a slice of engine state). For
 /// whole-stage timing, prefer the [`PipelineStage`] guard, which records
 /// duration automatically on drop.
+#[allow(dead_code)] // exercised by examples/03_max_pipeline.rs
 pub fn record_event(stage: &str, ok: bool) {
     tracing::info!(stage = stage, ok = ok, "stage event");
 }
