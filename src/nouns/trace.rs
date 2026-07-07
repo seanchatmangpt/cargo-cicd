@@ -102,9 +102,22 @@ pub fn cmd_profile(
 
     let receipts_dir = Path::new(&repo_dir).join(".cargo-cicd").join("receipts");
     std::fs::create_dir_all(&receipts_dir).unwrap();
+
+    // `latest.json` is the file `wpm receipt doctor --strict` adjudicates, so it
+    // must carry the OCEL-conformance `algorithms` shape (see
+    // `evidence::build_receipt_json`), not the plain provenance schema minted
+    // above. The provenance receipt is still written alongside under a
+    // command-specific name for `receipt verify`'s digest-based checks.
+    let ocel_receipt = crate::evidence::build_receipt_json(&[], &command_vec.join(" "), exit_code);
     let receipt_path = receipts_dir.join("latest.json");
     std::fs::write(
         &receipt_path,
+        serde_json::to_string_pretty(&ocel_receipt).unwrap(),
+    )
+    .unwrap();
+    let provenance_path = receipts_dir.join(format!("trace-profile-{}.json", profile));
+    std::fs::write(
+        &provenance_path,
         serde_json::to_string_pretty(&receipt).unwrap(),
     )
     .unwrap();

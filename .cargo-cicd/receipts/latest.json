@@ -1,16 +1,65 @@
 {
-  "schema": "cargo-cicd.receipt.v1",
-  "command": [
-    "just",
-    "test"
+  "algorithms": [
+    {
+      "algorithm_id": "cargo-cicd-process-evidence",
+      "boundary_evidence": {
+        "command": "cargo cicd standing refresh",
+        "exit_code": 0
+      },
+      "expected_path": {
+        "expected_ocel2": {
+          "events": [
+            {
+              "id": "exp-evt-ci-start",
+              "timestamp": "2026-07-07T03:24:54.340Z",
+              "type": "cargo.ci.session.start"
+            },
+            {
+              "id": "exp-evt-cmd-execute",
+              "timestamp": "2026-07-07T03:24:54.340Z",
+              "type": "cargo.ci.command.execute"
+            },
+            {
+              "id": "exp-evt-evidence",
+              "timestamp": "2026-07-07T03:24:54.340Z",
+              "type": "cargo.ci.evidence.emit"
+            }
+          ],
+          "objects": [
+            {
+              "id": "cargo-cicd-workspace",
+              "type": "cargo.workspace"
+            }
+          ],
+          "ocel-version": "2.0"
+        },
+        "route_id": "cargo.ci.declared-process"
+      },
+      "observed_path": {
+        "observed_ocel2": {
+          "events": [
+            {
+              "id": "evt-receipt-emit-20260707032454340",
+              "timestamp": "2026-07-07T03:24:54.340Z",
+              "type": "cargo.ci.receipt.emit"
+            }
+          ],
+          "objects": [
+            {
+              "id": "cargo-cicd-workspace",
+              "type": "cargo.workspace"
+            }
+          ],
+          "ocel-version": "2.0"
+        },
+        "route_id": "cargo.ci.observed-process"
+      }
+    }
   ],
-  "exit_code": 101,
-  "stdout_digest": "ace715855fccee8a347e7be4150d1f0111b14a31fc0595b656017491746c9af6",
-  "stderr_digest": "584564908bb73b4be331c228342f0732b677a55fba2fb07a9783abe545d83a92",
-  "git_before": "f23832904c48ad19e842081952fbd846a8f67def",
-  "git_after": "f23832904c48ad19e842081952fbd846a8f67def",
-  "input_artifacts": {},
-  "output_artifacts": {},
-  "timestamp": "1782598474765",
-  "receipt_digest": "58b62b37612964ea11344b9f37f5e67f9ebf905fe6f1e00a6f37cb6f4930f820"
+  "created_at": "2026-07-07T03:24:54.340Z",
+  "git_head": "b596cd6",
+  "producer": "cargo-cicd",
+  "producer_version": "26.7.6",
+  "receipt_id": "cargo-cicd-receipt-20260707032454340",
+  "repo_path": "/Users/sac/cargo-cicd"
 }

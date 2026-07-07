@@ -85,6 +85,12 @@ fn build_document(release_id: &str, artifacts: Vec<StandingArtifact>) -> Standin
 
 /// Mint a receipt for the refresh via the existing `Receipt::mint` path,
 /// writing it into `.cargo-cicd/receipts/` where `receipt verify` expects it.
+///
+/// `latest.json` additionally gets the OCEL-conformance shape (`algorithms`
+/// array with `expected_path`/`observed_path`) that `wpm receipt doctor
+/// --strict` requires — see `evidence::build_receipt_json`. The plain
+/// provenance receipt minted below is *not* that shape, so it is kept only
+/// under a run-specific filename for `receipt verify`'s digest checks.
 fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result<PathBuf> {
     use crate::nouns::receipt::{ExecutionTrace, Receipt};
     use std::collections::BTreeMap;
@@ -121,6 +127,8 @@ fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result
         input_artifacts: BTreeMap::new(),
         output_artifacts,
     };
+    let command_str = trace.command.join(" ");
+    let exit_code = trace.exit_code;
     let receipt = Receipt::mint(&trace);
 
     let receipts_dir = Path::new(repo_dir).join(".cargo-cicd").join("receipts");
@@ -134,6 +142,17 @@ fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result
         &path,
         serde_json::to_string_pretty(&receipt).unwrap_or_default(),
     )?;
+
+    // `latest.json` is what `wpm receipt doctor --strict` adjudicates; it
+    // needs the OCEL-conformance `algorithms` shape, not the plain
+    // provenance schema above.
+    let ocel_receipt = crate::evidence::build_receipt_json(&[], &command_str, exit_code);
+    let latest_path = receipts_dir.join("latest.json");
+    std::fs::write(
+        &latest_path,
+        serde_json::to_string_pretty(&ocel_receipt).unwrap_or_default(),
+    )?;
+
     Ok(path)
 }
 
