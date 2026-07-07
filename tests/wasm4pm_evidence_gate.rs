@@ -46,7 +46,19 @@ fn absent_oracle_verdict(test_name: &str) -> ExpectedWpmVerdict {
 #[test]
 fn evidence_gate_status_show_accepted() {
     let dir = TempDir::new().unwrap();
-    let events = vec![ProcessEvent::new("status show", "PASS")];
+    // NOTE: a single-event trace has no directly-follows edges for
+    // `wpm audit`'s DFG-derived Petri net to replay against, which makes its
+    // token-replay fitness computation degenerate (consumed/produced == 0
+    // falls through to a 0.0 "DECEPTIVE" fitness rather than a vacuous
+    // 1.0 — see wasm4pm's `simd_token_replay::compute_fitness`). A minimal
+    // *linear* multi-activity trace is the smallest input that lets the
+    // Petri net form real preset/postset edges, so it's what a genuine
+    // Accept case requires.
+    let events = vec![
+        ProcessEvent::new("status show", "PASS"),
+        ProcessEvent::new("target show", "PASS"),
+        ProcessEvent::new("test changed", "PASS"),
+    ];
     let xes_path = dir.path().join("events.xes");
     emit_xes(&events, &xes_path).expect("emit_xes must not fail");
     assert!(xes_path.exists(), "XES file must exist before oracle call");
