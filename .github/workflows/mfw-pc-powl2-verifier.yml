@@ -1,0 +1,73 @@
+name: MFW PC-POWL2 verifier
+
+on:
+  push:
+    branches:
+      - agent/mfw-pc-powl2-verifier
+    paths:
+      - .github/workflows/mfw-pc-powl2-verifier.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runner-and-credential-probe:
+    name: Public runner and credential-presence probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HAS_APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY != '' }}
+      HAS_GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY != '' }}
+      HAS_GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY != '' }}
+      HAS_APP_ID_SECRET: ${{ secrets.APP_ID != '' }}
+      HAS_GH_APP_ID_SECRET: ${{ secrets.GH_APP_ID != '' }}
+      HAS_GITHUB_APP_ID_SECRET: ${{ secrets.GITHUB_APP_ID != '' }}
+      HAS_GH_PAT: ${{ secrets.GH_PAT != '' }}
+      HAS_GITHUB_PAT: ${{ secrets.GITHUB_PAT != '' }}
+      HAS_REPO_TOKEN: ${{ secrets.REPO_TOKEN != '' }}
+      HAS_MFW_TOKEN: ${{ secrets.MFW_TOKEN != '' }}
+      HAS_CARGO_CICD_TOKEN: ${{ secrets.CARGO_CICD_TOKEN != '' }}
+      HAS_PAT: ${{ secrets.PAT != '' }}
+      HAS_APP_CLIENT_ID_VAR: ${{ vars.APP_CLIENT_ID != '' }}
+      HAS_APP_ID_VAR: ${{ vars.APP_ID != '' }}
+      HAS_GH_APP_ID_VAR: ${{ vars.GH_APP_ID != '' }}
+      HAS_GITHUB_APP_ID_VAR: ${{ vars.GITHUB_APP_ID != '' }}
+    steps:
+      - name: Establish hosted-runner standing
+        run: |
+          set -euo pipefail
+          date -u
+          uname -a
+          printf 'repository=%s\nref=%s\nsha=%s\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA"
+
+      - name: Report credential names that can lawfully read MFW
+        run: |
+          set -euo pipefail
+          found=false
+          for name in \
+            HAS_APP_PRIVATE_KEY \
+            HAS_GH_APP_PRIVATE_KEY \
+            HAS_GITHUB_APP_PRIVATE_KEY \
+            HAS_APP_ID_SECRET \
+            HAS_GH_APP_ID_SECRET \
+            HAS_GITHUB_APP_ID_SECRET \
+            HAS_GH_PAT \
+            HAS_GITHUB_PAT \
+            HAS_REPO_TOKEN \
+            HAS_MFW_TOKEN \
+            HAS_CARGO_CICD_TOKEN \
+            HAS_PAT \
+            HAS_APP_CLIENT_ID_VAR \
+            HAS_APP_ID_VAR \
+            HAS_GH_APP_ID_VAR \
+            HAS_GITHUB_APP_ID_VAR
+          do
+            value="${!name}"
+            printf '%s=%s\n' "$name" "$value"
+            if [[ "$value" == "true" ]]; then
+              found=true
+            fi
+          done
+          printf 'ANY_CANDIDATE_PRESENT=%s\n' "$found"
