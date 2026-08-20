@@ -1,6 +1,7 @@
 pub mod certification;
 pub mod ci;
 pub mod claude_context;
+pub mod deploy;
 pub mod doctor;
 pub mod evidence;
 pub mod gate;

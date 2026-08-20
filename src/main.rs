@@ -33,15 +33,28 @@ fn strip_cargo_subcommand_token(mut args: Vec<String>) -> Vec<String> {
 }
 
 fn main() -> Result<()> {
-    // Report this binary's own package identity (name + version) instead of
-    // the clap-noun-verb framework's compiled-in version. Without this call
-    // `--version` falls back to the framework's own `CARGO_PKG_VERSION`.
-    clap_noun_verb::cli::CommandRegistry::set_app_metadata(
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-    );
-
+    // `clap_noun_verb::cli::CommandRegistry::set_app_metadata` — previously used
+    // here to report this binary's own package identity instead of the
+    // clap-noun-verb framework's compiled-in name/version — was removed from
+    // the public API as of clap-noun-verb 26.8.20. `--version`/`--help` now
+    // report the framework's own `Command::new("cli")` name and its compiled
+    // `CARGO_PKG_VERSION` (see `cli::CommandRegistry::build_command`), not
+    // this crate's. No replacement override hook exists upstream yet.
     let args = strip_cargo_subcommand_token(std::env::args().collect());
+
+    // Snapshot the deployment-projected CLI schema before taking the run-time
+    // registry lock below. `CommandRegistry`'s internal `Mutex` is not
+    // reentrant: `nouns::deploy`'s verbs need the same schema but run *inside*
+    // `registry.run()` while that lock is already held, so they read this
+    // pre-computed snapshot instead of re-locking (which would deadlock).
+    {
+        let registry = clap_noun_verb::cli::CommandRegistry::get();
+        let registry = registry
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock command registry: {}", e))?;
+        let schema = clap_noun_verb_deploy::Deploy::from_command(&registry.build_command());
+        nouns::deploy::set_schema(schema.into_schema());
+    }
 
     let registry = clap_noun_verb::cli::CommandRegistry::get();
     let registry = registry
