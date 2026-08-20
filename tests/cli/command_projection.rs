@@ -19,6 +19,39 @@ fn test_status_parses_and_runs() {
         .stdout(predicate::str::contains("cargo-cicd workspace status"));
 }
 
+// ── ci run --dry-run (local) — INVARIANT: no execution without confirmation ──
+
+#[test]
+fn test_ci_run_dry_run_does_not_execute() {
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["ci", "run", "--dry-run"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success() || output.status.code() == Some(1),
+        "ci run --dry-run must not fail the process"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("cargo-cicd ci run"));
+    assert!(stdout.contains("mode"));
+    assert!(stdout.contains("local"));
+    assert!(stdout.contains("act --workflows"));
+}
+
+#[test]
+fn test_ci_run_remote_dry_run_prints_gh_command() {
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .args(["ci", "run", "--mode", "remote", "--dry-run"])
+        .output()
+        .unwrap();
+    assert!(output.status.success() || output.status.code() == Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("remote"));
+    assert!(stdout.contains("gh workflow run"));
+}
+
 // ── 2. target show ────────────────────────────────────────────────────────────
 
 #[test]

@@ -1,4 +1,5 @@
 pub mod certification;
+pub mod ci;
 pub mod claude_context;
 pub mod doctor;
 pub mod evidence;
