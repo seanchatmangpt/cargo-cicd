@@ -1,9 +1,9 @@
 @prefix praxis: <https://praxis.dev/ontology/standing#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-praxis:StandingDocument-v26_6_30 a praxis:StandingDocument ;
-  praxis:releaseId "v26.6.30" ;
-  praxis:generator "cargo-cicd-standing/26.6.30" .
+praxis:StandingDocument-v26_7_6 a praxis:StandingDocument ;
+  praxis:releaseId "v26.7.6" ;
+  praxis:generator "cargo-cicd-standing/26.7.6" .
 
 praxis:artifact-crate_agent8 a praxis:StandingArtifact ;
   praxis:id "crate:agent8" ;
@@ -13,13 +13,21 @@ praxis:artifact-crate_agent8 a praxis:StandingArtifact ;
   praxis:ladderLevel "0"^^xsd:integer ;
   praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/agent8/Cargo.toml\",\"hash\":\"0bd3ca6becaa11f00a1d4550c9ca7eb217999ce7b0712e6eb48b0666f01d7c9b\"}" .
 
+praxis:artifact-crate_cng a praxis:StandingArtifact ;
+  praxis:id "crate:cng" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "crates/cng" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/cng/Cargo.toml\",\"hash\":\"5fab50ee9985fc198f9f20f1d8fe3499283025d23e7afaac51d5eb640c3f37ea\"}" .
+
 praxis:artifact-crate_ggen a praxis:StandingArtifact ;
   praxis:id "crate:ggen" ;
   praxis:kind "RustCrate" ;
   praxis:path "crates/ggen" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/ggen/Cargo.toml\",\"hash\":\"f8f5553f743db9257e89f0473a913fee08d80542d0c7cef2ab38ee1406dab02b\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/ggen/Cargo.toml\",\"hash\":\"17570c75c1dc5501a82c994f01ff33c55046393cdd45e823d1b04681bd2b3cf3\"}" .
 
 praxis:artifact-crate_chatman-common a praxis:StandingArtifact ;
   praxis:id "crate:chatman-common" ;
@@ -27,7 +35,7 @@ praxis:artifact-crate_chatman-common a praxis:StandingArtifact ;
   praxis:path "crates/chatman-common" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/chatman-common/Cargo.toml\",\"hash\":\"0562dad70ecc67a22d3493fd6e64d296eefcb4ab13930d72eb9c3a364bbe8e15\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/chatman-common/Cargo.toml\",\"hash\":\"4b687751296f8d7b28b33be45c90f2b2e72c4d69df14b7f2caf26d3f1098ce71\"}" .
 
 praxis:artifact-crate_praxis-core a praxis:StandingArtifact ;
   praxis:id "crate:praxis-core" ;
@@ -35,7 +43,7 @@ praxis:artifact-crate_praxis-core a praxis:StandingArtifact ;
   praxis:path "crates/praxis-core" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-core/Cargo.toml\",\"hash\":\"8e509ae208b8e8152f44e362075a86100431ebac4b9a126d8f1d808797f707eb\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-core/Cargo.toml\",\"hash\":\"7e3d533a0219475cdd6a390d8afcb0b55ef721c7b427b6c4d504e9158a9da89e\"}" .
 
 praxis:artifact-crate_praxis-proposer a praxis:StandingArtifact ;
   praxis:id "crate:praxis-proposer" ;
@@ -51,7 +59,7 @@ praxis:artifact-crate_praxis-retrofit a praxis:StandingArtifact ;
   praxis:path "crates/praxis-retrofit" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-retrofit/Cargo.toml\",\"hash\":\"558729143c6a2a40d17f0ab8ecaf91bfef5e8c28366cde7866819351b47f1d46\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-retrofit/Cargo.toml\",\"hash\":\"16a45b86088aa3d056ae3903bdf5ed36fd7857e76eedecb12a3b4369ec65e0ca\"}" .
 
 praxis:artifact-crate_rust-fable-testbed a praxis:StandingArtifact ;
   praxis:id "crate:rust-fable-testbed" ;
@@ -59,7 +67,7 @@ praxis:artifact-crate_rust-fable-testbed a praxis:StandingArtifact ;
   praxis:path "crates/rust-fable-testbed" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/rust-fable-testbed/Cargo.toml\",\"hash\":\"5bb1623bb383cd2279b2b2e6b5c5afa60facd5fc7e16d6e38297ce45bbe5a7dd\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/rust-fable-testbed/Cargo.toml\",\"hash\":\"c5dac02bf7c4f62e74e6bbdd18e50eea0397345f20eb23b177835677c38315db\"}" .
 
 praxis:artifact-crate_powl2-decompose a praxis:StandingArtifact ;
   praxis:id "crate:powl2-decompose" ;
@@ -67,7 +75,15 @@ praxis:artifact-crate_powl2-decompose a praxis:StandingArtifact ;
   praxis:path "crates/powl2-decompose" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/powl2-decompose/Cargo.toml\",\"hash\":\"9d6f9ac7340f367f250a16399be7ae356122b2c22300e9446b5baa1436252be4\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/powl2-decompose/Cargo.toml\",\"hash\":\"2f8a69ff5a06a2e66b60ed7c72df3094c0a1f8e8c600dba10b5752eb56f65d64\"}" .
+
+praxis:artifact-crate_praxis-synthesis a praxis:StandingArtifact ;
+  praxis:id "crate:praxis-synthesis" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "crates/praxis-synthesis" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-synthesis/Cargo.toml\",\"hash\":\"c6484b3ff4fa8ca84f5bab8cd084df0998ceec6eb8dd323fe15305ea6d25c39a\"}" .
 
 praxis:artifact-crate_pddl-index a praxis:StandingArtifact ;
   praxis:id "crate:pddl-index" ;
@@ -77,21 +93,13 @@ praxis:artifact-crate_pddl-index a praxis:StandingArtifact ;
   praxis:ladderLevel "0"^^xsd:integer ;
   praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/pddl-index/Cargo.toml\",\"hash\":\"bdb7f6b3c7a42864b164e6f05a151f89caa1cf8f515a69f0ce4d1f393e81c3c6\"}" .
 
-praxis:artifact-crate_praxis-synthesis a praxis:StandingArtifact ;
-  praxis:id "crate:praxis-synthesis" ;
-  praxis:kind "RustCrate" ;
-  praxis:path "crates/praxis-synthesis" ;
-  praxis:standing "Discovered" ;
-  praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-synthesis/Cargo.toml\",\"hash\":\"0ca4cdc83f12e0ea2ae61e2bb6b11bc1c03249b7af981ea644d1fad31afe3192\"}" .
-
 praxis:artifact-crate_praxis-lean a praxis:StandingArtifact ;
   praxis:id "crate:praxis-lean" ;
   praxis:kind "RustCrate" ;
   praxis:path "crates/praxis-lean" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-lean/Cargo.toml\",\"hash\":\"21231440865379a9302e06cb7f2d450a3d2000ae58da421d1096828b2ea74444\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-lean/Cargo.toml\",\"hash\":\"d97abd12dee0463242e592fabac0d242e15c309cbb51f5367c733a15d6a2138a\"}" .
 
 praxis:artifact-crate_praxis-graphlaw a praxis:StandingArtifact ;
   praxis:id "crate:praxis-graphlaw" ;
@@ -99,7 +107,55 @@ praxis:artifact-crate_praxis-graphlaw a praxis:StandingArtifact ;
   praxis:path "crates/praxis-graphlaw" ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-graphlaw/Cargo.toml\",\"hash\":\"53f210f7606fa7d8787a64a4c5e141537f34c835454293728847d12ba04e6a6f\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-graphlaw/Cargo.toml\",\"hash\":\"c5b17737a8415d56e9c30f9f5c6d584b39f43d13e912c87bb82a5b6ab84b13f3\"}" .
+
+praxis:artifact-crate_praxis-graphlaw-wasm a praxis:StandingArtifact ;
+  praxis:id "crate:praxis-graphlaw-wasm" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "crates/praxis-graphlaw-wasm" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/praxis-graphlaw-wasm/Cargo.toml\",\"hash\":\"88a5c7ca844cd6052872865978e3d06b703a0b02113551cb29dccf31961de5da\"}" .
+
+praxis:artifact-crate_wasm4pm-arazzo a praxis:StandingArtifact ;
+  praxis:id "crate:wasm4pm-arazzo" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "crates/wasm4pm-arazzo" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/wasm4pm-arazzo/Cargo.toml\",\"hash\":\"e8b37f8b04872eda92ba67cc0f70a004cfeaa8f7aa0a4a7380a0c1ccbb4a03ed\"}" .
+
+praxis:artifact-crate_multifractal-workflow a praxis:StandingArtifact ;
+  praxis:id "crate:multifractal-workflow" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "crates/multifractal-workflow" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/multifractal-workflow/Cargo.toml\",\"hash\":\"fc30583c2f73e047dac1b05be0343c7f1a2b230f22c96b7254da4c823c175496\"}" .
+
+praxis:artifact-crate_audit-tools a praxis:StandingArtifact ;
+  praxis:id "crate:audit-tools" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "audit-tools" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"audit-tools/Cargo.toml\",\"hash\":\"090b10a0cf85ef0e2d41be0355a97ca3e4b504ce77edb466395f9816bb67283a\"}" .
+
+praxis:artifact-crate_air_core_nif a praxis:StandingArtifact ;
+  praxis:id "crate:air_core_nif" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "apps/air_core/native/air_core_nif" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"apps/air_core/native/air_core_nif/Cargo.toml\",\"hash\":\"8e5dfd7698d751d0170062902f1680e6fb16cd99e01857dda50e25d0297ae4f7\"}" .
+
+praxis:artifact-crate_mfact-core a praxis:StandingArtifact ;
+  praxis:id "crate:mfact-core" ;
+  praxis:kind "RustCrate" ;
+  praxis:path "crates/mfact-core" ;
+  praxis:standing "Discovered" ;
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"crates/mfact-core/Cargo.toml\",\"hash\":\"3bf0cdf32f3acc1edee0939bcefc91baa5ae8c84ba7c8aa4cc39cde6884791ae\"}" .
 
 praxis:artifact-doctor-report a praxis:StandingArtifact ;
   praxis:id "doctor-report" ;
@@ -133,10 +189,9 @@ praxis:artifact-ocel_wasm4pm-process-validation a praxis:StandingArtifact ;
   praxis:kind "Workflow" ;
   praxis:path "docs/releases/v26.7.6/ocel/wasm4pm-process-validation.json" ;
   praxis:standing "Discovered" ;
-  praxis:standing "OcelProven" ;
-  praxis:ladderLevel "4"^^xsd:integer ;
+  praxis:ladderLevel "0"^^xsd:integer ;
   praxis:evidence "{\"kind\":\"ocel_event\",\"event_id\":\"wasm4pm-process-validation\",\"path\":\"docs/releases/v26.7.6/ocel/wasm4pm-process-validation.json\"}" ;
-  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"docs/releases/v26.7.6/ocel/wasm4pm-process-validation.json:fitness\",\"hash\":\"1.0\"}" .
+  praxis:evidence "{\"kind\":\"artifact\",\"path\":\"docs/releases/v26.7.6/ocel/wasm4pm-process-validation.json:fitness\",\"hash\":\"0.9957081545064378\"}" .
 
 praxis:artifact-receipt-ledger_receipt-log a praxis:StandingArtifact ;
   praxis:id "receipt-ledger:receipt-log" ;
@@ -145,59 +200,12 @@ praxis:artifact-receipt-ledger_receipt-log a praxis:StandingArtifact ;
   praxis:standing "Discovered" ;
   praxis:ladderLevel "0"^^xsd:integer .
 
-praxis:artifact-plan_after_neon_det a praxis:StandingArtifact ;
-  praxis:id "plan:after_neon_det" ;
+praxis:artifact-plan-runs_target_plan_run___plan_json a praxis:StandingArtifact ;
+  praxis:id "plan-runs:target/plan_run/*/plan.json" ;
   praxis:kind "Workflow" ;
-  praxis:path "target/plan_run/after_neon_det/plan.json" ;
-  praxis:standing "Discovered" ;
-  praxis:standing "Receipted" ;
-  praxis:ladderLevel "3"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"receipt\",\"chain_hash\":\"blake3:1f97313c12be8f1f4b295970aaff506a79c1533be7a8abffb69c2ec8c677e9bb\",\"path\":\"target/plan_run/after_neon_det/plan.json\"}" .
-
-praxis:artifact-plan_after_neon_run1 a praxis:StandingArtifact ;
-  praxis:id "plan:after_neon_run1" ;
-  praxis:kind "Workflow" ;
-  praxis:path "target/plan_run/after_neon_run1/plan.json" ;
-  praxis:standing "Discovered" ;
-  praxis:standing "Receipted" ;
-  praxis:ladderLevel "3"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"receipt\",\"chain_hash\":\"blake3:1f97313c12be8f1f4b295970aaff506a79c1533be7a8abffb69c2ec8c677e9bb\",\"path\":\"target/plan_run/after_neon_run1/plan.json\"}" .
-
-praxis:artifact-plan_after_neon_run2 a praxis:StandingArtifact ;
-  praxis:id "plan:after_neon_run2" ;
-  praxis:kind "Workflow" ;
-  praxis:path "target/plan_run/after_neon_run2/plan.json" ;
-  praxis:standing "Discovered" ;
-  praxis:standing "Receipted" ;
-  praxis:ladderLevel "3"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"receipt\",\"chain_hash\":\"blake3:1f97313c12be8f1f4b295970aaff506a79c1533be7a8abffb69c2ec8c677e9bb\",\"path\":\"target/plan_run/after_neon_run2/plan.json\"}" .
-
-praxis:artifact-plan_ocel_pass a praxis:StandingArtifact ;
-  praxis:id "plan:ocel_pass" ;
-  praxis:kind "Workflow" ;
-  praxis:path "target/plan_run/ocel_pass/plan.json" ;
-  praxis:standing "Discovered" ;
-  praxis:standing "Receipted" ;
-  praxis:ladderLevel "3"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"receipt\",\"chain_hash\":\"blake3:1f97313c12be8f1f4b295970aaff506a79c1533be7a8abffb69c2ec8c677e9bb\",\"path\":\"target/plan_run/ocel_pass/plan.json\"}" .
-
-praxis:artifact-plan_ocel_pass2 a praxis:StandingArtifact ;
-  praxis:id "plan:ocel_pass2" ;
-  praxis:kind "Workflow" ;
-  praxis:path "target/plan_run/ocel_pass2/plan.json" ;
-  praxis:standing "Discovered" ;
-  praxis:standing "Receipted" ;
-  praxis:ladderLevel "3"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"receipt\",\"chain_hash\":\"blake3:1f97313c12be8f1f4b295970aaff506a79c1533be7a8abffb69c2ec8c677e9bb\",\"path\":\"target/plan_run/ocel_pass2/plan.json\"}" .
-
-praxis:artifact-plan_ocel_probe a praxis:StandingArtifact ;
-  praxis:id "plan:ocel_probe" ;
-  praxis:kind "Workflow" ;
-  praxis:path "target/plan_run/ocel_probe/plan.json" ;
-  praxis:standing "Discovered" ;
-  praxis:standing "Receipted" ;
-  praxis:ladderLevel "3"^^xsd:integer ;
-  praxis:evidence "{\"kind\":\"receipt\",\"chain_hash\":\"blake3:1f97313c12be8f1f4b295970aaff506a79c1533be7a8abffb69c2ec8c677e9bb\",\"path\":\"target/plan_run/ocel_probe/plan.json\"}" .
+  praxis:path "target/plan_run/*/plan.json" ;
+  praxis:standing "Unseen" ;
+  praxis:ladderLevel "0"^^xsd:integer .
 
 praxis:artifact-bench_bench-ggen a praxis:StandingArtifact ;
   praxis:id "bench:bench-ggen" ;
@@ -239,7 +247,6 @@ praxis:artifact-autonomic-platform a praxis:StandingArtifact ;
   praxis:kind "Client" ;
   praxis:path "clients/autonomic-platform" ;
   praxis:standing "Discovered" ;
-  praxis:standing "Builds" ;
-  praxis:ladderLevel "1"^^xsd:integer ;
-  praxis:evidence "{\"artifact\":\"clients/autonomic-platform\",\"command\":\"npm run build\",\"exit_code\":0,\"kind\":\"command\"}" .
+  praxis:ladderLevel "0"^^xsd:integer ;
+  praxis:evidence "{\"artifact\":\"clients/autonomic-platform\",\"command\":\"npm run build\",\"exit_code\":127,\"kind\":\"command\"}" .
 
