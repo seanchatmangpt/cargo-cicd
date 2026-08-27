@@ -1,0 +1,5 @@
+PREFIX clc: <https://ggen.dev/ontology/capability-lineage-consumer#>
+SELECT ?consumer WHERE {
+  ?consumer a clc:Consumer .
+  FILTER NOT EXISTS { ?consumer clc:exactBase "219f0db300fa9b615b6a71f106a4acdd192cf9fc" }
+}
