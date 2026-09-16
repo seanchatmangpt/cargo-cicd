@@ -124,6 +124,78 @@ fn test_trybuild_changed_does_not_run_all_fixtures() {
     );
 }
 
+// ── 5b. trybuild full — INVARIANT: explicit opt-in plans the whole estate ────
+
+#[test]
+fn test_trybuild_full_plans_entire_fixture_estate() {
+    // Build an isolated workspace whose fixture estate is exactly known, so
+    // the plan's enumeration is asserted against ground truth, not this repo.
+    let dir = TempDir::new().unwrap();
+    let ui_dir = dir.path().join("tests/ui/compile_fail");
+    std::fs::create_dir_all(&ui_dir).unwrap();
+    std::fs::write(ui_dir.join("fixture_a.rs"), b"fn main() {}").unwrap();
+    std::fs::write(ui_dir.join("fixture_b.stderr"), b"error[E0308]\n").unwrap();
+    // Not part of the fixture estate: outside tests/, wrong extension.
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/lib.rs"), b"pub fn f() {}").unwrap();
+    std::fs::write(dir.path().join("README.md"), b"not a fixture").unwrap();
+
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["trybuild", "full"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "trybuild full must exit 0 as a planning verb"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("trybuild full plan"),
+        "trybuild full must announce its plan; got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("full (explicit opt-in)"),
+        "trybuild full must label itself explicit opt-in; got:\n{stdout}"
+    );
+    // INVARIANT: the whole estate is enumerated — both fixtures listed.
+    assert!(
+        stdout.contains("tests/ui/compile_fail/fixture_a.rs")
+            && stdout.contains("tests/ui/compile_fail/fixture_b.stderr"),
+        "trybuild full must list every fixture in tests/; got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("selected fixtures (2)"),
+        "trybuild full must count exactly the 2 fixtures; got:\n{stdout}"
+    );
+    // INVARIANT: planning only — nothing outside tests/ leaks into the plan.
+    assert!(
+        !stdout.contains("lib.rs") && !stdout.contains("README.md"),
+        "trybuild full must not enumerate files outside tests/; got:\n{stdout}"
+    );
+}
+
+#[test]
+fn test_trybuild_full_reports_empty_estate_cleanly() {
+    let dir = TempDir::new().unwrap();
+    let output = Command::cargo_bin("cargo-cicd")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["trybuild", "full"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "trybuild full must exit 0 on an empty estate"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("no trybuild fixture files found"),
+        "trybuild full must state the estate is empty; got:\n{stdout}"
+    );
+}
+
 // ── 6. git status — shows branch state ───────────────────────────────────────
 
 #[test]

@@ -29,7 +29,7 @@ cicd:trybuild a cicd:Noun ;
     rdfs:label "trybuild" ;
     cicd:about "Manage trybuild fixtures" ;
     cicd:publicSafe true ;
-    cicd:verbs (cicd:trybuildChanged) .
+    cicd:verbs (cicd:trybuildChanged cicd:trybuildFull) .
 
 cicd:git a cicd:Noun ;
     rdfs:label "git" ;
@@ -61,6 +61,7 @@ cicd:targetShow a cicd:Verb ; rdfs:label "show" ; cicd:about "Show target direct
 cicd:targetPrune a cicd:Verb ; rdfs:label "prune" ; cicd:about "Plan or execute target directory cleanup" .
 cicd:testChanged a cicd:Verb ; rdfs:label "changed" ; cicd:about "Run tests for changed files only" .
 cicd:trybuildChanged a cicd:Verb ; rdfs:label "changed" ; cicd:about "Run trybuild for changed fixtures only" .
+cicd:trybuildFull a cicd:Verb ; rdfs:label "full" ; cicd:about "Plan a full trybuild run across the entire fixture estate (explicit opt-in)" .
 cicd:gitStatus a cicd:Verb ; rdfs:label "status" ; cicd:about "Show git repository state" .
 cicd:gitClose a cicd:Verb ; rdfs:label "close" ; cicd:about "Enforce phase closure: stage, commit, verify" .
 cicd:publishRun a cicd:Verb ; rdfs:label "run" ; cicd:about "Emit cicd.toml with current workspace state" .
@@ -74,6 +75,7 @@ cicd:targetShow cicd:noun cicd:target .
 cicd:targetPrune cicd:noun cicd:target .
 cicd:testChanged cicd:noun cicd:test .
 cicd:trybuildChanged cicd:noun cicd:trybuild .
+cicd:trybuildFull cicd:noun cicd:trybuild .
 cicd:gitStatus cicd:noun cicd:git .
 cicd:gitClose cicd:noun cicd:git .
 cicd:publishRun cicd:noun cicd:publish .
@@ -120,6 +122,12 @@ cicd:trybuildChangedEvent a cicd:EvidenceEvent ;
     rdfs:label "trybuild_changed" ;
     cicd:emittedBy cicd:trybuildChanged ;
     cicd:xesActivity "trybuild changed" ;
+    cicd:validated true .
+
+cicd:trybuildFullEvent a cicd:EvidenceEvent ;
+    rdfs:label "trybuild_full" ;
+    cicd:emittedBy cicd:trybuildFull ;
+    cicd:xesActivity "trybuild full" ;
     cicd:validated true .
 
 cicd:gitStatusEvent a cicd:EvidenceEvent ;

@@ -1,5 +1,7 @@
 //! Runs trybuild compile-fail/compile-pass fixtures for crates changed since the last green commit.
-use crate::legacy_nouns::trybuild::{TrybuildChangedVerb, TrybuildReviewVerb, TrybuildUpdateVerb};
+use crate::legacy_nouns::trybuild::{
+    TrybuildChangedVerb, TrybuildFullVerb, TrybuildReviewVerb, TrybuildUpdateVerb,
+};
 use clap_noun_verb::Result;
 use clap_noun_verb::{VerbArgs, VerbCommand};
 use clap_noun_verb_macros::verb;
@@ -9,6 +11,13 @@ pub fn cmd_changed() -> Result<()> {
     let dummy_matches = clap::Command::new("changed").get_matches_from(vec!["changed"]);
     let args = VerbArgs::new(dummy_matches);
     TrybuildChangedVerb.run(&args)
+}
+
+#[verb("full")]
+pub fn cmd_full() -> Result<()> {
+    let dummy_matches = clap::Command::new("full").get_matches_from(vec!["full"]);
+    let args = VerbArgs::new(dummy_matches);
+    TrybuildFullVerb.run(&args)
 }
 
 #[verb("update")]

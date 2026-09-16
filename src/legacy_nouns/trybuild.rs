@@ -1,3 +1,4 @@
+use crate::adapters::trybuild_detector::TrybuildDetector;
 use crate::adapters::ChangedFileDetector;
 use crate::evidence::ProcessEvent;
 use crate::legacy_nouns::evidence_helpers::{finish_evidence, init_evidence};
@@ -27,6 +28,7 @@ impl NounCommand for TrybuildNoun {
             Box::new(TrybuildChangedVerb),
             Box::new(TrybuildUpdateVerb),
             Box::new(TrybuildReviewVerb),
+            Box::new(TrybuildFullVerb),
         ]
     }
 }
@@ -168,6 +170,58 @@ impl VerbCommand for TrybuildChangedVerb {
             &evidence_dir,
         );
         let _ = fixture_dir;
+        Ok(())
+    }
+}
+
+/// Plans a full trybuild run across the entire fixture estate.
+///
+/// Complement of `trybuild changed`: the changed-only planner stays the
+/// default surface; `full` is the explicit opt-in that enumerates every
+/// fixture under `tests/` so the scope of a whole-estate run is visible
+/// before anything executes. Planning only — no cargo, no mutation.
+pub struct TrybuildFullVerb;
+impl VerbCommand for TrybuildFullVerb {
+    fn name(&self) -> &'static str {
+        "full"
+    }
+    fn about(&self) -> &'static str {
+        "Plan a full trybuild run across the entire fixture estate (explicit opt-in)"
+    }
+    fn run(&self, _args: &VerbArgs) -> clap_noun_verb::error::Result<()> {
+        let (evidence_dir, case_id, start_evt, t0) =
+            crate::evidence_helpers::init_evidence("trybuild:full");
+
+        let mut fixtures: Vec<String> = TrybuildDetector::all_fixtures("./tests")
+            .into_iter()
+            .map(|p| p.trim_start_matches("./").to_string())
+            .collect();
+        fixtures.sort();
+        fixtures.dedup();
+
+        println!("trybuild full plan");
+        println!("=================");
+        println!("fixture estate:     tests/ (*.rs, *.stderr, *.stdout)");
+        println!("mode:               full (explicit opt-in)");
+        println!("snapshot mode:      read-only plan");
+        println!();
+        if fixtures.is_empty() {
+            println!("no trybuild fixture files found in tests/");
+        } else {
+            println!("selected fixtures ({}):", fixtures.len());
+            for f in &fixtures {
+                println!("  {}", f);
+            }
+        }
+
+        crate::evidence_helpers::finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            "PASS",
+            "trybuild:full",
+            &evidence_dir,
+        );
         Ok(())
     }
 }

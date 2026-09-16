@@ -46,6 +46,7 @@ fn all_nouns_have_expected_verbs() {
     assert_verb_registered!("trybuild", "changed");
     assert_verb_registered!("trybuild", "update");
     assert_verb_registered!("trybuild", "review");
+    assert_verb_registered!("trybuild", "full");
     // target
     assert_verb_registered!("target", "show");
     assert_verb_registered!("target", "prune");
