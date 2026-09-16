@@ -3,7 +3,7 @@
     {
       "algorithm_id": "cargo-cicd-process-evidence",
       "boundary_evidence": {
-        "command": "cargo cicd standing refresh",
+        "command": "just test",
         "exit_code": 0
       },
       "expected_path": {
@@ -11,17 +11,17 @@
           "events": [
             {
               "id": "exp-evt-ci-start",
-              "timestamp": "2026-07-07T03:24:54.340Z",
+              "timestamp": "2026-09-16T08:50:32.171Z",
               "type": "cargo.ci.session.start"
             },
             {
               "id": "exp-evt-cmd-execute",
-              "timestamp": "2026-07-07T03:24:54.340Z",
+              "timestamp": "2026-09-16T08:50:32.171Z",
               "type": "cargo.ci.command.execute"
             },
             {
               "id": "exp-evt-evidence",
-              "timestamp": "2026-07-07T03:24:54.340Z",
+              "timestamp": "2026-09-16T08:50:32.171Z",
               "type": "cargo.ci.evidence.emit"
             }
           ],
@@ -39,8 +39,8 @@
         "observed_ocel2": {
           "events": [
             {
-              "id": "evt-receipt-emit-20260707032454340",
-              "timestamp": "2026-07-07T03:24:54.340Z",
+              "id": "evt-receipt-emit-20260916085032171",
+              "timestamp": "2026-09-16T08:50:32.171Z",
               "type": "cargo.ci.receipt.emit"
             }
           ],
@@ -56,10 +56,10 @@
       }
     }
   ],
-  "created_at": "2026-07-07T03:24:54.340Z",
-  "git_head": "b596cd6",
+  "created_at": "2026-09-16T08:50:32.171Z",
+  "git_head": "dce974b",
   "producer": "cargo-cicd",
   "producer_version": "26.7.6",
-  "receipt_id": "cargo-cicd-receipt-20260707032454340",
+  "receipt_id": "cargo-cicd-receipt-20260916085032171",
   "repo_path": "/Users/sac/cargo-cicd"
 }
