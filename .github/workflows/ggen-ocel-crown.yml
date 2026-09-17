@@ -1,0 +1,104 @@
+name: GGEN OCEL Crown
+
+on:
+  pull_request:
+    paths:
+      - 'ggen.toml'
+      - 'ontology/public/**'
+      - 'templates/**'
+      - 'docs/reference/**'
+      - 'README.md'
+      - '.github/workflows/ggen-ocel-crown.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GGEN_SHA: 88358691bd36c8736e391a5e5c50ad67c665cf97
+    steps:
+      - name: Checkout exact consumer head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Admit exact consumer identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          printf 'consumer_sha=%s\n' "$(git rev-parse HEAD)" | tee "$RUNNER_TEMP/consumer.identity"
+
+      - name: Install nightly Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Materialize exact GGEN producer
+        uses: actions/checkout@v4
+        with:
+          repository: seanchatmangpt/ggen
+          ref: 88358691bd36c8736e391a5e5c50ad67c665cf97
+          path: .ggen-tool
+
+      - name: Admit exact GGEN identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C .ggen-tool rev-parse HEAD)" = "$GGEN_SHA"
+
+      - name: Manufacture ontology projections with canonical GGEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +nightly run --manifest-path .ggen-tool/Cargo.toml -p ggen-cli-lib --bin ggen -- sync run
+          test -f .ggen-v2/receipt.json
+          test -s README.md
+          test -s docs/reference/commands/status.md
+          test -s docs/reference/commands/target-show.md
+          test -s docs/reference/commands/target-prune.md
+          test -s docs/reference/commands/test-changed.md
+          test -s docs/reference/commands/trybuild-changed.md
+          test -s docs/reference/commands/git-status.md
+          test -s docs/reference/commands/git-close.md
+          test -s docs/reference/commands/publish-run.md
+          test -s docs/reference/commands/workspace-doctor.md
+
+      - name: Observe generated consequence
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'cargo cicd status' README.md
+          grep -F 'cargo cicd target show' docs/reference/commands/target-show.md
+          grep -F 'cargo cicd target prune' docs/reference/commands/target-prune.md
+          grep -F 'cargo cicd test changed' docs/reference/commands/test-changed.md
+          grep -F 'cargo cicd trybuild changed' docs/reference/commands/trybuild-changed.md
+          grep -F 'cargo cicd git status' docs/reference/commands/git-status.md
+          grep -F 'cargo cicd git close' docs/reference/commands/git-close.md
+          grep -F 'cargo cicd publish run' docs/reference/commands/publish-run.md
+          grep -F 'cargo cicd workspace doctor' docs/reference/commands/workspace-doctor.md
+
+      - name: Prove deterministic replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          find README.md docs/reference/commands -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/before.sha256"
+          cargo +nightly run --manifest-path .ggen-tool/Cargo.toml -p ggen-cli-lib --bin ggen -- sync run
+          find README.md docs/reference/commands -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/after.sha256"
+          diff -u "$RUNNER_TEMP/before.sha256" "$RUNNER_TEMP/after.sha256"
+
+      - name: Receipt exact crown
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'standing=ALIVE\nconsumer_sha=%s\nggen_sha=%s\nreceipt_sha256=%s\n' \
+            "$(git rev-parse HEAD)" \
+            "$GGEN_SHA" \
+            "$(sha256sum .ggen-v2/receipt.json | cut -d' ' -f1)" | tee "$RUNNER_TEMP/ggen-ocel-crown.receipt"
+
+      - name: Refuse consequential external actuation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e target/package

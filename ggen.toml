@@ -77,6 +77,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "status")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/status.md"
@@ -96,6 +97,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "target" && ?verb = "show")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/target-show.md"
@@ -115,6 +117,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "target" && ?verb = "prune")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/target-prune.md"
@@ -134,6 +137,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "test")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/test-changed.md"
@@ -153,6 +157,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "trybuild")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/trybuild-changed.md"
@@ -172,6 +177,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "git" && ?verb = "status")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/git-status.md"
@@ -191,6 +197,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "git" && ?verb = "close")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/git-close.md"
@@ -210,6 +217,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "publish")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/publish-run.md"
@@ -229,6 +237,7 @@ WHERE {
        dcterms:description ?description .
   FILTER(?noun = "workspace")
 }
+ORDER BY ?noun ?verb
 """ }
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/workspace-doctor.md"

@@ -1,11 +1,11 @@
 <!-- BEGIN ggen:command-reference -->
 <!-- Rendered from ontology/cargo-cicd-capabilities.ttl. Do not edit by hand. -->
-{% if entities | length > 0 %}
-# `{{ entities[0].cli_command }}`
+{% if sparql_results | length > 0 %}
+# `{{ sparql_results[0].cli_command }}`
 
-{{ entities[0].description }}
+{{ sparql_results[0].description }}
 
-**Noun:** `{{ entities[0].noun }}` &nbsp;&nbsp; **Verb:** `{{ entities[0].verb }}`
+**Noun:** `{{ sparql_results[0].noun }}` &nbsp;&nbsp; **Verb:** `{{ sparql_results[0].verb }}`
 {% else %}
 # Command Reference
 
@@ -17,6 +17,6 @@ No results from ontology query.
 ## Examples
 
 ```sh
-{% if entities | length > 0 %}{{ entities[0].cli_command }}{% else %}cargo cicd <noun> <verb>{% endif %}
+{% if sparql_results | length > 0 %}{{ sparql_results[0].cli_command }}{% else %}cargo cicd <noun> <verb>{% endif %}
 ```
 <!-- END custom:examples -->
