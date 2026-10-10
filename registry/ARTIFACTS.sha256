@@ -1,0 +1,22 @@
+# ggen working-tree artifact pins
+# Format: <kind> <sha256> <bytes> <name>
+#
+# Contract (transcribed from graphlaw/registry/ARTIFACTS.sha256):
+#   Regenerate after any src/ change; the pin is not a live check -- a stale
+#   pin is a FINDING to be adjudicated, not a guard that fires by itself.
+#
+# Regeneration commands (run from the repo root, record observed date):
+#   binary pin:
+#     cargo build --locked --release -p ggen-cli-lib --bin ggen
+#     shasum -a 256 target/release/ggen
+#   book/docs manifest pin:
+#     python3 book/scripts/assemble_book.py
+#     python3 book/scripts/build_static_html.py
+#     python3 book/scripts/generate_manifest.py
+#     shasum -a 256 book/dist/MANIFEST.sha256
+#
+# This file is freeze_policy: checksum -- a hand-edit is refused by the next
+# sync (manual edit detected) rather than silently clobbered; regenerate via
+# the commands above, then delete this file to let the sync re-project it.
+# Append observed pin lines below in the <kind> <sha256> <bytes> <name> form.
+

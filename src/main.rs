@@ -33,14 +33,16 @@ fn strip_cargo_subcommand_token(mut args: Vec<String>) -> Vec<String> {
 }
 
 fn main() -> Result<()> {
-    // `clap_noun_verb::cli::CommandRegistry::set_app_metadata` — previously used
-    // here to report this binary's own package identity instead of the
-    // clap-noun-verb framework's compiled-in name/version — was removed from
-    // the public API as of clap-noun-verb 26.8.20. `--version`/`--help` now
-    // report the framework's own `Command::new("cli")` name and its compiled
-    // `CARGO_PKG_VERSION` (see `cli::CommandRegistry::build_command`), not
-    // this crate's. No replacement override hook exists upstream yet.
+    // clap_noun_verb removed `set_app_metadata` (26.8.20), so registry.run()
+    // reports the framework's identity, not this crate's. Intercept
+    // --version/-V so the binary reports its own package identity; without
+    // this, version-parity courts (tests/version_parity_proof.rs) correctly
+    // fail on the framework/package drift.
     let args = strip_cargo_subcommand_token(std::env::args().collect());
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("cargo-cicd {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
 
     // Snapshot the deployment-projected CLI schema before taking the run-time
     // registry lock below. `CommandRegistry`'s internal `Mutex` is not

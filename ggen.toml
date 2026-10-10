@@ -1,10 +1,11 @@
 [project]
 name = "cargo-cicd"
-version = "26.6.2"
+version = "26.10.10"
 description = "Manufacturing surface for cargo-cicd — CI/CD helper for Rust workspaces"
 
 [ontology]
 source = "ontology/public/cargo-cicd-capabilities.ttl"
+imports = ["../ggen/packs/ggen-release-pack/ontology.ttl"]
 base_iri = "https://cargo-cicd.rs/ontology/"
 
 [ontology.prefixes]
@@ -15,6 +16,11 @@ prov    = "http://www.w3.org/ns/prov#"
 xsd     = "http://www.w3.org/2001/XMLSchema#"
 rdf     = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 rdfs    = "http://www.w3.org/2000/01/rdf-schema#"
+
+[[packs]]
+name = "ggen-release-pack"
+registry = "local"
+path = "../ggen/packs/ggen-release-pack"
 
 [inference]
 
@@ -242,3 +248,43 @@ ORDER BY ?noun ?verb
 template = { file = "templates/docs/reference-command.md.tera" }
 output_file = "docs/reference/commands/workspace-doctor.md"
 mode = "Overwrite"
+
+[[generation.rules]]
+name        = "release-publish-candidate-workflow"
+query       = { inline = """
+PREFIX grp: <http://seanchatmangpt.github.io/packs/ggen-release#>
+SELECT ?body WHERE { grp:PublishCandidateWorkflow grp:workflowBody ?body . } ORDER BY ?body
+""" }
+template    = { file = "/Users/sac/ggen/packs/ggen-release-pack/templates/publish_candidate_workflow.yml.tera" }
+output_file = ".github/workflows/publish-candidate.yml"
+mode        = "Overwrite"
+
+[[generation.rules]]
+name        = "release-publish-dod-receipt"
+query       = { inline = """
+PREFIX grp: <http://seanchatmangpt.github.io/packs/ggen-release#>
+SELECT ?body WHERE { grp:PublishDodReceiptArtifact grp:artifactBody ?body . } ORDER BY ?body
+""" }
+template    = { file = "/Users/sac/ggen/packs/ggen-release-pack/templates/publish_dod_receipt.md.tera" }
+output_file = "docs/receipt-26.10.10-publish-dod.md"
+mode        = "Overwrite"
+
+[[generation.rules]]
+name        = "release-artifact-pins"
+query       = { inline = """
+PREFIX grp: <http://seanchatmangpt.github.io/packs/ggen-release#>
+SELECT ?body WHERE { grp:ArtifactPinsArtifact grp:artifactBody ?body . } ORDER BY ?body
+""" }
+template    = { file = "/Users/sac/ggen/packs/ggen-release-pack/templates/artifact_pins_sha256.sha256.tera" }
+output_file = "registry/ARTIFACTS.sha256"
+mode        = "Overwrite"
+
+[[generation.rules]]
+name        = "release-version-parity-proof"
+query       = { inline = """
+PREFIX grp: <http://seanchatmangpt.github.io/packs/ggen-release#>
+SELECT ?body WHERE { grp:VersionParityProofArtifact grp:artifactBody ?body . } ORDER BY ?body
+""" }
+template    = { file = "/Users/sac/ggen/packs/ggen-release-pack/templates/version_parity_proof.rs.tera" }
+output_file = "tests/version_parity_proof.rs"
+mode        = "Overwrite"

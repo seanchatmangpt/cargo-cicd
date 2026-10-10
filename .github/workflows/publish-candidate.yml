@@ -1,0 +1,240 @@
+
+name: Publish Candidate
+
+# v26.10.10 release-discipline standard (distilled from graphlaw's release.yml +
+# docs/receipt-2026-10-10-publish-dod.md). Two trigger lanes in one workflow:
+#   - push to main: full self-verification, then an IDEMPOTENT plan step
+#     (cargo metadata --no-deps + crates.io sparse-index check) that decides
+#     whether a release tag is actually needed; a run with nothing to release
+#     exits in seconds.
+#   - tag push (v*): a tags-only release job that builds, uploads every
+#     release artifact with a generated .sha256 sidecar, and publishes
+#     workspace crates in dependency order (leaf crates first).
+# HOLD: while the RELEASE_HOLD repository variable is `true`, every tag/publish
+# step is skipped (nothing is tagged, released, or published). Release =
+# delete/unset the variable, then re-run.
+# CREDENTIALS: CI never holds long-lived registry credentials beyond the
+# CARGO_REGISTRY_TOKEN repository secret; without it the publish step fails
+# LOUDLY with setup instructions instead of silently skipping.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-candidate:
+    name: Verify and tag release candidate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      RELEASE_HOLD: ${{ vars.RELEASE_HOLD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      # This workspace's root Cargo.toml carries [patch.crates-io] path deps to
+      # sibling checkouts, and .cargo/config.toml unconditionally sets
+      # `rustc-wrapper = "sccache"` -- a bare dtolnay/rust-toolchain step fails
+      # immediately. ci.yml's own jobs all go through this shared composite
+      # action for exactly that reason -- reuse it here.
+      - name: Setup ggen build
+        uses: ./.github/actions/setup-ggen-build
+
+      - name: Build debug binary
+        run: cargo build -p ggen-cli-lib --bin ggen
+
+      - name: Self-hosted verification loop (verify-tcps)
+        run: just verify-tcps
+
+      - name: Docs-through-ggen drift gate (docs-sync)
+        run: |
+          just docs-sync
+          # Excludes receipt/evidence/lock artifacts that change EVERY sync run
+          # BY DESIGN (timestamps, chained hashes) -- not content drift in the
+          # actual generated docs this gate exists to catch.
+          DRIFT_PATHSPEC=(
+            .
+            ':!.ggen-v2/**'
+            ':!**/.ggen-v2/**'
+            ':!examples/tcps-generated/evidence/**'
+            ':!examples/tcps-generated/receipts/**'
+            ':!examples/tcps-generated/ggen.lock'
+          )
+          if ! git diff --quiet -- "${DRIFT_PATHSPEC[@]}"; then
+            echo "ANDON: docs-sync produced changes not already committed — drift detected"
+            git status --porcelain -- "${DRIFT_PATHSPEC[@]}"
+            git diff --stat -- "${DRIFT_PATHSPEC[@]}"
+            exit 1
+          fi
+          echo "docs-sync: no drift"
+
+      - name: Book gates (check_book / check_level_five)
+        run: |
+          python3 book/scripts/check_book.py
+          python3 book/scripts/check_level_five.py
+
+      - name: Guard — pack proofs
+        run: just guard-pack-proofs
+
+      - name: Guard — claims schema (schema-only mode)
+        run: just guard-claims-schema
+
+      - name: Guard — publish standing (FULL / strict mode)
+        run: just guard-publish-standing
+
+      - name: Version consistency check
+        run: ./scripts/ci/guard-version-consistency.sh
+
+      # Idempotent plan step (graphlaw release.yml pattern): cargo metadata for
+      # the version, crates.io sparse-index check for whether it is already
+      # published, tag check. outputs.work == 'no' means the tag already
+      # exists AND the version is already on the registry (or RELEASE_HOLD is
+      # set) -- the remaining steps are no-ops and the run exits in seconds.
+      - name: Plan (idempotent — is this version unreleased?)
+        id: plan
+        run: |
+          set -euo pipefail
+          meta=$(cargo metadata --no-deps --format-version 1)
+          VERSION="$(echo "$meta" | python3 -c "import json,sys; print(json.load(sys.stdin)['packages'][0]['version'])")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          on_registry() { # crate-name version -> yes/no via sparse index
+            local n="$1" v="$2" p
+            if [ "${#n}" -le 3 ]; then p="${#n}/$n"; else p="${n:0:2}/${n:2:2}/$n"; fi
+            local idx; idx=$(curl -fsS "https://index.crates.io/$p" 2>/dev/null || true)
+            if grep -q "\"vers\":\"$v\"" <<<"$idx"; then echo yes; else echo no; fi
+          }
+          tag=no
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$VERSION")" ]; then tag=yes; fi
+          published=$(on_registry ggen "$VERSION")
+          work=no
+          if [ "${RELEASE_HOLD:-}" = true ]; then
+            echo "RELEASE_HOLD is true: skipping tag creation"
+            tag=yes; published=yes
+          fi
+          if [ "$tag" = no ] || [ "$published" = no ]; then work=yes; fi
+          {
+            echo "tag_exists=$tag"
+            echo "published=$published"
+            echo "work=$work"
+          } >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+      - name: Create and push release tag (skipped when held or already tagged)
+        if: steps.plan.outputs.work == 'yes' && steps.plan.outputs.tag_exists == 'no'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.plan.outputs.version }}"
+          TAG="v${VERSION}"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag ${TAG} already exists — nothing to do"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release candidate ${TAG}: publish-candidate all-green"
+          git push origin "${TAG}"
+          echo "pushed ${TAG} — this fires this workflow's tags-only 'release' job below"
+
+  # Tags-only release job (fired by the tag push above, or any v* tag push).
+  # Builds the release binary, uploads EVERY release artifact with a
+  # generated .sha256 sidecar, then publishes workspace crates in dependency
+  # order (leaf crates first). Honors RELEASE_HOLD by refusing loudly.
+  release:
+    name: Tagged release (sha256-attested artifacts, leaf-first publish)
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_HOLD: ${{ vars.RELEASE_HOLD }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup ggen build
+        uses: ./.github/actions/setup-ggen-build
+
+      - name: HOLD — refuse to release while RELEASE_HOLD is true
+        if: env.RELEASE_HOLD == 'true'
+        run: |
+          echo "RELEASE_HOLD is true: refusing to release ${{ github.ref_name }}."
+          echo "Release = unset the RELEASE_HOLD repository variable, then re-run this job."
+          exit 1
+
+      - name: Build release binary
+        run: cargo build --locked --release -p ggen-cli-lib --bin ggen
+
+      - name: Collect release artifacts with .sha256 sidecars
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp target/release/ggen "dist/ggen-${{ runner.os }}-${{ runner.arch }}"
+          (cd dist && for f in *; do shasum -a 256 "$f" > "$f.sha256"; done)
+          ls -la dist
+
+      - name: Create (or reuse) the GitHub release with all artifacts
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists — uploading artifacts idempotently"
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" --generate-notes --title "ggen ${TAG}"
+          fi
+
+      - name: Publish to crates.io (dependency order, leaf crates first)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "ERROR: Add the CARGO_REGISTRY_TOKEN repository secret once"
+            echo "(Settings > Secrets and variables > Actions > New repository secret),"
+            echo "then re-run this job. CI publishes with the token from that secret;"
+            echo "it is deliberately absent from this workflow's env/plumbing otherwise."
+            exit 1
+          fi
+          meta=$(cargo metadata --no-deps --format-version 1)
+          # Dependency-ordered publish list: Kahn's algorithm over the
+          # workspace-internal dependency graph, publishable crates only
+          # (publish=false members excluded), leaf crates (no internal
+          # dependencies) first so every crate's deps are on the registry
+          # before the crate itself.
+          ORDER="$(echo "$meta" | python3 -c "exec('import json,sys\nm=json.load(sys.stdin)\nP=\'packages\';N=\'name\';D=\'dependencies\';U=\'publish\'\npub=[p for p in m[P] if p.get(U) is not False]\nnames={p[N] for p in pub}\ndep={p[N]:{d[N] for d in p[D] if d[N] in names} for p in pub}\norder=[]\nwhile dep:\n    ready=sorted(n for n,d in dep.items() if d<=set(order))\n    assert ready, \'dependency cycle\'\n    order+=ready\n    for n in ready: del dep[n]\nprint(\' \'.join(order))')")"
+          echo "publish order (leaf first): $ORDER"
+          on_registry() { # crate-name version -> yes/no via sparse index
+            local n="$1" v="$2" p
+            if [ "${#n}" -le 3 ]; then p="${#n}/$n"; else p="${n:0:2}/${n:2:2}/$n"; fi
+            local idx; idx=$(curl -fsS "https://index.crates.io/$p" 2>/dev/null || true)
+            if grep -q "\"vers\":\"$v\"" <<<"$idx"; then echo yes; else echo no; fi
+          }
+          VERSION="$(echo "$meta" | python3 -c "import json,sys; print(json.load(sys.stdin)['packages'][0]['version'])")"
+          for c in $ORDER; do
+            if [ "$(on_registry "$c" "$VERSION")" = yes ]; then
+              echo "skip $c: $c $VERSION already on crates.io (idempotent)"
+              continue
+            fi
+            echo "publishing $c"
+            cargo publish -p "$c" --locked
+          done
+
+
