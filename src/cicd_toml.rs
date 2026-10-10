@@ -282,9 +282,33 @@ impl CicdToml {
         Ok(())
     }
 
-    /// Write to ./cicd.toml
+    /// Write to ./cicd.toml, preserving any top-level sections the tool itself
+    /// does not model (e.g. consumer `[docs]` gates) so a state rewrite never
+    /// silently deletes operator config.
     pub fn write_default(&self) -> Result<()> {
-        self.write("cicd.toml")
+        self.write_default_in(Path::new("cicd.toml"))
+    }
+
+    /// `write_default` against an explicit path (testable without chdir).
+    pub fn write_default_in(&self, path: &Path) -> Result<()> {
+        let mut new_val = toml::from_str::<toml::Value>(
+            &toml::to_string_pretty(self)
+                .map_err(|e| anyhow::anyhow!("Failed to serialize cicd.toml: {}", e))?,
+        )
+        .map_err(|e| anyhow::anyhow!("serialize roundtrip: {e}"))?;
+        if let Ok(existing) = std::fs::read_to_string(path) {
+            if let Ok(old) = toml::from_str::<toml::Value>(&existing) {
+                if let (Some(n), Some(o)) = (new_val.as_table_mut(), old.as_table()) {
+                    for (k, v) in o {
+                        if !n.contains_key(k) {
+                            n.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+            }
+        }
+        std::fs::write(path, toml::to_string_pretty(&new_val)?)?;
+        Ok(())
     }
 }
 
@@ -399,5 +423,30 @@ mode = "suggest"
         std::fs::write(&path, contents).unwrap();
         let result = CicdToml::from_file(&path);
         assert!(result.is_err(), "expected Err for unknown field");
+    }
+}
+
+#[cfg(test)]
+mod write_default_preservation_tests {
+    use super::*;
+
+    #[test]
+    fn unknown_sections_survive_a_state_rewrite() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("cicd.toml");
+        std::fs::write(
+            &path,
+            "[workspace]\nname = \"t\"\ntoolchain = \"1.90.0\"\ntarget_dir = \"target\"\n[state]\ndirty = false\ntarget_size_gb = 0.0\nchanged_files = 0\nchanged_tests = 0\nchanged_trybuild_fixtures = 0\n\n[docs]\nverify_cmd = \"true\"\n",
+        )
+        .unwrap();
+        let cicd = CicdToml::from_current_workspace();
+        // write_default writes to ./cicd.toml relative to CWD; run from tmp
+        cicd.write_default_in(&path).unwrap();
+        let out = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            out.contains("[docs]"),
+            "write_default must preserve unknown sections; got:\n{out}"
+        );
+        assert!(out.contains("verify_cmd"));
     }
 }
