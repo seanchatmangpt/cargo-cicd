@@ -5,6 +5,7 @@ use crate::cicd_toml::CicdToml;
 use crate::evidence::ProcessEvent;
 use crate::legacy_nouns::evidence_helpers::init_evidence;
 use clap_noun_verb::{NounCommand, VerbArgs, VerbCommand};
+use std::path::Path;
 
 pub struct PublishNoun;
 impl PublishNoun {
@@ -39,6 +40,124 @@ impl NounCommand for PublishNoun {
             Box::new(PublishValidateVerb),
         ]
     }
+}
+
+/// ── Doc-drift gate ──────────────────────────────────────────────────────────
+/// Gate law: if any doc file (`*.md`, `*.txt`, `docs/**`) changed since the last
+/// release tag, the workspace's `[docs] verify_cmd` (cicd.toml) must pass before
+/// publish proceeds. No doc changes → gate skipped. Missing config or failing
+/// command → typed refusal DOC_DRIFT_UNVERIFIED.
+fn last_release_tag_in(dir: &Path) -> Option<String> {
+    std::process::Command::new("git")
+        .args(["describe", "--tags", "--abbrev=0"])
+        .current_dir(dir)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn docs_changed_since_in(dir: &Path, tag: &str) -> Vec<String> {
+    let out = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["diff", "--name-only", &format!("{tag}..HEAD"), "--"])
+        .output();
+    String::from_utf8_lossy(&out.map(|o| o.stdout).unwrap_or_default())
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .filter(|l| {
+            l.starts_with("docs/")
+                || l.ends_with(".md")
+                || l.ends_with(".txt")
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+/// `[docs] verify_cmd` from cicd.toml (text scan: `verify_cmd = "..."` inside the
+/// `[docs]` section).
+fn docs_verify_cmd_in(dir: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(dir.join("cicd.toml")).ok()?;
+    let mut in_docs = false;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_docs = t == "[docs]";
+            continue;
+        }
+        if in_docs {
+            if let Some(rest) = t.strip_prefix("verify_cmd") {
+                let rest = rest.trim_start();
+                let rest = rest.strip_prefix('=')?.trim();
+                let v = rest.trim_matches('"');
+                if !v.is_empty() {
+                    return Some(v.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn emit_doc_gate_fail(
+    verb: &str,
+    evidence_dir: &std::path::Path,
+    t0: std::time::Instant,
+    reason: &str,
+) -> clap_noun_verb::error::NounVerbError {
+    eprintln!("AndonPull: {reason} — publish blocked (DOC_DRIFT_UNVERIFIED)");
+    let mut complete_evt = ProcessEvent::completed(verb, t0, "FAIL");
+    complete_evt.case_id = Some(crate::session::read_or_create_session_id(evidence_dir));
+    if let Err(e) = crate::evidence::append_events(&[complete_evt], evidence_dir) {
+        eprintln!("warning: evidence emission failed: {e}");
+    }
+    clap_noun_verb::error::NounVerbError::execution_error(reason.to_string())
+}
+
+/// Run the doc-drift gate. Returns `Ok(Some(changed_docs))` if the gate passed with
+/// docs changed, `Ok(None)` if skipped (no doc changes), `Err` on refusal.
+fn run_doc_gate(
+    dir: &Path,
+    verb: &str,
+    evidence_dir: &std::path::Path,
+    t0: std::time::Instant,
+) -> clap_noun_verb::error::Result<Option<Vec<String>>> {
+    let Some(tag) = last_release_tag_in(dir) else {
+        return Ok(None);
+    };
+    let docs = docs_changed_since_in(dir, &tag);
+    if docs.is_empty() {
+        println!("  docs: unchanged since {tag} (gate skipped)");
+        return Ok(None);
+    }
+    println!("  docs: {} file(s) changed since {tag}", docs.len());
+    let Some(cmd) = docs_verify_cmd_in(dir) else {
+        return Err(emit_doc_gate_fail(
+            verb,
+            evidence_dir,
+            t0,
+            "docs changed since last release but cicd.toml has no [docs] verify_cmd",
+        ));
+    };
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&cmd)
+        .current_dir(dir)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !status {
+        return Err(emit_doc_gate_fail(
+            verb,
+            evidence_dir,
+            t0,
+            "[docs] verify_cmd failed — doc claims do not match code",
+        ));
+    }
+    println!("  docs: PASS ({cmd})");
+    Ok(Some(docs))
 }
 
 pub struct PublishRunVerb;
@@ -137,6 +256,11 @@ impl VerbCommand for PublishRunVerb {
                 }
             }
         };
+        // ── Doc-drift gate ─────────────────────────────────────────────────────
+        // Docs changed since the last release tag must be re-verified before the
+        // artifact (which embeds the README) ships.
+        run_doc_gate(Path::new("."), "publish:run", &evidence_dir, t0)?;
+
         // Always write cicd.toml to capture current state, regardless of gate outcome.
         cicd.write_default()
             .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
@@ -198,6 +322,12 @@ impl VerbCommand for PublishCheckVerb {
 
         println!("publish check (dry-run)");
         println!("=======================");
+
+        // Doc-drift gate: report-only here (check never hard-fails), same law as run.
+        match run_doc_gate(Path::new("."), "publish:check", &evidence_dir, t0) {
+            Ok(_) => {}
+            Err(e) => println!("[FAIL] doc gate: {}", e),
+        }
 
         let output = std::process::Command::new("cargo")
             .args(["publish", "--dry-run", "--allow-dirty"])
@@ -327,5 +457,108 @@ impl VerbCommand for PublishValidateVerb {
             eprintln!("warning: evidence emission failed: {}", e);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod doc_gate_tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    fn git(dir: &Path, args: &[&str]) {
+        let st = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .status()
+            .expect("git available");
+        assert!(st.success(), "git {args:?} failed");
+    }
+
+    fn init_repo() -> (tempfile::TempDir, PathBuf) {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().to_path_buf();
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["config", "user.email", "t@t"]);
+        git(&dir, &["config", "user.name", "t"]);
+        std::fs::write(dir.join("README.md"), "v1\n").unwrap();
+        std::fs::write(dir.join("src.rs"), "fn main() {}\n").unwrap();
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "init"]);
+        (tmp, dir)
+    }
+
+    #[test]
+    fn no_docs_changed_gate_is_skipped() {
+        let (_tmp, dir) = init_repo();
+        git(&dir, &["tag", "v1.0.0"]);
+        // Change only code, no docs.
+        std::fs::write(dir.join("src.rs"), "fn main() { /* v2 */ }\n").unwrap();
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "code only"]);
+
+        assert_eq!(last_release_tag_in(&dir).as_deref(), Some("v1.0.0"));
+        assert!(docs_changed_since_in(&dir, "v1.0.0").is_empty());
+    }
+
+    #[test]
+    fn docs_changed_without_verify_cmd_refuses() {
+        let (_tmp, dir) = init_repo();
+        git(&dir, &["tag", "v1.0.0"]);
+        std::fs::write(dir.join("README.md"), "v2\n").unwrap();
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "docs change"]);
+
+        let docs = docs_changed_since_in(&dir, "v1.0.0");
+        assert_eq!(docs, vec!["README.md".to_string()]);
+        assert_eq!(docs_verify_cmd_in(&dir), None);
+    }
+
+    #[test]
+    fn docs_changed_with_passing_verify_cmd_is_admitted() {
+        let (_tmp, dir) = init_repo();
+        git(&dir, &["tag", "v1.0.0"]);
+        std::fs::write(dir.join("README.md"), "v2\n").unwrap();
+        std::fs::write(
+            dir.join("cicd.toml"),
+            "[docs]\nverify_cmd = \"true\"\n",
+        ).unwrap();
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "docs change with gate config"]);
+
+        let gate = run_doc_gate(
+            &dir,
+            "publish:run",
+            &dir.join("evidence"),
+            std::time::Instant::now(),
+        );
+        assert!(gate.is_ok());
+    }
+
+    #[test]
+    fn failing_verify_cmd_refuses() {
+        let (_tmp, dir) = init_repo();
+        git(&dir, &["tag", "v1.0.1"]);
+        std::fs::create_dir_all(dir.join("docs")).unwrap();
+        std::fs::write(dir.join("docs/x.md"), "x").unwrap();
+        std::fs::write(
+            dir.join("cicd.toml"),
+            "[docs]\nverify_cmd = \"false\"\n",
+        ).unwrap();
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "failing gate config"]);
+
+        let gate = run_doc_gate(
+            &dir,
+            "publish:run",
+            &dir.join("evidence"),
+            std::time::Instant::now(),
+        );
+        let err = gate.unwrap_err();
+        assert!(err.to_string().contains("verify_cmd failed"));
     }
 }

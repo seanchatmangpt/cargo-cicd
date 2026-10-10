@@ -1,3 +1,9 @@
+## 26.7.7
+
+feat(publish): doc-drift gate — docs (*.md, *.txt, docs/**) changed since the last
+release tag now require a passing `[docs] verify_cmd` from cicd.toml before
+`publish run`/`publish check` proceed; missing config or failing command refuses
+with DOC_DRIFT_UNVERIFIED (OCEL FAIL event). Real-git fixture tests (4).
 # Changelog
 
 All notable changes to cargo-cicd are documented here.
