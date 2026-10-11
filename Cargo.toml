@@ -23,13 +23,13 @@ predicates = "3"
 tempfile = "3"
 chicago-tdd-tools = "26.7.1"
 # Internal crates (path in workspace, version required for publishing)
-cargo-cicd-core = { version = "26.7", path = "crates/cargo-cicd-core" }
-cargo-cicd-lsp = { version = "26.7", path = "crates/cargo-cicd-lsp" }
+cargo-cicd-core = { version = "26.10", path = "crates/cargo-cicd-core" }
+cargo-cicd-lsp = { version = "26.10", path = "crates/cargo-cicd-lsp" }
 # External git crates
 
 [package]
 name = "cargo-cicd"
-version = "26.7.7"
+version = "26.10.10"
 edition = "2021"
 rust-version = "1.86"
 description = "Local-first CI/CD helper for Rust workspaces: clean target dirs, run changed tests, check git state, and publish cicd.toml."
@@ -148,6 +148,54 @@ harness = true
 path = "tests/cli/command_projection.rs"
 
 [[test]]
+name = "certification"
+path = "tests/cli/certification.rs"
+
+[[test]]
+name = "standing"
+path = "tests/cli/standing.rs"
+
+[[test]]
+name = "target"
+path = "tests/cli/target.rs"
+
+[[test]]
+name = "trace"
+path = "tests/cli/trace.rs"
+
+[[test]]
+name = "claude_context"
+path = "tests/cli/claude_context.rs"
+
+[[test]]
+name = "deploy"
+path = "tests/cli/deploy.rs"
+
+[[test]]
+name = "sbom"
+path = "tests/cli/sbom.rs"
+
+[[test]]
+name = "publish"
+path = "tests/cli/publish.rs"
+
+[[test]]
+name = "ci"
+path = "tests/cli/ci.rs"
+
+[[test]]
+name = "pipeline"
+path = "tests/cli/pipeline.rs"
+
+[[test]]
+name = "lsp"
+path = "tests/cli/lsp.rs"
+
+[[test]]
+name = "misc_nouns"
+path = "tests/cli/misc_nouns.rs"
+
+[[test]]
 name = "cicd_toml_truth"
 path = "tests/cicd_toml_truth.rs"
 
@@ -191,6 +239,10 @@ name = "ocel_chicago_tdd"
 path = "tests/ocel_chicago_tdd.rs"
 
 [[test]]
+name = "ocel_conformance"
+path = "tests/ocel_conformance.rs"
+
+[[test]]
 name = "lsp_explain"
 path = "tests/lsp_explain.rs"
 
@@ -203,12 +255,16 @@ name = "test_lsp"
 path = "tests/cli/test_lsp.rs"
 
 [[test]]
-name = "oracle_key_lifecycle"
-path = "tests/oracle_key_lifecycle.rs"
+name = "workspace"
+path = "tests/cli/workspace.rs"
 
 [[test]]
-name = "xes_v2_compliance"
-path = "tests/xes_v2_compliance.rs"
+name = "verify"
+path = "tests/cli/verify.rs"
+
+[[test]]
+name = "oracle_key_lifecycle"
+path = "tests/oracle_key_lifecycle.rs"
 
 [[test]]
 name = "certification_policies"
@@ -221,6 +277,16 @@ path = "tests/affidavit_integration.rs"
 [[test]]
 name = "barrier_proptest"
 path = "tests/barrier_proptest.rs"
+
+# Lane L6: subdir test files are not autodiscovered — explicit targets so
+# `cargo test --test evidence --test gate` reaches tests/cli/{evidence,gate}.rs
+[[test]]
+name = "evidence"
+path = "tests/cli/evidence.rs"
+
+[[test]]
+name = "gate"
+path = "tests/cli/gate.rs"
 
 [[bench]]
 name = "performance"
@@ -238,3 +304,19 @@ proptest = "1"
 # parsing it with the same `wasm4pm_compat::ocel::OCEL` type wasm4pm itself
 # uses, rather than asserting our own emitter's shape against itself.
 wasm4pm-compat = "26.6.29"
+# Dev-only: real JSON Schema validation for the OCEL 2.0 conformance court
+# (tests/ocel_conformance.rs) against tests/fixtures/ocel20.schema.json.
+jsonschema = "0.28"
+
+# L7 lane: CLI subprocess courts for git/receipt/release_gate nouns
+[[test]]
+name = "git"
+path = "tests/cli/git.rs"
+
+[[test]]
+name = "receipt"
+path = "tests/cli/receipt.rs"
+
+[[test]]
+name = "release_gate"
+path = "tests/cli/release_gate.rs"
