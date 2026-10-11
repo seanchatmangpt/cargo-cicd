@@ -51,7 +51,7 @@ pub struct GitState {
 pub struct EvidenceState {
     /// Number of changed source files detected since last commit.
     pub changed_file_count: usize,
-    /// Whether the events.xes evidence file is present.
+    /// Whether the OCEL 2.0 journal (events.ocel.json) evidence file is present.
     pub evidence_fresh: bool,
     /// Whether target/cargo-cicd/evidence/receipts/latest.json exists.
     pub receipt_exists: bool,

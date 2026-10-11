@@ -1,0 +1,132 @@
+{
+  "$comment": "OCEL 2.0 JSON conformance schema. PROVENANCE: transcribed from the official OCEL 2.0 JSON format specification at https://ocel-standard.org/specification/formats/json/ (Minimal Example + Attribute Types sections), cross-verified against the reference exporter pm4py.objects.ocel.exporter.jsonocel.variants.ocel20_standard and the wasm4pm-compat 26.6.29 `ocel::OCEL` adjudication type (the real consumer of events.ocel.json). The canonical downloadable ocel20.schema.json is not retrievable from the site (JS-rendered link; no public VCS mirror of the schema file exists as of 2026-10-10), so this file is a faithful transcription of the documented structure, not a verbatim vendor.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocel-standard.org/schema/ocel20.schema.json",
+  "title": "OCEL 2.0 JSON log",
+  "type": "object",
+  "required": ["eventTypes", "objectTypes", "events", "objects"],
+  "properties": {
+    "eventTypes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/logItemType" }
+    },
+    "objectTypes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/logItemType" }
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/object" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "attributeValueType": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" }
+      ]
+    },
+    "logItemType": {
+      "type": "object",
+      "required": ["name", "attributes"],
+      "properties": {
+        "name": { "type": "string" },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "time",
+                  "integer",
+                  "long",
+                  "float",
+                  "double",
+                  "boolean"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "eventAttribute": {
+      "type": "object",
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "time": { "type": "string", "format": "date-time" },
+        "value": { "$ref": "#/$defs/attributeValueType" }
+      },
+      "additionalProperties": false
+    },
+    "objectAttribute": {
+      "type": "object",
+      "required": ["name", "time", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "time": { "type": "string", "format": "date-time" },
+        "value": { "$ref": "#/$defs/attributeValueType" }
+      },
+      "additionalProperties": false
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["objectId", "qualifier"],
+      "properties": {
+        "objectId": { "type": "string" },
+        "qualifier": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "required": ["id", "type", "time"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "time": { "type": "string", "format": "date-time" },
+        "attributes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/eventAttribute" }
+        },
+        "relationships": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relationship" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "object": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "attributes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/objectAttribute" }
+        },
+        "relationships": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relationship" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

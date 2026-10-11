@@ -14,7 +14,9 @@ pub fn cmd_install(repo: Option<String>, provider: Option<String>, json: bool) -
             "supported": ["antigravity"]
         });
         println!("{}", err);
-        std::process::exit(1);
+        // Result-based failure: the framework's normal error path exits
+        // non-zero; no process::exit bypass here.
+        return Err(clap_noun_verb::NounVerbError::ValidationFailed(err.to_string()));
     }
 
     let binary_path = std::env::current_exe()
@@ -46,10 +48,8 @@ pub fn cmd_install(repo: Option<String>, provider: Option<String>, json: bool) -
         binary = binary_path
     );
 
-    std::fs::create_dir_all(&agents_dir)
-        .unwrap_or_else(|e| panic!("failed to create {}: {}", agents_dir, e));
-    std::fs::write(&hook_path, &hooks_json)
-        .unwrap_or_else(|e| panic!("failed to write {}: {}", hook_path, e));
+    std::fs::create_dir_all(&agents_dir)?;
+    std::fs::write(&hook_path, &hooks_json)?;
 
     if json {
         let receipt = serde_json::json!({
@@ -68,11 +68,12 @@ pub fn cmd_install(repo: Option<String>, provider: Option<String>, json: bool) -
 
 #[verb("uninstall")]
 pub fn cmd_uninstall(repo: Option<String>, provider: Option<String>, json: bool) -> Result<()> {
-    let _ = repo;
     let _ = provider;
     let _ = json;
-    if std::path::Path::new(".agents/hooks.json").exists() {
-        std::fs::remove_file(".agents/hooks.json").unwrap();
+    let repo_dir = repo.unwrap_or_else(|| ".".to_string());
+    let hook_path = format!("{}/.agents/hooks.json", repo_dir);
+    if std::path::Path::new(&hook_path).exists() {
+        std::fs::remove_file(&hook_path)?;
         println!("Uninstalled Antigravity PreToolUse hook");
     }
     Ok(())
@@ -93,6 +94,12 @@ pub fn cmd_pre_tool_use(repo: Option<String>, json: bool) -> Result<()> {
 }
 
 fn check_tool_use(repo_dir: &str, input: &str) {
+    // NOTE: the malformed-stdin/unparseable-JSON/missing-field paths below all
+    // fail OPEN (allow) rather than fail closed. This is deliberate, not a
+    // defect: pre-tool-use runs in the critical path of every tool call, and a
+    // deny-by-uncertainty default would brick the user's tooling whenever the
+    // hook protocol emits an unexpected envelope. Allow is the safe hook
+    // default; enforcement lives in the policy paths that DID parse.
     let parsed: serde_json::Value = match serde_json::from_str(input) {
         Ok(v) => v,
         Err(_) => {

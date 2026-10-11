@@ -78,7 +78,7 @@ pub fn requirements() -> Vec<Iec61508Requirement> {
                    and verified against safety requirements."
                 .to_string(),
             evidence_mapping: "cargo-cicd `workspace doctor` records package member topology and \
-                               dependency relationships as XES evidence."
+                               dependency relationships as OCEL evidence."
                 .to_string(),
             min_sil: Sil(1),
             covered_by_commands: vec!["workspace doctor".to_string()],
@@ -89,7 +89,7 @@ pub fn requirements() -> Vec<Iec61508Requirement> {
                    specification."
                 .to_string(),
             evidence_mapping: "cargo-cicd `test changed` and `trybuild changed` emit per-module \
-                               test execution evidence with pass/fail verdicts in XES format."
+                               test execution evidence with pass/fail verdicts in OCEL 2.0 format."
                 .to_string(),
             min_sil: Sil(1),
             covered_by_commands: vec![
@@ -127,7 +127,7 @@ pub fn requirements() -> Vec<Iec61508Requirement> {
                    safety requirements are satisfied."
                 .to_string(),
             evidence_mapping: "cargo-cicd `publish run` gate verifies publishability criteria \
-                               and emits a publish-run XES event adjudicated by wasm4pm before \
+                               and emits a publish-run OCEL event adjudicated by wasm4pm before \
                                any release is permitted."
                 .to_string(),
             min_sil: Sil(2),
@@ -149,7 +149,7 @@ pub fn requirements() -> Vec<Iec61508Requirement> {
             text: "Safety lifecycle documentation — all phases of the safety lifecycle shall \
                    produce and maintain documented evidence of activities performed."
                 .to_string(),
-            evidence_mapping: "cargo-cicd persists all process events as XES and JSONL files in \
+            evidence_mapping: "cargo-cicd persists all process events as OCEL 2.0 JSON in \
                                target/cargo-cicd/evidence/, providing a time-stamped lifecycle \
                                document trail suitable for submission to a certification body."
                 .to_string(),

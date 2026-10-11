@@ -4,16 +4,16 @@
 //!
 //! - **E1**: cargo-cicd NEVER adjudicates its own process conformance.
 //!   All verdicts are issued by the external wasm4pm oracle.
-//! - **E2**: Evidence is emitted before adjudication. The XES file must exist
-//!   on disk before `audit_xes` is called.
+//! - **E2**: Evidence is emitted before adjudication. The OCEL 2.0 JSON file
+//!   (`events.ocel.json`) must exist on disk before `audit_ocel` is called.
 //! - **E3**: If the oracle is unavailable and the expected verdict is not
 //!   `Blocked`, the evidence gate panics. Certification requires the oracle.
 //! - **E4**: Tests assert only wasm4pm verdict, never internal cargo-cicd state.
 //!   cargo-cicd state assertions belong in unit tests; process conformance
 //!   assertions belong in evidence-gate tests.
-//! - **E5**: XES emission groups events by `case_id` into separate `<trace>`
-//!   elements. Events without a `case_id` go into a default trace.
-//! - **E6**: JSONL emission mirrors XES — same event set, machine-readable
+//! - **E5**: OCEL 2.0 emission is the ONLY event-log format. XES emission is
+//!   removed by operator directive — no `.xes` file is ever created.
+//! - **E6**: JSONL emission mirrors OCEL 2.0 — same event set, machine-readable
 //!   companion format for downstream tooling.
 //! - **E7**: `ExpectedWpmVerdict::Blocked` is a first-class expectation, not
 //!   an error state. Tests that run without wpm installed MUST declare
@@ -23,6 +23,10 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 use crate::integrations::{discover_wpm_binary, Wasm4pmShell, WpmVerdict};
+use crate::ocel::{
+    OcelAttributeValue, OcelEvent, OcelEventAttributeValue, OcelEventType, OcelLog, OcelObject,
+    OcelObjectAttribute, OcelObjectAttributeValue, OcelRelationship,
+};
 
 // ── Timestamp helpers ─────────────────────────────────────────────────────────
 
@@ -58,8 +62,8 @@ pub struct ProcessEvent {
     pub event_id: String,
     /// ISO-8601 UTC timestamp captured at event construction time.
     pub timestamp_iso: String,
-    /// Session / case grouping key. Events with the same `case_id` are written
-    /// into the same XES `<trace>`.
+    /// Session / case grouping key. Events with the same `case_id` belong to
+    /// the same process case in the OCEL 2.0 log.
     pub case_id: Option<String>,
     /// `"start"` or `"complete"`.
     pub lifecycle_transition: String,
@@ -215,7 +219,7 @@ pub enum ExpectedWpmVerdict {
     Blocked,
 }
 
-/// Runtime oracle that shells out to `wpm` for XES adjudication.
+/// Runtime oracle that shells out to `wpm` for OCEL 2.0 adjudication.
 pub struct WpmEvidenceOracle {
     shell: Option<Wasm4pmShell>,
 }
@@ -239,43 +243,19 @@ impl WpmEvidenceOracle {
         self.shell.is_some()
     }
 
-    /// Audit an XES file and map the wpm verdict to `ExpectedWpmVerdict`.
+    /// Audit an OCEL 2.0 event log via `wpm receipt verify-ocel2` and map the
+    /// wpm verdict to `ExpectedWpmVerdict`.
     ///
     /// - Binary absent → `Blocked`
     /// - Invocation error → `Refuse`
     /// - `Pass | Warn | Partial` → `Accept`
     /// - `Fail` → `Refuse`
     /// - `NotAvailable` → `Blocked`
-    pub fn audit_xes(&self, xes_path: &Path) -> ExpectedWpmVerdict {
-        match &self.shell {
-            None => ExpectedWpmVerdict::Blocked,
-            Some(wpm) => match wpm.audit(xes_path.to_str().unwrap_or("")) {
-                Err(_) => ExpectedWpmVerdict::Refuse,
-                Ok(result) => match result.verdict {
-                    WpmVerdict::Pass | WpmVerdict::Warn | WpmVerdict::Partial => {
-                        ExpectedWpmVerdict::Accept
-                    }
-                    WpmVerdict::Fail => ExpectedWpmVerdict::Refuse,
-                    WpmVerdict::NotAvailable => ExpectedWpmVerdict::Blocked,
-                },
-            },
-        }
-    }
-
-    /// Adjudicate an OCEL 2.0 event log via `wpm receipt verify-ocel2`.
-    ///
-    /// Falls back to XES adjudication via `audit_xes` if the OCEL path does
-    /// not exist but the co-located XES path does.
     pub fn audit_ocel(&self, ocel_path: &Path) -> ExpectedWpmVerdict {
         match &self.shell {
             None => ExpectedWpmVerdict::Blocked,
             Some(wpm) => {
                 if !ocel_path.exists() {
-                    // OCEL not present — try co-located XES for backward compat.
-                    let xes = ocel_path.with_extension("").with_extension("xes");
-                    if xes.exists() {
-                        return self.audit_xes(&xes);
-                    }
                     return ExpectedWpmVerdict::Blocked;
                 }
                 match wpm.receipt_verify_ocel2(ocel_path.to_str().unwrap_or("")) {
@@ -299,8 +279,8 @@ impl WpmEvidenceOracle {
 
 /// The 10 activities declared in cicd-process.powl.json.
 ///
-/// Only these activities are written to events.xes for token-replay fitness.
-/// Noise events (e.g. "git:status") are excluded from the XES trace so they
+/// Only these activities are written to events.ocel.json for token-replay
+/// fitness. Noise events (e.g. "git:status") are excluded from the log so they
 /// do not corrupt the DFG-derived Petri net with unmodelled transitions.
 const DECLARED_ACTIVITIES: &[&str] = &[
     "status:show",
@@ -324,16 +304,18 @@ fn is_declared_activity(name: &str) -> bool {
 
 /// Build an OCEL 2.0 JSON log from a slice of ProcessEvents.
 ///
-/// Produces the standard OCEL 2.0 JSON structure with `ocel:events`,
-/// `ocel:objects`, `ocel:event-types`, and `ocel:object-types`.
-/// Each event references the workspace object via `ocel:typedOmap`.
+/// Produces the official OCEL 2.0 JSON structure
+/// (<https://ocel-standard.org/specification/formats/json/>): top-level
+/// `eventTypes`, `objectTypes`, `events`, `objects` arrays. Events reference
+/// real evidence-pipeline objects (workspace, pipeline, policy) through
+/// spec-shape relationships `{objectId, qualifier}`.
 pub fn build_ocel_log(events: &[ProcessEvent]) -> serde_json::Value {
     build_ocel_log_impl(events, false)
 }
 
 /// Build a production-quality OCEL 2.0 log, filtered for token-replay fitness.
 ///
-/// Applies the same three quality fixes as [`emit_xes_filtered`]:
+/// Applies the same three quality fixes as [`emit_ocel_filtered`]:
 /// 1. Only "complete" lifecycle events.
 /// 2. Only declared-model activities.
 /// 3. Events sorted by timestamp within each object group.
@@ -342,8 +324,6 @@ pub fn build_ocel_log_filtered(events: &[ProcessEvent]) -> serde_json::Value {
 }
 
 fn build_ocel_log_impl(events: &[ProcessEvent], filter: bool) -> serde_json::Value {
-    let workspace_id = "cargo-cicd-workspace";
-
     let filtered: Vec<&ProcessEvent> = events
         .iter()
         .filter(|ev| {
@@ -355,104 +335,176 @@ fn build_ocel_log_impl(events: &[ProcessEvent], filter: bool) -> serde_json::Val
         })
         .collect();
 
-    // Collect unique activity names for event-types.
+    // ── Event types: one entry per unique activity, with the declared vmap schema.
     let mut seen_types: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     for ev in &filtered {
         seen_types.insert(&ev.command);
     }
-
-    let event_types: serde_json::Value = seen_types
+    let event_types: Vec<OcelEventType> = seen_types
         .iter()
-        .map(|t| {
+        .map(|t| OcelEventType {
+            name: t.to_string(),
+            attributes: vec![
+                OcelObjectAttribute {
+                    name: "verdict_claimed".into(),
+                    attr_type: "string".into(),
+                },
+                OcelObjectAttribute {
+                    name: "lifecycle".into(),
+                    attr_type: "string".into(),
+                },
+                OcelObjectAttribute {
+                    name: "trace_class".into(),
+                    attr_type: "string".into(),
+                },
+                OcelObjectAttribute {
+                    name: "duration_ms".into(),
+                    attr_type: "integer".into(),
+                },
+            ],
+        })
+        .collect();
+
+    // ── Objects: real multi-type objects derived from the event data itself —
+    //    the workspace (real workspace_id / repo_path), one pipeline object per
+    //    trace_class, and one policy object per claimed verdict.
+    let (workspace_id, repo_path, first_time) = filtered
+        .first()
+        .map(|ev| {
             (
-                t.to_string(),
-                serde_json::json!({"ocel:attributes": {
-                    "verdict_claimed": {"ocel:type": "string"},
-                    "lifecycle": {"ocel:type": "string"},
-                    "trace_class": {"ocel:type": "string"}
-                }}),
+                ev.workspace_id.clone(),
+                ev.repo_path.clone(),
+                ev.timestamp_iso.clone(),
             )
         })
-        .collect::<serde_json::Map<String, serde_json::Value>>()
-        .into();
+        .unwrap_or_else(|| {
+            (
+                "cargo-cicd-workspace".to_string(),
+                String::new(),
+                now_iso8601(),
+            )
+        });
 
-    // 11 cargo object types from the OCEL native type system.
-    let object_types = serde_json::json!({
-        "cargo.workspace":  {"ocel:attributes": {}},
-        "cargo.git-phase":  {"ocel:attributes": {}},
-        "cargo.target":     {"ocel:attributes": {}},
-        "cargo.toolchain":  {"ocel:attributes": {}},
-        "cargo.crate":      {"ocel:attributes": {}},
-        "cargo.test-plan":  {"ocel:attributes": {}},
-        "cargo.trybuild":   {"ocel:attributes": {}},
-        "cargo.policy":     {"ocel:attributes": {}},
-        "cargo.artifact":   {"ocel:attributes": {}},
-        "cargo.evidence":   {"ocel:attributes": {}},
-        "cargo.pipeline":   {"ocel:attributes": {}}
-    });
+    let mut object_ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut objects: Vec<OcelObject> = vec![OcelObject {
+        id: workspace_id.clone(),
+        object_type: "cargo.workspace".into(),
+        attributes: vec![OcelObjectAttributeValue {
+            name: "repo_path".into(),
+            time: first_time,
+            value: OcelAttributeValue::String(repo_path),
+        }],
+        relationships: vec![],
+    }];
+    object_ids.insert(workspace_id.clone());
 
-    let mut ocel_events = serde_json::Map::new();
+    let mut pipelines: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut policies: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for ev in &filtered {
-        let mut vmap = serde_json::Map::new();
-        vmap.insert(
-            "verdict_claimed".into(),
-            serde_json::Value::String(ev.verdict_claimed.clone()),
-        );
-        vmap.insert(
-            "lifecycle".into(),
-            serde_json::Value::String(ev.lifecycle_transition.clone()),
-        );
-        vmap.insert(
-            "trace_class".into(),
-            serde_json::Value::String(ev.trace_class.clone()),
-        );
-        if let Some(ms) = ev.duration_ms {
-            vmap.insert("duration_ms".into(), serde_json::Value::Number(ms.into()));
+        pipelines
+            .entry(ev.trace_class.clone())
+            .or_insert_with(|| ev.timestamp_iso.clone());
+        policies
+            .entry(ev.verdict_claimed.clone())
+            .or_insert_with(|| ev.timestamp_iso.clone());
+    }
+    for (tc, ts) in &pipelines {
+        let id = format!("pipeline:{tc}");
+        if object_ids.insert(id.clone()) {
+            objects.push(OcelObject {
+                id,
+                object_type: "cargo.pipeline".into(),
+                attributes: vec![OcelObjectAttributeValue {
+                    name: "trace_class".into(),
+                    time: ts.clone(),
+                    value: OcelAttributeValue::String(tc.clone()),
+                }],
+                relationships: vec![],
+            });
         }
-        if let Some(ref v) = ev.verdict_adjudicated {
-            vmap.insert(
-                "verdict_adjudicated".into(),
-                serde_json::Value::String(v.clone()),
-            );
+    }
+    for (v, ts) in &policies {
+        let id = format!("policy:{v}");
+        if object_ids.insert(id.clone()) {
+            objects.push(OcelObject {
+                id,
+                object_type: "cargo.policy".into(),
+                attributes: vec![OcelObjectAttributeValue {
+                    name: "verdict".into(),
+                    time: ts.clone(),
+                    value: OcelAttributeValue::String(v.clone()),
+                }],
+                relationships: vec![],
+            });
         }
-        if let Some(ref hash) = ev.config_witness {
-            vmap.insert(
-                "config:witness".into(),
-                serde_json::Value::String(hash.clone()),
-            );
-        }
-
-        let typed_omap = serde_json::json!([{
-            "ocel:objectId": workspace_id,
-            "ocel:qualifier": "cargo.workspace"
-        }]);
-
-        ocel_events.insert(
-            ev.event_id.clone(),
-            serde_json::json!({
-                "ocel:activity": ev.command,
-                "ocel:timestamp": ev.timestamp_iso,
-                "ocel:vmap": vmap,
-                "ocel:typedOmap": typed_omap
-            }),
-        );
     }
 
-    let objects = serde_json::json!({
-        workspace_id: {
-            "ocel:type": "cargo.workspace",
-            "ocel:ovmap": {}
-        }
-    });
+    // ── Events: spec shape, with typed relationships (objectId + qualifier).
+    let ocel_events: Vec<OcelEvent> = filtered
+        .iter()
+        .map(|ev| {
+            let mut attributes = vec![
+                OcelEventAttributeValue {
+                    name: "verdict_claimed".into(),
+                    value: OcelAttributeValue::String(ev.verdict_claimed.clone()),
+                },
+                OcelEventAttributeValue {
+                    name: "lifecycle".into(),
+                    value: OcelAttributeValue::String(ev.lifecycle_transition.clone()),
+                },
+                OcelEventAttributeValue {
+                    name: "trace_class".into(),
+                    value: OcelAttributeValue::String(ev.trace_class.clone()),
+                },
+            ];
+            if let Some(ms) = ev.duration_ms {
+                attributes.push(OcelEventAttributeValue {
+                    name: "duration_ms".into(),
+                    value: OcelAttributeValue::Integer(ms as i64),
+                });
+            }
+            if let Some(ref adj) = ev.verdict_adjudicated {
+                attributes.push(OcelEventAttributeValue {
+                    name: "verdict_adjudicated".into(),
+                    value: OcelAttributeValue::String(adj.clone()),
+                });
+            }
+            if let Some(ref hash) = ev.config_witness {
+                attributes.push(OcelEventAttributeValue {
+                    name: "config_witness".into(),
+                    value: OcelAttributeValue::String(hash.clone()),
+                });
+            }
+            OcelEvent {
+                id: ev.event_id.clone(),
+                event_type: ev.command.clone(),
+                time: ev.timestamp_iso.clone(),
+                attributes,
+                relationships: vec![
+                    OcelRelationship {
+                        object_id: workspace_id.clone(),
+                        qualifier: "executed_in".into(),
+                    },
+                    OcelRelationship {
+                        object_id: format!("pipeline:{}", ev.trace_class),
+                        qualifier: "part_of".into(),
+                    },
+                    OcelRelationship {
+                        object_id: format!("policy:{}", ev.verdict_claimed),
+                        qualifier: "claimed".into(),
+                    },
+                ],
+            }
+        })
+        .collect();
 
-    serde_json::json!({
-        "ocel:version": "2.0",
-        "ocel:ordering": "timestamp",
-        "ocel:event-types": event_types,
-        "ocel:object-types": object_types,
-        "ocel:events": ocel_events,
-        "ocel:objects": objects
-    })
+    let log = OcelLog {
+        event_types,
+        object_types: OcelLog::cargo_object_types(),
+        events: ocel_events,
+        objects,
+    };
+    serde_json::to_value(&log).unwrap_or_else(|_| serde_json::json!({}))
 }
 
 /// Low-level OCEL 2.0 writer: emits all events as-provided, no filtering.
@@ -462,7 +514,7 @@ pub fn emit_ocel(events: &[ProcessEvent], path: &Path) -> Result<()> {
 
 /// Production OCEL 2.0 writer for token-replay fitness.
 ///
-/// Applies the same quality fixes as [`emit_xes_filtered`]:
+/// Applies the same quality fixes as [`build_ocel_log_filtered`]:
 /// - Only "complete" lifecycle events.
 /// - Only declared-model activities.
 pub fn emit_ocel_filtered(events: &[ProcessEvent], path: &Path) -> Result<()> {
@@ -471,8 +523,9 @@ pub fn emit_ocel_filtered(events: &[ProcessEvent], path: &Path) -> Result<()> {
 
 /// Emit a fresh OCEL 2.0 event log, overwriting any existing file at `path`.
 ///
-/// Like [`emit_xes_fresh`] but writes OCEL 2.0 JSON instead of XES XML.
-/// Applies production filters (declared activities, complete events only).
+/// Fresh OCEL 2.0 writer: writes only the events provided, overwriting any
+/// existing file at `path`. Applies production filters (declared activities,
+/// complete events only).
 pub fn emit_ocel_fresh(events: &[ProcessEvent], path: &Path) -> Result<()> {
     emit_ocel_filtered(events, path)
 }
@@ -483,164 +536,6 @@ fn emit_ocel_impl(events: &[ProcessEvent], path: &Path, filter: bool) -> Result<
     }
     let log = build_ocel_log_impl(events, filter);
     std::fs::write(path, serde_json::to_string_pretty(&log)?)?;
-    Ok(())
-}
-
-// ── XES emission ──────────────────────────────────────────────────────────────
-
-/// Low-level XES writer: emits all events as-provided, with no activity
-/// filtering, no lifecycle filtering, and timestamp-sorted events per trace.
-///
-/// The file is always overwritten (no partial append).
-///
-/// Callers that need production-quality XES (noise-free, complete-only,
-/// declared-activities-only) should use [`emit_xes_filtered`] or
-/// [`append_events`] instead.
-pub fn emit_xes(events: &[ProcessEvent], path: &Path) -> Result<()> {
-    emit_xes_impl(events, path, false)
-}
-
-/// Production XES writer for token-replay fitness.
-///
-/// Applies the three quality fixes relative to the raw writer:
-///
-/// 1. **Only "complete" lifecycle events** are written — start events duplicate
-///    activity names in the DFG-derived Petri net and corrupt token counts
-///    (`start_complete_affects_fitness = true`).
-/// 2. **Only declared-model activities** are included — noise events such as
-///    "git:status" are dropped so they do not introduce unmodelled transitions.
-/// 3. **Events are sorted by `time:timestamp` ascending** within each trace so
-///    the DFG reflects the actual execution order.
-///
-/// The file is always overwritten.
-pub fn emit_xes_filtered(events: &[ProcessEvent], path: &Path) -> Result<()> {
-    emit_xes_impl(events, path, true)
-}
-
-/// Emit a fresh XES event log, overwriting any existing file at `path`.
-///
-/// Unlike `append_events` (which accumulates the full session history),
-/// this function writes only the events provided — suitable for writing a
-/// single pipeline run's trace without accumulated noise from prior runs.
-/// Applies the same production filters as [`emit_xes_filtered`].
-pub fn emit_xes_fresh(events: &[ProcessEvent], path: &Path) -> Result<()> {
-    emit_xes_filtered(events, path)
-}
-
-fn emit_xes_impl(events: &[ProcessEvent], path: &Path, filter: bool) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    // Group events by case_id, preserving insertion order.
-    let mut case_order: Vec<String> = Vec::new();
-    let mut by_case: std::collections::HashMap<String, Vec<&ProcessEvent>> =
-        std::collections::HashMap::new();
-
-    for ev in events {
-        if filter {
-            // Drop "start" lifecycle events — they duplicate activity names and
-            // corrupt token replay fitness (start_complete_affects_fitness = true).
-            if ev.lifecycle_transition != "complete" {
-                continue;
-            }
-            // Drop noise events not in the declared process model.
-            if !is_declared_activity(&ev.command) {
-                continue;
-            }
-        }
-
-        let key = ev
-            .case_id
-            .clone()
-            .unwrap_or_else(|| "cargo-cicd-run".to_string());
-        if !by_case.contains_key(&key) {
-            case_order.push(key.clone());
-        }
-        by_case.entry(key).or_default().push(ev);
-    }
-
-    let mut xml = String::new();
-    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<log xes.version=\"1.0\" xes.features=\"\">\n");
-    xml.push_str("  <extension name=\"Concept\" prefix=\"concept\" uri=\"http://www.xes-standard.org/concept.xesext\"/>\n");
-    xml.push_str("  <extension name=\"Time\" prefix=\"time\" uri=\"http://www.xes-standard.org/time.xesext\"/>\n");
-    xml.push_str("  <extension name=\"Lifecycle\" prefix=\"lifecycle\" uri=\"http://www.xes-standard.org/lifecycle.xesext\"/>\n");
-
-    for case_id in &case_order {
-        // Always sort events within this trace by timestamp ascending.
-        // This ensures the DFG reflects the true execution order and prevents
-        // token-replay deviations caused by out-of-order event emission.
-        let mut trace_events: Vec<&&ProcessEvent> = by_case[case_id].iter().collect();
-        trace_events.sort_by(|a, b| a.timestamp_iso.cmp(&b.timestamp_iso));
-
-        xml.push_str("  <trace>\n");
-        xml.push_str(&format!(
-            "    <string key=\"concept:name\" value=\"{}\"/>\n",
-            escape_xml(case_id)
-        ));
-
-        for event in &trace_events {
-            xml.push_str("    <event>\n");
-            xml.push_str(&format!(
-                "      <string key=\"concept:name\" value=\"{}\"/>\n",
-                escape_xml(&event.command)
-            ));
-            xml.push_str(&format!(
-                "      <date key=\"time:timestamp\" value=\"{}\"/>\n",
-                escape_xml(&event.timestamp_iso)
-            ));
-            xml.push_str(&format!(
-                "      <string key=\"lifecycle:transition\" value=\"{}\"/>\n",
-                escape_xml(&event.lifecycle_transition)
-            ));
-            xml.push_str(&format!(
-                "      <string key=\"cargo_cicd:verdict_claimed\" value=\"{}\"/>\n",
-                escape_xml(&event.verdict_claimed)
-            ));
-            xml.push_str(&format!(
-                "      <string key=\"cargo_cicd:trace_class\" value=\"{}\"/>\n",
-                escape_xml(&event.trace_class)
-            ));
-            if let Some(ms) = event.duration_ms {
-                xml.push_str(&format!(
-                    "      <int key=\"cargo_cicd:duration_ms\" value=\"{}\"/>\n",
-                    ms
-                ));
-            }
-            if let Some(ref v) = event.verdict_adjudicated {
-                xml.push_str(&format!(
-                    "      <string key=\"wasm4pm:verdict_adjudicated\" value=\"{}\"/>\n",
-                    escape_xml(v)
-                ));
-            }
-            if let Some(ref ts) = event.adjudicated_at {
-                xml.push_str(&format!(
-                    "      <string key=\"wasm4pm:adjudicated_at\" value=\"{}\"/>\n",
-                    escape_xml(ts)
-                ));
-            }
-            if let Some(ref oracle) = event.oracle_command {
-                xml.push_str(&format!(
-                    "      <string key=\"wasm4pm:oracle_command\" value=\"{}\"/>\n",
-                    escape_xml(oracle)
-                ));
-            }
-            if let Some(ref hash) = event.config_witness {
-                xml.push_str(&format!(
-                    "      <string key=\"config:witness\" value=\"{}\"/>\n",
-                    escape_xml(hash)
-                ));
-            }
-            xml.push_str("    </event>\n");
-        }
-
-        xml.push_str("  </trace>\n");
-    }
-
-    xml.push_str("</log>\n");
-
-    std::fs::write(path, xml)?;
     Ok(())
 }
 
@@ -906,19 +801,19 @@ pub fn emit_receipt_json(
 }
 
 /// Append `events` to `<evidence_dir>/events.jsonl`, then rebuild
-/// `<evidence_dir>/events.xes` from the full accumulated log.
+/// `<evidence_dir>/events.ocel.json` from the full accumulated log.
 ///
 /// This is the canonical emission path. It is safe to call from multiple
 /// commands in the same session — each call appends rather than overwrites,
-/// so the XES always reflects the complete session history.
+/// so the OCEL log always reflects the complete session history.
 ///
-/// The XES written here applies the three quality fixes:
+/// The OCEL 2.0 JSON written here applies the three quality fixes:
 /// - Noise events excluded (only DECLARED_ACTIVITIES pass through).
 /// - Start lifecycle events excluded (start_complete_affects_fitness = true).
-/// - Events sorted by timestamp within each trace.
+/// - Events sorted by timestamp within each object group.
 ///
-/// Additionally, each invocation archives `events.xes` to
-/// `<evidence_dir>/history/<timestamp>-events.xes` so individual pipeline
+/// Additionally, each invocation archives `events.ocel.json` to
+/// `<evidence_dir>/history/<timestamp>-events.ocel.json` so individual pipeline
 /// runs are preserved for forensic inspection (fresh-trace-per-run).
 /// Read the full accumulated process-event journal (`<evidence_dir>/events.jsonl`)
 /// back into memory.
@@ -966,11 +861,9 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     }
 
     let jsonl_path = evidence_dir.join("events.jsonl");
-    let xes_path = evidence_dir.join("events.xes");
     let ocel_path = evidence_dir.join("events.ocel.json");
 
     let jsonl_tmp = evidence_dir.join(format!("events.jsonl.tmp.{}", pid));
-    let xes_tmp = evidence_dir.join(format!("events.xes.tmp.{}", pid));
     let ocel_tmp = evidence_dir.join(format!("events.ocel.json.tmp.{}", pid));
 
     // Read existing JSONL content, append new events in memory.
@@ -993,14 +886,7 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
         .filter_map(|l| serde_json::from_str(l).ok())
         .collect();
 
-    // Build and atomically write XES.
-    {
-        // Reuse emit_xes_impl logic by writing to tmp path first.
-        emit_xes_filtered(&all_events, &xes_tmp)?;
-        std::fs::rename(&xes_tmp, &xes_path)?;
-    }
-
-    // Build and atomically write OCEL.
+    // Build and atomically write OCEL 2.0 JSON.
     {
         emit_ocel_filtered(&all_events, &ocel_tmp)?;
         std::fs::rename(&ocel_tmp, &ocel_path)?;
@@ -1010,7 +896,6 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
     let history_dir = evidence_dir.join("history");
     if std::fs::create_dir_all(&history_dir).is_ok() {
         let ts = now_iso8601().replace(['-', ':', '.', 'T', 'Z'], "");
-        let _ = std::fs::copy(&xes_path, history_dir.join(format!("{}-events.xes", ts)));
         let _ = std::fs::copy(
             &ocel_path,
             history_dir.join(format!("{}-events.ocel.json", ts)),
@@ -1042,7 +927,8 @@ pub fn append_events(events: &[ProcessEvent], evidence_dir: &Path) -> Result<()>
 
 // ── Assertion ─────────────────────────────────────────────────────────────────
 
-/// Assert that the wasm4pm oracle returns the expected verdict for an XES file.
+/// Assert that the wasm4pm oracle returns the expected verdict for an OCEL 2.0
+/// evidence file. Kept as a compat alias for [`assert_wpm_verdict_ocel`].
 ///
 /// Panics with a detailed message if:
 /// - The oracle is `Blocked` and the expected verdict is not `Blocked` (E3 violation).
@@ -1052,7 +938,7 @@ pub fn assert_wpm_verdict(
     evidence_path: &Path,
     expected: &ExpectedWpmVerdict,
 ) {
-    let actual = oracle.audit_xes(evidence_path);
+    let actual = oracle.audit_ocel(evidence_path);
 
     if actual == ExpectedWpmVerdict::Blocked && *expected != ExpectedWpmVerdict::Blocked {
         panic!(
@@ -1129,14 +1015,6 @@ pub fn assert_affidavit_verdict(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
 
 fn json_string(s: &str) -> String {
     format!(
@@ -1278,27 +1156,27 @@ mod tests {
         );
     }
 
-    /// config_witness_appears_in_xes — a ProcessEvent with config_witness set
-    /// must include the "config:witness" XES attribute in the emitted XML.
+    /// config_witness_appears_in_ocel — a ProcessEvent with config_witness set
+    /// must include the "config_witness" attribute in the emitted OCEL 2.0 JSON.
     #[test]
-    fn config_witness_appears_in_xes() {
+    fn config_witness_appears_in_ocel() {
         use tempfile::TempDir;
 
         let tmp = TempDir::new().expect("tempdir");
-        let xes_path = tmp.path().join("events.xes");
+        let ocel_path = tmp.path().join("events.ocel.json");
 
         let mut ev = make_complete_event("evt-witness", "status:show");
         ev.config_witness = Some("abcd1234".to_string());
 
-        emit_xes(&[ev], &xes_path).expect("emit_xes must succeed");
-        let xml = std::fs::read_to_string(&xes_path).expect("xes must exist");
+        emit_ocel(&[ev], &ocel_path).expect("emit_ocel must succeed");
+        let json = std::fs::read_to_string(&ocel_path).expect("ocel must exist");
         assert!(
-            xml.contains("config:witness"),
-            "XES output must contain config:witness attribute"
+            json.contains("config_witness"),
+            "OCEL output must contain config_witness attribute"
         );
         assert!(
-            xml.contains("abcd1234"),
-            "XES output must contain the witness hash value"
+            json.contains("abcd1234"),
+            "OCEL output must contain the witness hash value"
         );
     }
 
@@ -1358,8 +1236,12 @@ mod tests {
         assert!(content2.contains("evt-atomic-1"), "first event retained");
         assert!(content2.contains("evt-atomic-2"), "second event added");
 
-        // XES must exist and contain no tmp files left behind.
-        assert!(ev_dir.join("events.xes").exists(), "events.xes must exist");
+        // OCEL must exist, no XES may be created, and no tmp files left behind.
+        assert!(ev_dir.join("events.ocel.json").exists(), "events.ocel.json must exist");
+        assert!(
+            !ev_dir.join("events.xes").exists(),
+            "events.xes must NOT be created (OCEL-only by operator directive)"
+        );
         assert!(
             ev_dir.join("events.ocel.json").exists(),
             "events.ocel.json must exist"

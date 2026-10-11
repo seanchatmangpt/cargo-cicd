@@ -100,3 +100,62 @@ pub fn cmd_replay(repo: Option<String>, json: bool) -> Result<()> {
 
     Ok(())
 }
+
+/// Export the recorded process journal as a spec-conformant OCEL 2.0 JSON log.
+#[derive(serde::Serialize)]
+pub struct OcelExportOutput {
+    pub schema: String,
+    pub repo: String,
+    pub out: String,
+    pub events_exported: usize,
+    pub objects_exported: usize,
+}
+
+#[verb("export")]
+pub fn cmd_export(
+    repo: Option<String>,
+    out: String,
+    json: bool,
+) -> clap_noun_verb::Result<()> {
+    let repo_dir = repo.unwrap_or_else(|| ".".into());
+    let evidence_dir = std::path::Path::new(&repo_dir)
+        .join(".cargo-cicd")
+        .join("evidence");
+    let events = crate::evidence::read_journal(&evidence_dir);
+    let log_json = crate::evidence::build_ocel_log(&events);
+
+    let out_path = std::path::Path::new(&out);
+    if let Some(parent) = out_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write(
+        out_path,
+        serde_json::to_string_pretty(&log_json)
+            .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?,
+    )
+    .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))?;
+
+    let event_count = log_json["events"].as_array().map(|a| a.len()).unwrap_or(0);
+    let object_count = log_json["objects"].as_array().map(|a| a.len()).unwrap_or(0);
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string(&OcelExportOutput {
+                schema: "cargo-cicd.ocel.export.v1".to_string(),
+                repo: repo_dir,
+                out: out.to_string(),
+                events_exported: event_count,
+                objects_exported: object_count,
+            })
+            .unwrap()
+        );
+    } else {
+        println!(
+            "OCEL export: {} events / {} objects written to {}",
+            event_count, object_count, out
+        );
+    }
+
+    Ok(())
+}

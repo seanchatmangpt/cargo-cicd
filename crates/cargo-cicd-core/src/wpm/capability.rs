@@ -31,6 +31,17 @@ impl WpmCapabilityCache {
             binary_path: found,
         }
     }
+
+    /// Typed wrapper over [`Self::detect`]: `Err` when wpm is unavailable, so
+    /// noun-level callers can fail closed with an actionable hint.
+    pub fn detect_typed() -> Result<Self, crate::tools::ToolUnavailable> {
+        let cache = Self::detect();
+        if cache.is_available {
+            Ok(cache)
+        } else {
+            Err(crate::tools::discover_wpm().unwrap_err())
+        }
+    }
 }
 
 fn which_on_path(name: &str) -> Option<PathBuf> {

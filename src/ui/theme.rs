@@ -12,15 +12,20 @@ use crate::ui::style::{Color, Style};
 /// A semantic styling role, independent of concrete colors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
+    #[allow(dead_code, reason = "complete semantic role set; not all roles have callers yet")]
     Heading,
+    #[allow(dead_code, reason = "complete semantic role set; not all roles have callers yet")]
     Subheading,
     Success,
     Warning,
     Danger,
     Info,
     Muted,
+    #[allow(dead_code, reason = "complete semantic role set; not all roles have callers yet")]
     Accent,
+    #[allow(dead_code, reason = "complete semantic role set; not all roles have callers yet")]
     Strong,
+    #[allow(dead_code, reason = "complete semantic role set; not all roles have callers yet")]
     Link,
     Label,
     Value,

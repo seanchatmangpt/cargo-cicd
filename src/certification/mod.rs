@@ -220,7 +220,7 @@ pub fn cert_body_recommendation(standard: &ComplianceStandard) -> String {
         ));
     }
     out.push_str(
-        "\nSubject your cargo-cicd XES evidence to the body's oracle API and include the \
+        "\nSubject your cargo-cicd OCEL evidence to the body's oracle API and include the \
          resulting receipt JSON in your receipts/ directory.",
     );
     out

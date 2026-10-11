@@ -12,7 +12,7 @@ pub mod affidavit_shell;
 
 // Note: affidavit_shell's public items are consumed elsewhere via the full
 // `crate::integrations::affidavit_shell::*` path (see src/evidence.rs,
-// src/legacy_nouns/affidavit.rs, tests/affidavit_integration.rs), not through
+// tests/affidavit_integration.rs), not through
 // a re-export here, so the `pub use` previously on this line was itself
 // unused and has been removed.
 

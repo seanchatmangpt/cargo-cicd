@@ -11,7 +11,7 @@
 //!
 //! | Command                        | Purpose                              |
 //! |--------------------------------|--------------------------------------|
-//! | wpm audit <input.xes>          | Vision 2030 token-replay conformance |
+//! | wpm receipt verify-ocel2 <file> | OCEL 2.0 receipt verification       |
 //! | wpm receipt doctor <file>      | Receipt forensic audit               |
 //! | wpm lean                       | Lean Six Sigma waste audit           |
 //! | wpm spc status                 | Statistical Process Control          |
@@ -31,8 +31,8 @@
 //! use cargo_cicd::integrations::Wasm4pmShell;
 //!
 //! if let Some(wpm) = Wasm4pmShell::detect() {
-//!     let result = wpm.audit("target/cargo-cicd/evidence/events.xes")?;
-//!     println!("audit: {}", result);
+//!     let result = wpm.receipt_verify_ocel2("target/cargo-cicd/evidence/events.ocel.json")?;
+//!     println!("verify: {}", result);
 //! } else {
 //!     println!("wpm not found — skipping process audit");
 //! }
@@ -134,8 +134,8 @@ pub enum WpmVerdict {
     Warn,
     Fail,
     /// A fitness-scored partial pass; `infer_audit_verdict` doesn't classify
-    /// any wpm output as `Partial` yet, but `WpmEvidenceOracle::audit_xes`
-    /// already groups it with `Pass`/`Warn` as `Accept`.
+    /// any wpm output as `Partial` yet, but the OCEL evidence oracle already
+    /// groups it with `Pass`/`Warn` as `Accept`.
     #[allow(dead_code, reason = "meaningful in evidence.rs's match; no current wpm output maps to it")]
     Partial,
     /// wpm binary absent; exercised by tests/wasm4pm_shell.rs's Display test.
@@ -183,11 +183,11 @@ impl Wasm4pmShell {
 
     /// Run `wpm audit <path>` — Vision 2030 token-replay conformance audit.
     ///
-    /// Accepts an XES event log (`events.xes`). The current `wpm audit` CLI
-    /// only supports XES input — it bails early with an actionable message
-    /// for OCEL 2.0 JSON files (see `wasm4pm-cli/src/commands/audit.rs`,
-    /// `is_ocel_log` check). Callers with an OCEL log must flatten it first
-    /// (`wpm run --algorithm dfg --format json`) or use the TypeScript CLI.
+    /// OCEL 2.0 only: callers must pass the OCEL 2.0 journal
+    /// (`events.ocel.json`) emitted by `src/evidence.rs`. XES input was
+    /// removed by operator directive — no `.xes` file is ever created or
+    /// audited. The primary OCEL adjudication entry is
+    /// [`Self::receipt_verify_ocel2`].
     ///
     /// cargo-cicd must emit the evidence file before calling this.
     ///

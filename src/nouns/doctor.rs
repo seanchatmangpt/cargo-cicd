@@ -273,8 +273,8 @@ fn do_doctor(repo_dir: &Path) -> Vec<String> {
 }
 
 #[verb("evidence")]
-pub fn cmd_evidence(_json: bool) -> Result<()> {
-    crate::legacy_nouns::evidence::EvidenceNoun::run_direct()
+pub fn cmd_evidence(json: bool) -> Result<()> {
+    crate::nouns::evidence::EvidenceNoun::evidence_doctor_direct(json)
         .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(e.to_string()))
 }
 

@@ -1,23 +1,155 @@
-//! Reports on and prunes stale build artefacts in the Cargo target directory.
-use crate::legacy_nouns::target::{TargetPruneVerb, TargetShowVerb};
+//! src/nouns/target.rs — cargo cicd target verbs (inlined from the retired legacy layer; see CCICD-106)
+
+use crate::adapters::TargetScannerAdapter;
+use crate::evidence_helpers::{finish_evidence, init_evidence};
+use crate::ui::badge::{self, Verdict};
+use crate::ui::theme::{self, Role};
+use crate::ui::{chart, panel};
+
+pub struct TargetShowVerb;
+impl TargetShowVerb {
+    pub fn execute(&self) -> clap_noun_verb::error::Result<()> {
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("target:show");
+
+        let target_dir = "target";
+        let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
+        let max_gb = 20.0_f64;
+        let verdict_str = TargetScannerAdapter::verdict(size_gb, max_gb);
+
+        println!("{}", panel::header("target directory state"));
+
+        // Aligned key/value with a live gauge. "target directory" and the "GB"
+        // readouts remain contiguous plain-text substrings off-TTY.
+        let dir_v = theme::paint(target_dir, Role::Value);
+        let usage_v = format!(
+            "{}  {:.2} / {:.1} GB",
+            chart::gauge(size_gb, max_gb, 18),
+            size_gb,
+            max_gb
+        );
+        let verdict_v = badge::tag(Verdict::from_tag(verdict_str));
+        let mut rows: Vec<(&str, String)> = vec![
+            ("target directory", dir_v),
+            ("usage", usage_v),
+            ("verdict", verdict_v),
+        ];
+        if verdict_str != "pass" {
+            rows.push((
+                "recommendation",
+                theme::paint("run 'cargo cicd target prune' to free space", Role::Warning),
+            ));
+        }
+        let rows_ref: Vec<(&str, &str)> = rows.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        println!("{}", panel::kv(&rows_ref));
+
+        // Count top-level artifacts in the target directory
+        let _artifact_count = std::fs::read_dir(target_dir)
+            .map(|rd| rd.count())
+            .unwrap_or(0);
+        let ev_verdict = if verdict_str == "pass" {
+            "PASS"
+        } else {
+            "WARN"
+        };
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            ev_verdict,
+            "target:show",
+            &evidence_dir,
+        );
+        Ok(())
+    }
+}
+
+pub struct TargetPruneVerb;
+impl TargetPruneVerb {
+    pub fn execute(apply: bool) -> clap_noun_verb::error::Result<()> {
+        let (evidence_dir, case_id, start_evt, t0) = init_evidence("target:prune");
+
+        // Respect --apply: without it this is a dry run (suggest mode only).
+        let dry_run = !apply;
+
+        let target_dir = "target";
+        let size_gb = TargetScannerAdapter::total_size_gb(target_dir);
+        println!("target prune plan");
+        println!("=================");
+        println!("current size: {:.2} GB", size_gb);
+        println!(
+            "mode:         {}",
+            if dry_run {
+                "suggest (use --apply to execute)"
+            } else {
+                "apply (deleting incremental artifacts)"
+            }
+        );
+        println!();
+        println!("suggested candidates:");
+        let mut would_free_bytes: u64 = 0;
+        for profile in &["debug/incremental", "debug/.fingerprint", "debug/deps"] {
+            let p = format!("{}/{}", target_dir, profile);
+            if std::path::Path::new(&p).exists() {
+                let sz = TargetScannerAdapter::total_size_bytes(&p);
+                would_free_bytes += sz;
+                println!("  {} ({:.2} GB)", p, sz as f64 / 1_073_741_824.0);
+            }
+        }
+        println!();
+
+        let would_free_gb = (would_free_bytes as f64 / 1_073_741_824.0 * 100.0).round() / 100.0;
+        let release_protected = std::path::Path::new(&format!("{}/release", target_dir)).exists();
+
+        let verdict = if dry_run {
+            println!("to execute: cargo cicd target prune --apply");
+            println!("note: release artifacts are never deleted automatically");
+            // Dry-run is a planning step, not a completion — emit WARN:dry_run so the
+            // evidence log accurately reflects that no action was taken.
+            "WARN:dry_run"
+        } else {
+            // Actually remove the incremental build artifacts.
+            let mut freed_bytes: u64 = 0;
+            for profile in &["debug/incremental", "debug/.fingerprint", "debug/deps"] {
+                let p = format!("{}/{}", target_dir, profile);
+                if std::path::Path::new(&p).exists() {
+                    let sz = TargetScannerAdapter::total_size_bytes(&p);
+                    if std::fs::remove_dir_all(&p).is_ok() {
+                        freed_bytes += sz;
+                        println!("  removed {}", p);
+                    } else {
+                        eprintln!("  warning: could not remove {}", p);
+                    }
+                }
+            }
+            let freed_gb = (freed_bytes as f64 / 1_073_741_824.0 * 100.0).round() / 100.0;
+            println!();
+            println!("freed: {:.2} GB", freed_gb);
+            println!("note: release artifacts are never deleted automatically");
+            "PASS"
+        };
+
+        finish_evidence(
+            start_evt,
+            t0,
+            case_id,
+            verdict,
+            "target:prune",
+            &evidence_dir,
+        );
+        let _ = (would_free_gb, release_protected);
+        Ok(())
+    }
+}
+
 use clap_noun_verb::Result;
-use clap_noun_verb::{VerbArgs, VerbCommand};
 use clap_noun_verb_macros::verb;
 
 #[verb("show")]
 pub fn cmd_show() -> Result<()> {
-    let dummy_matches = clap::Command::new("show").get_matches_from(vec!["show"]);
-    let args = VerbArgs::new(dummy_matches);
-    TargetShowVerb.run(&args)
+    TargetShowVerb.execute()
 }
 
 #[verb("prune")]
 pub fn cmd_prune(apply: bool) -> Result<()> {
-    let mut args_vec = vec!["prune".to_string()];
-    if apply {
-        args_vec.push("--apply".to_string());
-    }
-    let dummy_matches = TargetPruneVerb.build_command().get_matches_from(args_vec);
-    let args = VerbArgs::new(dummy_matches);
-    TargetPruneVerb.run(&args)
+    TargetPruneVerb::execute(apply)
 }

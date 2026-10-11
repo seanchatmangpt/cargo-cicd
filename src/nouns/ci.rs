@@ -106,7 +106,16 @@ fn run_remote(workflow: &str, dry_run: bool, watch: bool) -> (&'static str, &'st
         return match watched {
             Ok(s) if s.success() => ("pass", "PASS"),
             Ok(_) => ("fail", "FAIL"),
-            Err(_) => ("pass", "PASS"),
+            // Fail-closed: a dispatched-but-unwatched run must not be recorded
+            // as passing — spawn failure is a non-zero error.
+            Err(e) => {
+                println!(
+                    "{} failed to spawn `gh run watch`: {}",
+                    badge::tag(Verdict::Blocked),
+                    e
+                );
+                ("fail", "FAIL")
+            }
         };
     }
     ("pass", "PASS")

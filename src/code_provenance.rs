@@ -6,7 +6,7 @@
 //! Vision 2030 requires that all code is tagged with its authorship origin:
 //! human-authored, AI-assisted (human-led with AI suggestions), or AI-generated
 //! (AI-led with human review/approval). This metadata is embedded in
-//! `ProcessEvent` XES evidence traces so the wasm4pm oracle can enforce
+//! `ProcessEvent` OCEL evidence events so the wasm4pm oracle can enforce
 //! provenance-aware adjudication policies.
 //!
 //! ## How to declare provenance
@@ -50,7 +50,7 @@ pub enum CodeProvenance {
 }
 
 impl CodeProvenance {
-    /// Serialize to a short tag string for embedding in XES trace attributes.
+    /// Serialize to a short tag string for embedding in OCEL event attributes.
     ///
     /// | Variant | Tag |
     /// |---------|-----|
@@ -152,30 +152,6 @@ pub fn detect_provenance_from_git(repo_dir: &std::path::Path) -> CodeProvenance 
     CodeProvenance::Unknown
 }
 
-/// Emit XES-style provenance attributes for embedding in a trace event.
-///
-/// Returns a map with:
-/// - `"provenance:tag"` — e.g. `"ai-assisted"`
-/// - `"provenance:tool"` — tool name or `""` if not applicable
-/// - `"provenance:detection_method"` — always `"git-log"`
-pub fn emit_provenance_xes_attributes(
-    provenance: &CodeProvenance,
-) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
-    map.insert(
-        "provenance:tag".to_string(),
-        provenance.to_tag().to_string(),
-    );
-    map.insert(
-        "provenance:tool".to_string(),
-        provenance.tool_name().unwrap_or("").to_string(),
-    );
-    map.insert(
-        "provenance:detection_method".to_string(),
-        "git-log".to_string(),
-    );
-    map
-}
 
 /// Patterns commonly seen in LLM-generated Rust source code.
 ///

@@ -61,39 +61,61 @@ pub struct OcelObjectAttribute {
     pub attr_type: String,
 }
 
-/// Mirrors `OCELRelationship` — a typed relationship from an event to an object.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Mirrors `OCELRelationship` from ocel-core / wasm4pm-compat — the OCEL 2.0
+/// spec relationship: `{ "objectId": ..., "qualifier": ... }`.
+///
+/// Note: per the official OCEL 2.0 JSON format a relationship does NOT carry
+/// the object's type; the type is resolved through the referenced object.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OcelRelationship {
-    #[serde(rename = "ocel:objectId")]
+    #[serde(rename = "objectId")]
     pub object_id: String,
-    #[serde(rename = "ocel:type")]
-    pub object_type: String,
-    #[serde(rename = "ocel:qualifier", skip_serializing_if = "Option::is_none")]
-    pub qualifier: Option<String>,
+    pub qualifier: String,
 }
 
-/// Mirrors `OCELObject` — a typed, attributed object in the OCEL log.
+/// An object attribute value in the OCEL 2.0 spec form: `{name, time, value}`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OcelObjectAttributeValue {
+    pub name: String,
+    pub time: String,
+    pub value: OcelAttributeValue,
+}
+
+/// An event attribute value in the OCEL 2.0 spec form: `{name, value}`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OcelEventAttributeValue {
+    pub name: String,
+    pub value: OcelAttributeValue,
+}
+
+/// Mirrors `OCELObject` from ocel-core / wasm4pm-compat — the OCEL 2.0 spec
+/// object: `{id, type, attributes, relationships}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcelObject {
-    #[serde(rename = "ocel:type")]
+    pub id: String,
+    #[serde(rename = "type")]
     pub object_type: String,
-    #[serde(rename = "ocel:ovmap")]
-    pub ovmap: HashMap<String, serde_json::Value>,
-    #[serde(rename = "ocel:o2o", skip_serializing_if = "Vec::is_empty", default)]
-    pub o2o: Vec<OcelRelationship>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attributes: Vec<OcelObjectAttributeValue>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<OcelRelationship>,
 }
 
-/// Mirrors `OCELEvent` — a single OCEL 2.0 event.
+/// Mirrors `OCELEvent` from ocel-core / wasm4pm-compat — the OCEL 2.0 spec
+/// event: `{id, type, time, attributes, relationships}`. `type` is the
+/// activity name; `time` is an ISO-8601 timestamp.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcelEvent {
-    #[serde(rename = "ocel:activity")]
-    pub activity: String,
-    #[serde(rename = "ocel:timestamp")]
-    pub timestamp: String,
-    #[serde(rename = "ocel:vmap")]
-    pub vmap: HashMap<String, serde_json::Value>,
-    #[serde(rename = "ocel:typedOmap")]
-    pub typed_omap: Vec<OcelRelationship>,
+    pub id: String,
+    /// Activity name (serialized as `"type"` per the spec).
+    #[serde(rename = "type")]
+    pub event_type: String,
+    /// ISO-8601 event timestamp (serialized as `"time"` per the spec).
+    pub time: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attributes: Vec<OcelEventAttributeValue>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<OcelRelationship>,
 }
 
 /// Object-type schema entry in an OCEL log.
@@ -161,26 +183,22 @@ impl OcelNdJsonStream {
     }
 }
 
-/// Type schema section of an OCEL log.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OcelTypes {
-    #[serde(rename = "object-types")]
-    pub object_types: Vec<OcelObjectType>,
-    #[serde(rename = "event-types")]
-    pub event_types: Vec<OcelEventType>,
-}
-
-/// The root OCEL 2.0 log — mirrors `OCEL` from ocel-core.
+/// The root OCEL 2.0 log — mirrors `OCEL` from ocel-core / wasm4pm-compat.
+///
+/// Serialized exactly per the official OCEL 2.0 JSON format
+/// (<https://ocel-standard.org/specification/formats/json/>): top-level
+/// `eventTypes`, `objectTypes`, `events`, `objects` arrays with no
+/// "ocel:"-prefixed keys.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcelLog {
-    #[serde(rename = "ocel-version")]
-    pub version: String,
-    #[serde(rename = "ocel-types")]
-    pub types: OcelTypes,
-    #[serde(rename = "ocel-events")]
-    pub events: HashMap<String, OcelEvent>,
-    #[serde(rename = "ocel-objects")]
-    pub objects: HashMap<String, OcelObject>,
+    #[serde(rename = "eventTypes")]
+    pub event_types: Vec<OcelEventType>,
+    #[serde(rename = "objectTypes")]
+    pub object_types: Vec<OcelObjectType>,
+    #[serde(default)]
+    pub events: Vec<OcelEvent>,
+    #[serde(default)]
+    pub objects: Vec<OcelObject>,
 }
 
 impl OcelLog {
@@ -276,29 +294,38 @@ impl OcelLog {
         ]
     }
 
+    /// Resolve the type of an object by id, if present in the log.
+    pub fn object_type_of(&self, object_id: &str) -> Option<&str> {
+        self.objects
+            .iter()
+            .find(|o| o.id == object_id)
+            .map(|o| o.object_type.as_str())
+    }
+
     /// Validate the OCEL log structure — mirrors `ValidationReport` from ocel-core.
     pub fn validate(&self) -> OcelValidationReport {
         let mut violations = Vec::new();
         let declared_types: std::collections::HashSet<&str> = self
-            .types
             .object_types
             .iter()
             .map(|t| t.name.as_str())
             .collect();
 
-        for (eid, ev) in &self.events {
-            for rel in &ev.typed_omap {
-                if !declared_types.contains(rel.object_type.as_str()) {
-                    violations.push(format!(
-                        "event {} references undeclared object type {}",
-                        eid, rel.object_type
-                    ));
-                }
-                if !self.objects.contains_key(&rel.object_id) {
-                    violations.push(format!(
+        for ev in &self.events {
+            for rel in &ev.relationships {
+                match self.object_type_of(&rel.object_id) {
+                    None => violations.push(format!(
                         "event {} references missing object {}",
-                        eid, rel.object_id
-                    ));
+                        ev.id, rel.object_id
+                    )),
+                    Some(ot) => {
+                        if !declared_types.contains(ot) {
+                            violations.push(format!(
+                                "event {} references undeclared object type {}",
+                                ev.id, ot
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -316,15 +343,15 @@ impl OcelLog {
         let mut cases: HashMap<String, Vec<String>> = HashMap::new();
         let mut case_objects: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
 
-        for (eid, ev) in &self.events {
+        for ev in &self.events {
             let case_key = ev
-                .typed_omap
+                .relationships
                 .iter()
-                .find(|r| r.object_type == "cargo.pipeline")
+                .find(|r| self.object_type_of(&r.object_id) == Some("cargo.pipeline"))
                 .map(|r| r.object_id.clone())
                 .unwrap_or_else(|| "default".to_string());
-            cases.entry(case_key.clone()).or_default().push(eid.clone());
-            for rel in &ev.typed_omap {
+            cases.entry(case_key.clone()).or_default().push(ev.id.clone());
+            for rel in &ev.relationships {
                 case_objects
                     .entry(case_key.clone())
                     .or_default()
@@ -356,14 +383,18 @@ impl OcelLog {
         }
     }
 
-    /// Return all E2O (Event-to-Object) relationships across the log.
+    /// Return all E2O (Event-to-Object) relationships across the log, with the
+    /// object's type resolved from the log's object collection.
     pub fn e2o(&self) -> Vec<(&str, &str, &str)> {
         self.events
             .iter()
-            .flat_map(|(eid, ev)| {
-                ev.typed_omap
+            .flat_map(|ev| {
+                ev.relationships
                     .iter()
-                    .map(move |r| (eid.as_str(), r.object_id.as_str(), r.object_type.as_str()))
+                    .filter_map(move |r| {
+                        self.object_type_of(&r.object_id)
+                            .map(|ot| (ev.id.as_str(), r.object_id.as_str(), ot))
+                    })
             })
             .collect()
     }
@@ -372,24 +403,28 @@ impl OcelLog {
     pub fn o2o(&self) -> Vec<(&str, &str, &str)> {
         self.objects
             .iter()
-            .flat_map(|(oid, obj)| {
-                obj.o2o
+            .flat_map(|obj| {
+                obj.relationships
                     .iter()
-                    .map(move |r| (oid.as_str(), r.object_id.as_str(), r.object_type.as_str()))
+                    .filter_map(move |r| {
+                        self.object_type_of(&r.object_id)
+                            .map(|ot| (obj.id.as_str(), r.object_id.as_str(), ot))
+                    })
             })
             .collect()
     }
 
     /// Return attribute values for objects of a given type — mirrors `oaval()` accessor.
-    pub fn oaval<'a>(
-        &'a self,
-        object_type: &str,
-        attr_name: &str,
-    ) -> Vec<(&'a str, &'a serde_json::Value)> {
+    pub fn oaval(&self, object_type: &str, attr_name: &str) -> Vec<(&str, &OcelAttributeValue)> {
         self.objects
             .iter()
-            .filter(|(_, obj)| obj.object_type == object_type)
-            .filter_map(|(oid, obj)| obj.ovmap.get(attr_name).map(|v| (oid.as_str(), v)))
+            .filter(|obj| obj.object_type == object_type)
+            .filter_map(|obj| {
+                obj.attributes
+                    .iter()
+                    .find(|a| a.name == attr_name)
+                    .map(|a| (obj.id.as_str(), &a.value))
+            })
             .collect()
     }
 }
@@ -852,17 +887,20 @@ pub fn ocpq_eval(log: &OcelLog, predicates: &[BasicPredicate]) -> Vec<bool> {
             BasicPredicate::E2O {
                 event_type,
                 object_type,
-            } => log.events.values().any(|ev| {
-                ev.activity == *event_type
-                    && ev.typed_omap.iter().any(|r| r.object_type == *object_type)
+            } => log.e2o().iter().any(|(eid, _, ot)| {
+                log.events.iter().any(|ev| ev.id == *eid && ev.event_type == *event_type)
+                    && ot == object_type
             }),
-            BasicPredicate::O2O { from_type, to_type } => log.objects.values().any(|obj| {
-                obj.object_type == *from_type && obj.o2o.iter().any(|r| r.object_type == *to_type)
+            BasicPredicate::O2O { from_type, to_type } => log.objects.iter().any(|obj| {
+                obj.object_type == *from_type
+                    && obj.relationships.iter().any(|r| {
+                        log.object_type_of(&r.object_id) == Some(to_type.as_str())
+                    })
             }),
             BasicPredicate::Tbe {
                 event_type,
                 threshold_ms: _,
-            } => log.events.values().any(|ev| ev.activity == *event_type),
+            } => log.events.iter().any(|ev| ev.event_type == *event_type),
         })
         .collect()
 }
@@ -952,36 +990,26 @@ mod tests {
 
     #[test]
     fn ocel_log_validates_clean() {
-        let mut log = OcelLog {
-            version: "2.0".into(),
-            types: OcelTypes {
-                object_types: OcelLog::cargo_object_types(),
-                event_types: vec![],
-            },
-            events: HashMap::new(),
-            objects: HashMap::new(),
-        };
-        log.objects.insert(
-            "ws:test".into(),
-            OcelObject {
-                object_type: "cargo.workspace".into(),
-                ovmap: HashMap::new(),
-                o2o: vec![],
-            },
-        );
-        log.events.insert(
-            "evt-001".into(),
-            OcelEvent {
-                activity: "status:show".into(),
-                timestamp: "2026-06-14T00:00:00Z".into(),
-                vmap: HashMap::new(),
-                typed_omap: vec![OcelRelationship {
+        let log = OcelLog {
+            event_types: vec![],
+            object_types: OcelLog::cargo_object_types(),
+            events: vec![OcelEvent {
+                id: "evt-001".into(),
+                event_type: "status:show".into(),
+                time: "2026-06-14T00:00:00Z".into(),
+                attributes: vec![],
+                relationships: vec![OcelRelationship {
                     object_id: "ws:test".into(),
-                    object_type: "cargo.workspace".into(),
-                    qualifier: None,
+                    qualifier: "executed_in".into(),
                 }],
-            },
-        );
+            }],
+            objects: vec![OcelObject {
+                id: "ws:test".into(),
+                object_type: "cargo.workspace".into(),
+                attributes: vec![],
+                relationships: vec![],
+            }],
+        };
         let report = log.validate();
         assert!(
             report.valid,
@@ -1034,36 +1062,26 @@ mod tests {
 
     #[test]
     fn ocpq_eval_e2o_match() {
-        let mut log = OcelLog {
-            version: "2.0".into(),
-            types: OcelTypes {
-                object_types: OcelLog::cargo_object_types(),
-                event_types: vec![],
-            },
-            events: HashMap::new(),
-            objects: HashMap::new(),
-        };
-        log.objects.insert(
-            "ws:x".into(),
-            OcelObject {
-                object_type: "cargo.workspace".into(),
-                ovmap: HashMap::new(),
-                o2o: vec![],
-            },
-        );
-        log.events.insert(
-            "e1".into(),
-            OcelEvent {
-                activity: "status:show".into(),
-                timestamp: "2026-06-14T00:00:00Z".into(),
-                vmap: HashMap::new(),
-                typed_omap: vec![OcelRelationship {
+        let log = OcelLog {
+            event_types: vec![],
+            object_types: OcelLog::cargo_object_types(),
+            events: vec![OcelEvent {
+                id: "e1".into(),
+                event_type: "status:show".into(),
+                time: "2026-06-14T00:00:00Z".into(),
+                attributes: vec![],
+                relationships: vec![OcelRelationship {
                     object_id: "ws:x".into(),
-                    object_type: "cargo.workspace".into(),
-                    qualifier: None,
+                    qualifier: "executed_in".into(),
                 }],
-            },
-        );
+            }],
+            objects: vec![OcelObject {
+                id: "ws:x".into(),
+                object_type: "cargo.workspace".into(),
+                attributes: vec![],
+                relationships: vec![],
+            }],
+        };
         let preds = vec![
             BasicPredicate::E2O {
                 event_type: "status:show".into(),

@@ -228,23 +228,192 @@ pub struct GateComponents {
     pub v_cargo_cicd: u8,
 }
 
+// ── Real component measurements ───────────────────────────────────────────────
+//
+// Every component is measured from observable repo/receipt state and defaults
+// to 0 when its evidence artifact is absent. No component is hardcoded to 1.
+
+fn read_repo_file(repo_dir: &str, rel: &str) -> Option<String> {
+    std::fs::read_to_string(std::path::Path::new(repo_dir).join(rel)).ok()
+}
+
+/// `.agents/hooks.json` exists with a `pre-tool-use` hook entry wired to
+/// cargo-cicd's executor (same contract barrier.rs's hook_not_installed checks).
+fn pre_tool_use_installed(repo_dir: &str) -> bool {
+    read_repo_file(repo_dir, ".agents/hooks.json")
+        .map(|c| c.contains("pre-tool-use") && c.contains("cargo-cicd.execute"))
+        .unwrap_or(false)
+}
+
+/// Receipt file with the required provenance fields (same field contract
+/// `crate::nouns::receipt::judge_receipt` enforces for non-self-hashing JSON).
+fn receipt_json_is_valid_format(content: &str) -> bool {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(content) else {
+        return false;
+    };
+    ["schema", "command", "exit_code", "stdout_digest", "stderr_digest", "git_before", "git_after"]
+        .iter()
+        .all(|k| v.get(k).is_some_and(|f| !f.is_null()))
+}
+
+fn receipts_dir(repo_dir: &str) -> std::path::PathBuf {
+    std::path::Path::new(repo_dir).join(".cargo-cicd").join("receipts")
+}
+
+/// ≥1 receipt file in `.cargo-cicd/receipts/` parses with the required fields.
+fn has_valid_receipt(repo_dir: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(receipts_dir(repo_dir)) else {
+        return false;
+    };
+    entries.flatten().any(|e| {
+        e.path().extension().is_some_and(|x| x == "json")
+            && std::fs::read_to_string(e.path())
+                .map(|c| receipt_json_is_valid_format(&c))
+                .unwrap_or(false)
+    })
+}
+
+/// ≥1 trace-profile provenance receipt minted by `trace profile`.
+fn has_trace_profile_receipt(repo_dir: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(receipts_dir(repo_dir)) else {
+        return false;
+    };
+    entries.flatten().any(|e| {
+        e.file_name().to_string_lossy().starts_with("trace-profile-")
+            && e.file_name().to_string_lossy().ends_with(".json")
+    })
+}
+
+/// OCEL journal exists and holds at least one event line.
+fn ocel_journal_non_empty(repo_dir: &str) -> bool {
+    let path = std::path::Path::new(repo_dir)
+        .join(".cargo-cicd")
+        .join("ocel")
+        .join("events.jsonl");
+    std::fs::read_to_string(path)
+        .map(|c| c.lines().any(|l| !l.trim().is_empty()))
+        .unwrap_or(false)
+}
+
+/// A prior gate run is recorded in the OCEL journal.
+fn has_gate_computed_event(repo_dir: &str) -> bool {
+    let path = std::path::Path::new(repo_dir)
+        .join(".cargo-cicd")
+        .join("ocel")
+        .join("events.jsonl");
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    content
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .any(|v| {
+            v.get("event_type").and_then(|t| t.as_str()) == Some("GateComputed")
+                || v.get("eventTypeId").and_then(|t| t.as_str()) == Some("GateComputed")
+        })
+}
+
+/// Bounded cheat-marker scan over `playground/` (the surface the cheat scanner
+/// nominally covers): tautological asserts, fake tests, dummy gates, todos.
+fn playground_cheats_detected(repo_dir: &str) -> bool {
+    let root = std::path::Path::new(repo_dir).join("playground");
+    if !root.is_dir() {
+        return false;
+    }
+    const MARKERS: [&str; 4] = ["assert!(true)", "fake_test", "dummy_gate", "todo!("];
+    let mut stack = vec![root];
+    let mut visited = 0usize;
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if visited < 10_000 {
+                visited += 1;
+                if let Ok(c) = std::fs::read_to_string(&p) {
+                    if MARKERS.iter().any(|m| c.contains(m)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn measure_components(repo_dir: &str, counterexamples: &[Counterexample]) -> GateComponents {
+    let ce_names: Vec<String> = counterexamples.iter().map(|c| format!("{:?}", c)).collect();
+    let no_agent_authority_violations = !ce_names.iter().any(|n| {
+        matches!(
+            n.as_str(),
+            "raw_cargo_used_by_agent" | "shell_called_by_agent" | "just_called_by_agent" | "python_called_by_agent"
+        )
+    });
+    let no_prose_claims = !ce_names
+        .iter()
+        .any(|n| matches!(n.as_str(), "prose_completion_claim" | "compilation_treated_as_standing"));
+    let no_fraud_markers = !ce_names.iter().any(|n| {
+        matches!(
+            n.as_str(),
+            "manual_receipt_json" | "fake_test" | "dummy_gate" | "token_gate" | "placeholder_authority"
+        )
+    });
+    let hooks_present =
+        std::path::Path::new(repo_dir).join(".agents/hooks.json").exists();
+    let cicd_toml_present = std::path::Path::new(repo_dir).join("cicd.toml").exists();
+
+    GateComponents {
+        // Agent boundary layer: hooks config installed AND no agent-authority bypasses detected.
+        agent_boundary: (hooks_present && no_agent_authority_violations) as u8,
+        // pre-tool-use hook wired to cargo-cicd.execute.
+        pre_tool_use: pre_tool_use_installed(repo_dir) as u8,
+        // A trace-profile provenance receipt exists.
+        trace_profile: has_trace_profile_receipt(repo_dir) as u8,
+        // At least one well-formed receipt in the receipts dir.
+        receipt: has_valid_receipt(repo_dir) as u8,
+        // OCEL journal exists and is non-empty.
+        ocel: ocel_journal_non_empty(repo_dir) as u8,
+        // Doctor surface: cicd.toml present AND fraud-scan counterexamples clear.
+        doctor: (cicd_toml_present && no_fraud_markers) as u8,
+        // A prior gate run recorded a GateComputed event in the OCEL journal.
+        gate: has_gate_computed_event(repo_dir) as u8,
+        // Cheat markers actually found under playground/ (0 when no playground).
+        playground_cheats_detected: playground_cheats_detected(repo_dir) as u8,
+        // No unbacked prose standing/compilation claims detected.
+        no_prose_standing: no_prose_claims as u8,
+        v_cargo_cicd: if counterexamples.is_empty() { 1 } else { 0 },
+    }
+}
+
+fn print_report(
+    report: &GateReport,
+    json: bool,
+    sarif: bool,
+    start: std::time::SystemTime,
+    end: std::time::SystemTime,
+) {
+    if sarif {
+        let sarif_doc = build_sarif(&report.counterexamples, report.q_release, start, end);
+        let out = serde_json::to_string_pretty(&sarif_doc).unwrap_or_else(|_| "{}".to_string());
+        println!("{}", out);
+    } else if json {
+        let out = serde_json::to_string(report).unwrap_or_else(|_| "{}".to_string());
+        println!("{}", out);
+    } else {
+        let out = serde_json::to_string_pretty(report).unwrap_or_else(|_| "{}".to_string());
+        println!("{}", out);
+    }
+}
+
 fn compute_gate(repo_dir: &str, json: bool, sarif: bool) -> Result<()> {
     let start = std::time::SystemTime::now();
     let counterexamples = crate::barrier::detect_barriers(std::path::Path::new(repo_dir));
     let end = std::time::SystemTime::now();
 
-    let components = GateComponents {
-        agent_boundary: 1,
-        pre_tool_use: 1,
-        trace_profile: 1,
-        receipt: 1,
-        ocel: 1,
-        doctor: 1,
-        gate: 1,
-        playground_cheats_detected: 1,
-        no_prose_standing: 1,
-        v_cargo_cicd: if counterexamples.is_empty() { 1 } else { 0 },
-    };
+    let components = measure_components(repo_dir, &counterexamples);
 
     let q_release = components.v_cargo_cicd;
 
@@ -257,7 +426,12 @@ fn compute_gate(repo_dir: &str, json: bool, sarif: bool) -> Result<()> {
         }),
         "",
     )
-    .unwrap();
+    .map_err(|e| {
+        clap_noun_verb::error::NounVerbError::execution_error(format!(
+            "failed to append GateComputed OCEL event: {}",
+            e
+        ))
+    })?;
 
     let report = GateReport {
         schema: "cargo-cicd.gate.v1".to_string(),
@@ -269,18 +443,7 @@ fn compute_gate(repo_dir: &str, json: bool, sarif: bool) -> Result<()> {
         components,
     };
 
-    if sarif {
-        let sarif_doc = build_sarif(&report.counterexamples, q_release, start, end);
-        let out = serde_json::to_string_pretty(&sarif_doc).unwrap_or_else(|_| "{}".to_string());
-        println!("{}", out);
-    } else {
-        let out = if json {
-            serde_json::to_string(&report).unwrap_or_else(|_| "{}".to_string())
-        } else {
-            serde_json::to_string_pretty(&report).unwrap_or_else(|_| "{}".to_string())
-        };
-        println!("{}", out);
-    }
+    print_report(&report, json, sarif, start, end);
 
     if report.q_release == 0 {
         return Err(clap_noun_verb::error::NounVerbError::execution_error(

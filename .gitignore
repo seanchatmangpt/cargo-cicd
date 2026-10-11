@@ -6,3 +6,6 @@ playground/evidence/*.log
 boilerplate/target/
 boilerplate/Cargo.lock
 crates/*/target/
+
+# Generated clap-noun-verb dirs (root and per-crate)
+**/.clap-noun-verb/

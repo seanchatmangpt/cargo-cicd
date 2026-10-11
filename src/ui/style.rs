@@ -113,6 +113,7 @@ impl Style {
         self.fg = Some(c);
         self
     }
+    #[allow(dead_code, reason = "builder-completeness sibling of fg()/bold()/dim(), which are used")]
     pub const fn bg(mut self, c: Color) -> Self {
         self.bg = Some(c);
         self

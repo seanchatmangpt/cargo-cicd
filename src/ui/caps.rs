@@ -1,14 +1,7 @@
 //! Terminal capability detection (zero-dependency, std-only).
 //!
 //! Decisions about color and Unicode are made once per call from the
-//! environment and an optional override.
-//!
-//! The override is **thread-local**: a command sets it and renders on the same
-//! thread (e.g. `ui demo` forces color on, then prints). Keeping it per-thread
-//! means the parallel test runner — which schedules each `#[test]` on its own
-//! thread — never sees one test's forced override leak into another's
-//! auto-detection, so color/unicode assertions stay deterministic without a
-//! cross-module lock.
+//! environment (see [`color_enabled`] / [`unicode_enabled`]).
 
 use std::cell::Cell;
 use std::io::IsTerminal;
@@ -17,21 +10,6 @@ thread_local! {
     // 0 = auto, 1 = force on, 2 = force off.
     static COLOR_MODE: Cell<u8> = const { Cell::new(0) };
     static UNICODE_MODE: Cell<u8> = const { Cell::new(0) };
-}
-
-fn encode(mode: Option<bool>) -> u8 {
-    match mode {
-        None => 0,
-        Some(true) => 1,
-        Some(false) => 2,
-    }
-}
-
-/// Force color on (`Some(true)`), off (`Some(false)`), or restore auto-detection
-/// (`None`) for the current thread. Intended to be wired to `--color` /
-/// `--no-color` CLI flags.
-pub fn set_color_override(mode: Option<bool>) {
-    COLOR_MODE.with(|c| c.set(encode(mode)));
 }
 
 /// Whether ANSI styling should be emitted to stdout right now.

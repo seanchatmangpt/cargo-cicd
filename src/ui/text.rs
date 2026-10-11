@@ -10,6 +10,7 @@
 pub enum Align {
     #[default]
     Left,
+    #[allow(dead_code, reason = "complete alignment set; no padded-cell caller centers yet")]
     Center,
     Right,
 }
@@ -39,25 +40,6 @@ pub fn strip_ansi(s: &str) -> String {
 /// Display width of `s` in columns, ignoring ANSI escapes.
 pub fn display_width(s: &str) -> usize {
     strip_ansi(s).chars().count()
-}
-
-/// Truncate `s` to at most `max` display columns, appending `ellipsis` when cut.
-///
-/// ANSI-naive: escapes are stripped before measuring, so the result is plain
-/// text. Style spans first, then truncate, if you need both.
-pub fn truncate(s: &str, max: usize, ellipsis: &str) -> String {
-    if display_width(s) <= max {
-        return s.to_string();
-    }
-    let ell_w = display_width(ellipsis);
-    if max <= ell_w {
-        return ellipsis.chars().take(max).collect();
-    }
-    let keep = max - ell_w;
-    let plain = strip_ansi(s);
-    let mut out: String = plain.chars().take(keep).collect();
-    out.push_str(ellipsis);
-    out
 }
 
 /// Pad `s` to `width` display columns using `align`. Returns `s` unchanged when

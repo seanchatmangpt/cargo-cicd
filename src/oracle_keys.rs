@@ -8,7 +8,7 @@
 //!
 //! 1. Oracle generates an Ed25519 key pair and publishes the public key.
 //! 2. Operators set `CICD_ORACLE_KEY_B64` in their environment.
-//! 3. cargo-cicd loads the key at startup and embeds it in each XES trace.
+//! 3. cargo-cicd loads the key at startup and embeds it in each evidence event.
 //! 4. `key_is_valid` checks the validity window before embedding.
 //! 5. `compute_fingerprint` produces a stable identifier for key rotation logs.
 
@@ -92,7 +92,7 @@ pub fn load_oracle_key_from_env() -> Option<OraclePublicKey> {
     })
 }
 
-/// Produce XES `<trace>` string attributes that embed the oracle public key.
+/// Produce string attributes that embed the oracle public key.
 ///
 /// Returns a list of `(key, value)` pairs suitable for insertion as
 /// `<string key="..." value="..."/>` elements inside a `<trace>` element.

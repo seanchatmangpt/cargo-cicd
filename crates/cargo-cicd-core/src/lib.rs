@@ -13,5 +13,6 @@ pub mod publish;
 pub mod standing;
 pub mod target;
 pub mod tests_changed;
+pub mod tools;
 pub mod workspace;
 pub mod wpm;

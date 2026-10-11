@@ -73,17 +73,14 @@ pub mod evidence;
 #[doc(hidden)]
 pub mod evidence_helpers;
 #[doc(hidden)]
-pub mod evidence_jsonl;
 #[doc(hidden)]
 pub mod evidence_manifest;
 #[doc(hidden)]
 pub mod evidence_sarif;
 #[doc(hidden)]
-pub mod evidence_xes_v2;
-#[doc(hidden)]
 pub mod integrations;
 #[doc(hidden)]
-pub mod legacy_nouns;
+
 #[doc(hidden)]
 pub mod nouns;
 

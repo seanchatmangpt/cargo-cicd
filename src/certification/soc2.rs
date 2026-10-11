@@ -102,7 +102,7 @@ pub fn criteria() -> Vec<Soc2Criterion> {
             description: "Complete and accurate processing — process inputs completely and \
                           accurately"
                 .to_string(),
-            evidence_mapping: "XES / OCEL event logs trace every pipeline stage from start to \
+            evidence_mapping: "OCEL event logs trace every pipeline stage from start to \
                                complete with timestamps and verdicts"
                 .to_string(),
             covered_by_commands: vec![

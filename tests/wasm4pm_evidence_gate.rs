@@ -22,7 +22,7 @@
 //! ```
 
 use cargo_cicd::evidence::{
-    assert_wpm_verdict, emit_xes, ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
+    assert_wpm_verdict_ocel, emit_ocel, ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
 };
 use tempfile::TempDir;
 
@@ -59,17 +59,24 @@ fn evidence_gate_status_show_accepted() {
         ProcessEvent::new("target show", "PASS"),
         ProcessEvent::new("test changed", "PASS"),
     ];
-    let xes_path = dir.path().join("events.xes");
-    emit_xes(&events, &xes_path).expect("emit_xes must not fail");
-    assert!(xes_path.exists(), "XES file must exist before oracle call");
+    let ocel_path = dir.path().join("events.ocel.json");
+    emit_ocel(&events, &ocel_path).expect("emit_ocel must not fail");
+    assert!(
+        ocel_path.exists(),
+        "OCEL 2.0 JSON file must exist before oracle call"
+    );
+    assert!(
+        !dir.path().join("events.xes").exists(),
+        "events.xes must NOT be created (OCEL-only by operator directive)"
+    );
     let oracle = WpmEvidenceOracle::new();
     // Accept is only asserted when the wpm oracle binary is present (see module doc).
     if oracle.is_available() {
-        assert_wpm_verdict(&oracle, &xes_path, &ExpectedWpmVerdict::Accept);
+        assert_wpm_verdict_ocel(&oracle, &ocel_path, &ExpectedWpmVerdict::Accept);
     } else {
-        assert_wpm_verdict(
+        assert_wpm_verdict_ocel(
             &oracle,
-            &xes_path,
+            &ocel_path,
             &absent_oracle_verdict("evidence_gate_status_show_accepted"),
         );
     }
@@ -83,7 +90,7 @@ fn evidence_gate_oracle_discover() {
     let available = oracle.is_available();
     // If available, audit of a nonexistent path must return Refuse (not panic)
     if available {
-        let result = oracle.audit_xes(std::path::Path::new("/nonexistent/oracle_discover.xes"));
+        let result = oracle.audit_ocel(std::path::Path::new("/nonexistent/oracle_discover.ocel.json"));
         // Either Refuse or Blocked — must not panic
         let _ = result;
     }

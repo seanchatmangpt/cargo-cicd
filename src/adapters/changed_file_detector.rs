@@ -1,3 +1,5 @@
+use cargo_cicd_core::git::{resolve_base_ref, BaseRefError};
+use std::path::Path;
 use std::process::Command;
 
 pub struct ChangedFileDetector;
@@ -6,6 +8,17 @@ impl ChangedFileDetector {
     pub fn new() -> Self {
         Self
     }
+
+    /// Resolve the diff base ref through the portable chain
+    /// (explicit config value > `origin/main` > `main` > first commit).
+    ///
+    /// Returns a typed [`BaseRefError`] on fresh clones / missing refs —
+    /// callers must propagate the error, never default to an empty diff.
+    pub fn resolve_base(explicit: Option<&str>, root: &Path) -> Result<String, BaseRefError> {
+        resolve_base_ref(explicit, root)
+    }
+
+    /// [`Self::changed_rs_files`] with portable base resolution.
 
     pub fn changed_rs_files(base: &str) -> Vec<String> {
         let output = Command::new("git")

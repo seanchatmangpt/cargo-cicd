@@ -30,23 +30,28 @@ glyph!(/// Information mark.
 glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a bare question mark yet")]
     /// Question mark.
     question, "?", "?");
-glyph!(/// Round bullet.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a round bullet yet")]
+    /// Round bullet.
     bullet, "\u{2022}", "*");
 glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a middle dot yet")]
     /// Middle dot.
     dot, "\u{00b7}", ".");
 glyph!(/// Right arrow.
     arrow, "\u{2192}", "->");
-glyph!(/// Small right chevron.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a small chevron yet")]
+    /// Small right chevron.
     arrow_small, "\u{203a}", ">");
-glyph!(/// Heavy right pointer.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a heavy pointer yet")]
+    /// Heavy right pointer.
     chevron, "\u{276f}", ">");
-glyph!(/// Horizontal ellipsis.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs an ellipsis glyph yet")]
+    /// Horizontal ellipsis.
     ellipsis, "\u{2026}", "...");
 glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders a filled radio yet")]
     /// Filled radio.
     radio_on, "\u{25c9}", "(*)");
-glyph!(/// Empty radio.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders an empty radio yet")]
+    /// Empty radio.
     radio_off, "\u{25ef}", "( )");
 glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders a checked box yet")]
     /// Checked box.
@@ -57,9 +62,11 @@ glyph!(#[allow(dead_code, reason = "complete glyph set; no caller renders an unc
 glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a pointer glyph yet")]
     /// Right-pointing triangle.
     pointer, "\u{25b8}", ">");
-glyph!(/// Filled star.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a star yet")]
+    /// Filled star.
     star, "\u{2605}", "*");
-glyph!(/// Lightning bolt.
+glyph!(#[allow(dead_code, reason = "complete glyph set; no caller needs a bolt yet")]
+    /// Lightning bolt.
     bolt, "\u{26a1}", "!");
 glyph!(#[allow(dead_code, reason = "complete glyph set; superseded by symbols::hblocks() for bars")]
     /// Full gauge cell.
@@ -127,14 +134,17 @@ pub fn hblocks() -> [&'static str; 9] {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoxStyle {
     Light,
+    #[allow(dead_code, reason = "complete box-drawing family set; not selected by any caller yet")]
     Heavy,
     #[allow(dead_code, reason = "complete box-drawing family set; not selected by any caller yet")]
     Double,
+    #[allow(dead_code, reason = "complete box-drawing family set; not selected by any caller yet")]
     Rounded,
     Ascii,
 }
 
 /// A complete set of box-drawing characters for borders and grids.
+#[allow(dead_code, reason = "complete box-drawing family set; `box_chars` builds the full table for every style so callers can adopt any field later")]
 #[derive(Clone, Copy, Debug)]
 pub struct BoxChars {
     pub h: &'static str,

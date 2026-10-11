@@ -116,6 +116,71 @@ fn print_lsp_findings() {
     }
 }
 
+// ── command health ───────────────────────────────────────────────────────────
+
+/// Static inventory of the registered noun/verb surface, transcribed from the
+/// `#[verb]` annotations in `src/nouns/*.rs`. This is registration standing
+/// (the noun is present in the registry), not execution standing — execution
+/// health lands later via receipts.
+const COMMAND_INVENTORY: &[(&str, usize)] = &[
+    ("certification", 1),
+    ("ci", 1),
+    ("claude_context", 1),
+    ("deploy", 2),
+    ("doctor", 3),
+    ("evidence", 5),
+    ("gate", 1),
+    ("git", 6),
+    ("hooks", 3),
+    ("lsp", 1),
+    ("ocel", 2),
+    ("pipeline", 3),
+    ("publish", 3),
+    ("receipt", 2),
+    ("release_gate", 1),
+    ("sbom", 2),
+    ("standing", 3),
+    ("status", 2),
+    ("target", 2),
+    ("test", 3),
+    ("trace", 1),
+    ("trybuild", 4),
+    ("verify", 1),
+    ("workspace", 4),
+];
+
+fn print_command_health() {
+    println!("{}", panel::header("command health"));
+    // `lsp` is the noun registered under the `anti-llm-cheat` feature; its
+    // single verb is feature-gated, so the default registry exposes 56 verbs
+    // across 24 registered nouns.
+    let total_verbs: usize = COMMAND_INVENTORY.iter().map(|(_, n)| n).sum::<usize>() - 1;
+    let rows: Vec<(String, String)> = COMMAND_INVENTORY
+        .iter()
+        .map(|(noun, n)| {
+            (
+                (*noun).to_string(),
+                format!("{}  {}", n, badge::tag(Verdict::from_tag("registered"))),
+            )
+        })
+        .collect();
+    let rows_ref: Vec<(&str, &str)> = rows.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    println!("{}", panel::kv(&rows_ref));
+
+    println!(
+        "{} {}",
+        theme::paint("commands:", Role::Label),
+        theme::paint(
+            &format!(
+                "{} verbs / {} nouns",
+                total_verbs,
+                COMMAND_INVENTORY.len()
+            ),
+            Role::Value
+        )
+    );
+}
+
 fn run_audit() -> anyhow::Result<()> {
     let evidence_dir = crate::evidence::evidence_dir();
     let ocel = evidence_dir.join("events.ocel.json");
@@ -126,17 +191,20 @@ fn run_audit() -> anyhow::Result<()> {
             badge::tag(Verdict::Blocked),
             ocel.display()
         );
+        print_command_health();
         return Ok(());
     }
 
     let wpm = crate::integrations::Wasm4pmShell::detect();
     let Some(wpm_shell) = wpm else {
         println!("{} wpm oracle not found", badge::tag(Verdict::Blocked));
+        print_command_health();
         return Ok(());
     };
 
     let result = invoke_wpm_audit(&wpm_shell, &ocel);
     emit_audit_events(&wpm_shell, &evidence_dir, &result)?;
+    print_command_health();
     Ok(())
 }
 

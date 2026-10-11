@@ -2,7 +2,7 @@
 //!
 //! A *session* identifies a single invocation context (binary execution + pid).
 //! All process events emitted during a session share the same `case_id`, so
-//! wasm4pm can correlate them into a single XES `<trace>` for process mining.
+//! wasm4pm can correlate them into a single trace for process mining.
 
 use std::path::Path;
 use std::time::SystemTime;

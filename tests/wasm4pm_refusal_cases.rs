@@ -8,7 +8,7 @@ use tempfile::TempDir;
 #[test]
 fn refusal_corrupted_xml_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("corrupted.xes");
+    let xes_path = dir.path().join("corrupted.ocel.json");
     std::fs::write(&xes_path, "THIS IS NOT XML").unwrap();
     let oracle = WpmEvidenceOracle::new();
     if oracle.is_available() {
@@ -21,7 +21,7 @@ fn refusal_corrupted_xml_refused() {
 #[test]
 fn refusal_empty_xes_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("empty.xes");
+    let xes_path = dir.path().join("empty.ocel.json");
     std::fs::write(&xes_path, b"").unwrap();
     let oracle = WpmEvidenceOracle::new();
     if oracle.is_available() {
@@ -34,8 +34,8 @@ fn refusal_empty_xes_refused() {
 #[test]
 fn refusal_missing_file_returns_refuse() {
     let oracle = WpmEvidenceOracle::new();
-    // Missing file: audit_xes will get an invocation error → Refuse (or Blocked if unavailable)
-    let result = oracle.audit_xes(std::path::Path::new("/nonexistent/path/missing.xes"));
+    // Missing file: audit_ocel will get an invocation error → Refuse (or Blocked if unavailable)
+    let result = oracle.audit_ocel(std::path::Path::new("/nonexistent/path/missing.ocel.json"));
     // If oracle is unavailable, result is Blocked — that is acceptable
     // If oracle is available, result should be Refuse (file not found triggers error path)
     match result {

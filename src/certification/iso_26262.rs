@@ -102,7 +102,7 @@ pub fn requirements() -> Vec<Iso26262Requirement> {
             clause: "6.6".to_string(),
             title: "Software unit design and implementation".to_string(),
             evidence_mapping: "cargo-cicd `workspace doctor` records all workspace members, \
-                               crate boundaries, and edition metadata as structured XES evidence, \
+                               crate boundaries, and edition metadata as structured OCEL evidence, \
                                documenting the implemented unit structure."
                 .to_string(),
             min_asil: Asil::A,

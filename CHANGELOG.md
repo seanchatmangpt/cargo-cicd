@@ -1,9 +1,3 @@
-## 26.7.7
-
-feat(publish): doc-drift gate — docs (*.md, *.txt, docs/**) changed since the last
-release tag now require a passing `[docs] verify_cmd` from cicd.toml before
-`publish run`/`publish check` proceed; missing config or failing command refuses
-with DOC_DRIFT_UNVERIFIED (OCEL FAIL event). Real-git fixture tests (4).
 # Changelog
 
 All notable changes to cargo-cicd are documented here.
@@ -12,7 +6,24 @@ Format: feat(scope): description — scope is core|cli|target|test|git|autonomic
 
 ---
 
-## [Unreleased]
+## [26.10.10] - 2026-10-10
+
+### Fixed
+- `--version` identity: the CLI reported the clap-noun-verb dependency's version (26.8.20 leak) instead of the crate's own version; now reports the cargo-cicd release version
+- `cicd.toml` unknown-section preservation: hand-written sections the loader does not model are preserved on rewrite rather than silently dropped (82e4367)
+- Receipt integrity: receipts are blake3-chained; `status audit` performs a real audit — self-minted and sentinel receipts are rejected rather than accepted
+- Fail-closed exit semantics across verbs: gate/audit failures now exit non-zero instead of exiting 0 with a warning
+
+### Added
+- OCEL 2.0 conformance: unified evidence emitter producing a spec-correct OCEL 2.0 format, a dedicated `ocel export` verb, and a jsonschema-based conformance court over emitted evidence
+- Gate components measured, not hardcoded: gate reports derive component results from actual runs rather than static tables
+- 56-verb executed-subprocess test courts covering every CLI verb through real subprocess invocation
+- Doc-drift gate: docs (`*.md`, `*.txt`, `docs/**`) changed since the last release tag require a passing `[docs] verify_cmd` from cicd.toml before `publish run`/`publish check` proceed; missing config or failing command refuses with DOC_DRIFT_UNVERIFIED (OCEL FAIL event); real-git fixture tests (29cc859)
+- `ggen-release-pack` v0.3.0 consumed for release-discipline tooling
+
+### Removed
+- Fabricated pipeline XES evidence path: XES emission removed; OCEL 2.0 (`events.ocel.json`) is the sole evidence format
+
 
 ## [26.7.6] — 2026-07-06
 

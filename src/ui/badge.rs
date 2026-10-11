@@ -1,18 +1,14 @@
 //! Status badges: the semantic [`Verdict`] vocabulary shared across cargo-cicd
-//! output, rendered as bracket tags, glyph tags, dots, or filled pills.
+//! output, rendered as bracket glyph tags.
 //!
 //! [`Verdict`] is the canonical status vocabulary. Each verdict carries a
 //! stable uppercase [`label`](Verdict::label) (used in plain-text output the
 //! public-boundary tests assert on), a [`glyph`](Verdict::glyph) with ASCII
 //! fallback, and a semantic color exposed through [`style_for`].
 //!
-//! Renderers come in two families:
-//! * **foreground** — [`tag`], [`inline`], [`dot`]: colored text on the default
-//!   background.
-//! * **filled** — [`pill`]: the label on a colored background.
-//!
-//! [`bracket`] is the deliberately plain, never-colored ASCII form for places
-//! where the literal label must survive intact (logs, machine-readable lines).
+//! [`tag`] is the colored form; [`bracket`] is the deliberately plain,
+//! never-colored ASCII form for places where the literal label must survive
+//! intact (logs, machine-readable lines).
 //!
 //! All color flows through [`Style::paint`], so it auto-disables when stdout is
 //! not a TTY, when `NO_COLOR` is set, or when `--no-color` was passed; captured
@@ -118,17 +114,11 @@ pub fn style_for(v: Verdict) -> Style {
     }
 }
 
-/// The filled-pill [`Style`] for a verdict: bold bright-white text on the
-/// verdict's color as a background.
-fn pill_style(v: Verdict) -> Style {
-    Style::new().fg(Color::BrightWhite).bg(v.color()).bold()
-}
-
 /// A plain bracket tag like `[PASS]` — always uncolored, ASCII-safe label.
 ///
 /// This is the deliberately literal form: use it where the exact bytes matter
 /// (machine-readable lines, logs) and color would be noise or harmful.
-#[allow(dead_code, reason = "third rendering mode alongside tag()/inline(), no noun needs the literal form yet")]
+#[allow(dead_code, reason = "third rendering mode alongside tag(), no noun needs the literal form yet")]
 pub fn bracket(v: Verdict) -> String {
     format!("[{}]", v.label())
 }
@@ -140,31 +130,4 @@ pub fn bracket(v: Verdict) -> String {
 pub fn tag(v: Verdict) -> String {
     let body = format!("[{} {}]", v.glyph(), v.label());
     style_for(v).paint(body)
-}
-
-/// A glyph + label without brackets, e.g. `✔ PASS`, colored by verdict.
-///
-/// In plain mode the color is dropped, leaving `✔ PASS` / `+ PASS`.
-pub fn inline(v: Verdict) -> String {
-    let body = format!("{} {}", v.glyph(), v.label());
-    style_for(v).paint(body)
-}
-
-/// A filled "pill" badge like ` PASS `: the label on the verdict's color as a
-/// background, with one space of padding each side.
-///
-/// In plain mode the background is dropped, leaving the padded label ` PASS `
-/// so spacing in captured output stays consistent with the colored form.
-pub fn pill(v: Verdict) -> String {
-    let body = format!(" {} ", v.label());
-    pill_style(v).paint(body)
-}
-
-/// A colored status dot followed by the label, e.g. `● PASS`.
-///
-/// Uses a round bullet glyph (ASCII fallback `*`); the dot carries the verdict
-/// color while the label stays in the default foreground for readability.
-pub fn dot(v: Verdict) -> String {
-    let mark = Style::new().fg(v.color()).bold().paint(symbols::bullet());
-    format!("{} {}", mark, v.label())
 }

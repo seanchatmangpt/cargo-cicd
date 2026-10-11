@@ -1,7 +1,14 @@
 <!-- BEGIN custom:introduction -->
 # cargo-cicd
 
-`cargo-cicd` is a local-first CI/CD helper for Rust workspaces.
+`cargo-cicd` is a local-first CI/CD executor for Rust workspaces. Building,
+testing, and publishing happen on the operator's machine, with the operator's
+token. CI stays credential-free: it consumes evidence files, not secrets.
+
+The design premise: an unverifiable claim is not evidence. Every command emits
+a receipt; every verdict is backed by a file on disk whose integrity can be
+checked independently. A claim that cannot be replayed from recorded evidence
+does not count — an LLM's assertion cannot satisfy a gate.
 <!-- END custom:introduction -->
 
 ## Install
@@ -10,14 +17,56 @@
 cargo install cargo-cicd
 ```
 
-## Usage
+Requires Rust (stable). Optional external tools — `act`, `gh`, `cyclonedx`,
+`cargo semver-checks`, `just` — are discovered on `PATH` at runtime; a missing
+tool produces a typed Unavailable failure, never a silent pass.
+
+## Quickstart
 
 ```sh
-cargo cicd <command>
+cargo build                                          # build the workspace
+cargo cicd status show                               # workspace snapshot (read-only)
+cargo cicd ci run --dry-run                          # preview CI workflows locally
+cargo cicd ocel export                               # export the event log (OCEL 2.0)
+cargo cicd receipt verify                            # verify blake3 receipt integrity
 ```
 
+## Command surface
+
+`cargo cicd` uses a noun-verb grammar: 24 nouns, 56 verbs
+(asserted by `tests/status.rs`):
+
+| Noun | Purpose |
+|------|---------|
+| `certification` | Show certification policy state |
+| `ci` | Run GitHub Actions workflows locally (`act`) or remotely (`gh`) |
+| `claude-context` | Show Claude integration context |
+| `deploy` | Schema and MCP projections of the CLI surface |
+| `doctor` | Workspace, evidence, and diff diagnostics |
+| `evidence` | Audit, list, reset the evidence corpus |
+| `gate` | Repository release gate evaluation |
+| `git` | Status, branch close, diff, stage, commit, fetch |
+| `hooks` | Install/uninstall Claude Code hooks; pre-tool-use checks |
+| `lsp` | Check LLM-contamination invariants of public docs |
+| `ocel` | Replay and export the OCEL 2.0 event log |
+| `pipeline` | Run, inspect, validate command pipelines |
+| `publish` | Run, check, validate crates.io publication |
+| `receipt` | Verify and audit blake3-chained receipts |
+| `release-gate` | Evaluate measured release gates |
+| `sbom` | Generate and show SBOM artifacts |
+| `standing` | Refresh, verify, report standing receipts |
+| `status` | Workspace status show and audit |
+| `target` | Target-directory size profile and prune |
+| `test` | Changed-test, full run, and bench execution |
+| `trace` | Profile recorded traces |
+| `trybuild` | Compile-fail fixture verification |
+| `verify` | Repository verification court |
+| `workspace` | Doctor, validate, sync, list workspace health |
+
+Generated per-command reference (from the capability ontology):
+
 <!-- BEGIN ggen:commands -->
-<!-- Rendered from ontology/cargo-cicd.ttl. Do not edit by hand. -->
+<!-- Rendered from ontology/public/cargo-cicd-capabilities.ttl. Do not edit by hand. -->
 
 | Command | Description |
 |---------|-------------|
@@ -26,11 +75,49 @@ cargo cicd <command>
 {% endfor %}
 <!-- END ggen:commands -->
 
+## Evidence model
+
+Command execution writes to `.cargo-cicd/`:
+
+| Path | Contents |
+|------|----------|
+| `.cargo-cicd/receipts/` | blake3-hashed JSON receipts, one per verdict; `latest.json` points at the newest |
+| `.cargo-cicd/ocel/events.jsonl` | OCEL 2.0 event log (XES is no longer an export format) |
+
+Receipts record command, verdict, timing, and artifact hashes. `receipt
+verify` recomputes blake3 digests from disk and fails on any mismatch.
+
+Fail-closed semantics: a `FAIL` verdict exits the process non-zero. A missing
+external tool is a typed failure, not a warning (enforced by
+`tests/fail_closed_exit_semantics.rs` — real subprocesses, real exit codes).
+
 <!-- BEGIN custom:cicd-toml -->
+## Release discipline
+
+Version parity between `Cargo.toml` and the release surface is enforced by a
+generated court (`tests/version_parity_proof.rs`). Release gates are measured
+from real artifacts, not asserted. The publish-candidate workflow
+(`.github/workflows/publish-candidate.yml`, generated) stages artifacts;
+actual `publish` and `git close` actions that touch remotes remain
+user-gated on the operator's machine.
+
 ## cicd.toml
 
-`cargo-cicd` publishes workspace state to `cicd.toml`.
+`cargo-cicd` publishes workspace state, policy verdicts, and the append-only
+event log to `cicd.toml` in the workspace root.
 <!-- END custom:cicd-toml -->
+
+## Limitations
+
+- Full audit verdicts require the optional `wpm`/`wasm4pm` oracle on `PATH`;
+  without it, conformance verdicts degrade to a typed Blocked/Partial result
+  rather than a pass.
+- External tools (`cyclonedx`, `cargo semver-checks`, `just`, `act`, `gh`)
+  are discovered on `PATH`; absence yields a typed Unavailable failure for
+  the verbs that need them.
+- Anti-cheat scanning (LLM-contamination checks, fixture tamper detection)
+  is heuristic. It raises the cost of gaming the gates; it does not make
+  gaming impossible.
 
 ## License
 

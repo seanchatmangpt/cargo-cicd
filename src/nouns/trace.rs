@@ -1,5 +1,6 @@
 //! Profiles a command's execution and records a digest-backed trace for diagnosis.
 use clap_noun_verb::Result;
+use clap_noun_verb::error::NounVerbError;
 use clap_noun_verb_macros::verb;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -32,21 +33,6 @@ fn get_git_hash(repo_dir: &str) -> String {
         .unwrap_or_default()
 }
 
-fn simple_hex_hash(data: &[u8]) -> String {
-    let mut h: [u64; 4] = [
-        0xcbf29ce484222325,
-        0x9e3779b97f4a7c15,
-        0x6c62272e07bb0142,
-        0x517cc1b727220a95,
-    ];
-    for (i, &b) in data.iter().enumerate() {
-        let lane = i % 4;
-        h[lane] ^= b as u64;
-        h[lane] = h[lane].wrapping_mul(0x00000100000001b3);
-    }
-    format!("{:016x}{:016x}{:016x}{:016x}", h[0], h[1], h[2], h[3])
-}
-
 fn get_recipe(profile: &str) -> Result<&'static str> {
     match profile {
         "test" => Ok("test"),
@@ -55,9 +41,10 @@ fn get_recipe(profile: &str) -> Result<&'static str> {
         "dx" => Ok("dx"),
         "dry-run" => Ok("publish-dry-run"),
         "build" => Ok("build"),
-        _ => Err(clap_noun_verb::error::NounVerbError::execution_error(
-            format!("Unknown profile: {}", profile),
-        )),
+        _ => Err(NounVerbError::execution_error(format!(
+            "Unknown profile: {}",
+            profile
+        ))),
     }
 }
 
@@ -76,14 +63,15 @@ pub fn cmd_profile(
     cmd.arg(recipe).current_dir(&repo_dir);
 
     let output = cmd.output().map_err(|e| {
-        clap_noun_verb::error::NounVerbError::execution_error(format!("Failed to run just: {}", e))
+        NounVerbError::execution_error(format!("Failed to run just: {}", e))
     })?;
     let exit_code = output.status.code().unwrap_or(-1);
 
     let git_after = get_git_hash(&repo_dir);
 
-    let stdout_digest = simple_hex_hash(&output.stdout);
-    let stderr_digest = simple_hex_hash(&output.stderr);
+    // Digests are blake3 over the actual captured process output.
+    let stdout_digest = crate::nouns::receipt::content_digest(&output.stdout);
+    let stderr_digest = crate::nouns::receipt::content_digest(&output.stderr);
 
     let command_vec = vec!["just".to_string(), recipe.to_string()];
 
@@ -101,7 +89,13 @@ pub fn cmd_profile(
     let receipt = crate::nouns::receipt::Receipt::mint(&trace);
 
     let receipts_dir = Path::new(&repo_dir).join(".cargo-cicd").join("receipts");
-    std::fs::create_dir_all(&receipts_dir).unwrap();
+    std::fs::create_dir_all(&receipts_dir).map_err(|e| {
+        NounVerbError::execution_error(format!(
+            "create receipts dir {}: {}",
+            receipts_dir.display(),
+            e
+        ))
+    })?;
 
     // `latest.json` is the file `wpm receipt doctor --strict` adjudicates, so it
     // must carry the OCEL-conformance `algorithms` shape (see
@@ -110,17 +104,17 @@ pub fn cmd_profile(
     // command-specific name for `receipt verify`'s digest-based checks.
     let ocel_receipt = crate::evidence::build_receipt_json(&[], &command_vec.join(" "), exit_code);
     let receipt_path = receipts_dir.join("latest.json");
-    std::fs::write(
-        &receipt_path,
-        serde_json::to_string_pretty(&ocel_receipt).unwrap(),
-    )
-    .unwrap();
+    let ocel_json = serde_json::to_string_pretty(&ocel_receipt)
+        .map_err(|e| NounVerbError::execution_error(format!("serialize ocel receipt: {}", e)))?;
+    std::fs::write(&receipt_path, ocel_json).map_err(|e| {
+        NounVerbError::execution_error(format!("write {}: {}", receipt_path.display(), e))
+    })?;
     let provenance_path = receipts_dir.join(format!("trace-profile-{}.json", profile));
-    std::fs::write(
-        &provenance_path,
-        serde_json::to_string_pretty(&receipt).unwrap(),
-    )
-    .unwrap();
+    let provenance_json = serde_json::to_string_pretty(&receipt)
+        .map_err(|e| NounVerbError::execution_error(format!("serialize receipt: {}", e)))?;
+    std::fs::write(&provenance_path, provenance_json).map_err(|e| {
+        NounVerbError::execution_error(format!("write {}: {}", provenance_path.display(), e))
+    })?;
 
     let ocel_event = crate::ocel::append_ocel_event(
         &repo_dir,
@@ -128,7 +122,7 @@ pub fn cmd_profile(
         serde_json::json!({"receipt_digest": receipt.receipt_digest}),
         "",
     )
-    .map_err(clap_noun_verb::error::NounVerbError::execution_error)?;
+    .map_err(NounVerbError::execution_error)?;
     let ocel_event_id = ocel_event.event_id;
 
     let git_provenance =
@@ -166,6 +160,15 @@ pub fn cmd_profile(
         println!("{}", serde_json::to_string(&out).unwrap());
     } else {
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    }
+
+    // Fail-closed: a failing `just` recipe is an Err even though the receipt
+    // was persisted as evidence.
+    if exit_code != 0 {
+        return Err(NounVerbError::execution_error(format!(
+            "just {} failed with exit code {}",
+            recipe, exit_code
+        )));
     }
 
     Ok(())

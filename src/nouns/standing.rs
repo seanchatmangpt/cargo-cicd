@@ -91,20 +91,31 @@ fn build_document(release_id: &str, artifacts: Vec<StandingArtifact>) -> Standin
 /// --strict` requires — see `evidence::build_receipt_json`. The plain
 /// provenance receipt minted below is *not* that shape, so it is kept only
 /// under a run-specific filename for `receipt verify`'s digest checks.
-fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result<PathBuf> {
-    use crate::nouns::receipt::{ExecutionTrace, Receipt};
-    use std::collections::BTreeMap;
-
-    let bytes = std::fs::read(standing_json).unwrap_or_default();
-    let digest = crate::ocel::blake3_hex(&bytes);
-    let git_head = std::process::Command::new("git")
+fn capture_git_head(repo_dir: &str) -> String {
+    std::process::Command::new("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(repo_dir)
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "HEAD-not-resolved".to_string());
+        .unwrap_or_else(|| "HEAD-not-resolved".to_string())
+}
+
+/// Mint a receipt recording the REAL results of a successful refresh:
+/// the digest of the stdout actually printed, the real git HEAD before
+/// and after, and the real exit code. Called only on genuine success —
+/// a failed refresh never mints a receipt.
+fn mint_refresh_receipt(
+    repo_dir: &str,
+    standing_json: &Path,
+    stdout_digest: String,
+    exit_code: i32,
+    git_before: String,
+    git_after: String,
+) -> std::io::Result<PathBuf> {
+    use crate::nouns::receipt::{ExecutionTrace, Receipt};
+    use std::collections::BTreeMap;
 
     let mut output_artifacts = BTreeMap::new();
     output_artifacts.insert(
@@ -119,11 +130,11 @@ fn mint_refresh_receipt(repo_dir: &str, standing_json: &Path) -> std::io::Result
             "standing".to_string(),
             "refresh".to_string(),
         ],
-        exit_code: 0,
-        stdout_digest: digest,
+        exit_code,
+        stdout_digest,
         stderr_digest: String::new(),
-        git_before: git_head.clone(),
-        git_after: git_head,
+        git_before,
+        git_after,
         input_artifacts: BTreeMap::new(),
         output_artifacts,
     };
@@ -190,10 +201,14 @@ fn write_all_outputs(repo_dir: &str, doc: &StandingDocument) -> std::io::Result<
 #[verb("refresh")]
 pub fn cmd_refresh(repo: Option<String>, json: bool) -> Result<()> {
     let repo_dir = repo.unwrap_or_else(|| ".".into());
+    refresh_impl(&repo_dir, json)
+}
+
+fn refresh_impl(repo_dir: &str, json: bool) -> Result<()> {
     let cfg = crate::cicd_toml::load_or_default().standing;
     let release_id = format!("v{}", env!("CARGO_PKG_VERSION"));
 
-    let artifacts = ingest_all(&repo_dir, &cfg);
+    let artifacts = ingest_all(repo_dir, &cfg);
     let validation_errors: Vec<String> = artifacts
         .iter()
         .filter_map(|a| a.validate().err().map(|e| e.to_string()))
@@ -201,13 +216,40 @@ pub fn cmd_refresh(repo: Option<String>, json: bool) -> Result<()> {
 
     let doc = build_document(&release_id, artifacts);
 
-    let json_path = write_all_outputs(&repo_dir, &doc).map_err(|e| {
+    let git_before = capture_git_head(repo_dir);
+
+    let json_path = write_all_outputs(repo_dir, &doc).map_err(|e| {
         clap_noun_verb::error::NounVerbError::execution_error(format!(
             "failed to write standing outputs: {e}"
         ))
     })?;
 
-    let receipt_path = mint_refresh_receipt(&repo_dir, &json_path).ok();
+    // Fail-closed: validation errors mean the refresh did not genuinely
+    // succeed — exit non-zero and do NOT mint a receipt for it.
+    if !validation_errors.is_empty() {
+        if json {
+            let summary = serde_json::json!({
+                "schema": "cargo-cicd.standing.refresh.v1",
+                "release_id": doc.release_id,
+                "artifact_count": doc.artifacts.len(),
+                "validation_errors": validation_errors,
+                "standing_json": json_path.to_string_lossy(),
+                "receipt": serde_json::Value::Null,
+            });
+            println!("{}", serde_json::to_string(&summary).unwrap_or_default());
+        } else {
+            println!("validation errors:");
+            for e in &validation_errors {
+                println!("  - {e}");
+            }
+        }
+        return Err(clap_noun_verb::error::NounVerbError::execution_error(
+            format!(
+                "standing refresh: {} validation error(s) — receipt not minted",
+                validation_errors.len()
+            ),
+        ));
+    }
 
     let summary = serde_json::json!({
         "schema": "cargo-cicd.standing.refresh.v1",
@@ -215,23 +257,42 @@ pub fn cmd_refresh(repo: Option<String>, json: bool) -> Result<()> {
         "artifact_count": doc.artifacts.len(),
         "validation_errors": validation_errors,
         "standing_json": json_path.to_string_lossy(),
-        "receipt": receipt_path.map(|p| p.to_string_lossy().to_string()),
     });
-
-    if json {
-        println!("{}", serde_json::to_string(&summary).unwrap_or_default());
+    let printed_stdout = if json {
+        serde_json::to_string(&summary).unwrap_or_default()
     } else {
-        println!(
+        format!(
             "standing refresh: {} artifact(s) -> {}",
             doc.artifacts.len(),
             json_path.display()
-        );
-        if !validation_errors.is_empty() {
-            println!("validation errors:");
-            for e in &validation_errors {
-                println!("  - {e}");
-            }
-        }
+        )
+    };
+    println!("{printed_stdout}");
+
+    // Mint only on genuine success, recording real values: the digest of
+    // the stdout actually printed and the real git HEADs. If real values
+    // cannot be captured, the receipt is not minted and the failure is
+    // propagated — never swallowed.
+    let stdout_digest = crate::ocel::blake3_hex(printed_stdout.as_bytes());
+    let git_after = capture_git_head(repo_dir);
+    let receipt_path =
+        mint_refresh_receipt(repo_dir, &json_path, stdout_digest, 0, git_before, git_after)
+            .map_err(|e| {
+                clap_noun_verb::error::NounVerbError::execution_error(format!(
+                    "receipt not minted: {e}"
+                ))
+            })?;
+
+    if json {
+        let with_receipt = serde_json::json!({
+            "schema": "cargo-cicd.standing.refresh.v1",
+            "release_id": doc.release_id,
+            "artifact_count": doc.artifacts.len(),
+            "validation_errors": validation_errors,
+            "standing_json": json_path.to_string_lossy(),
+            "receipt": receipt_path.to_string_lossy(),
+        });
+        println!("{}", serde_json::to_string(&with_receipt).unwrap_or_default());
     }
 
     Ok(())

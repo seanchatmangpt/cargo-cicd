@@ -3,7 +3,7 @@
 //! Proves wasm4pm is a real adjudicator, not a rubber stamp.
 
 use cargo_cicd::evidence::{
-    assert_wpm_verdict, emit_xes, ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
+    assert_wpm_verdict, emit_ocel, ExpectedWpmVerdict, ProcessEvent, WpmEvidenceOracle,
 };
 use tempfile::TempDir;
 
@@ -11,7 +11,7 @@ use tempfile::TempDir;
 #[test]
 fn evidence_mutation_corrupted_xes_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("mutated.xes");
+    let xes_path = dir.path().join("mutated.ocel.json");
     // Write intentionally malformed XES
     std::fs::write(&xes_path, "NOT VALID XML AT ALL").unwrap();
     let oracle = WpmEvidenceOracle::new();
@@ -26,7 +26,7 @@ fn evidence_mutation_corrupted_xes_refused() {
 #[test]
 fn evidence_mutation_empty_xes_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("empty.xes");
+    let xes_path = dir.path().join("empty.ocel.json");
     std::fs::write(&xes_path, b"").unwrap();
     let oracle = WpmEvidenceOracle::new();
     if oracle.is_available() {
@@ -41,9 +41,9 @@ fn evidence_mutation_empty_xes_refused() {
 #[test]
 fn evidence_mutation_mismatched_tags_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("mismatched.xes");
+    let xes_path = dir.path().join("mismatched.ocel.json");
     let events = vec![ProcessEvent::new("status:show", "PASS")];
-    emit_xes(&events, &xes_path).expect("emit_xes must not fail");
+    emit_ocel(&events, &xes_path).expect("emit_ocel must not fail");
     corrupt_xes_mismatched_tags(&xes_path);
     let oracle = WpmEvidenceOracle::new();
     if oracle.is_available() {
@@ -57,7 +57,7 @@ fn evidence_mutation_mismatched_tags_refused() {
 #[test]
 fn evidence_mutation_binary_garbage_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("garbage.xes");
+    let xes_path = dir.path().join("garbage.ocel.json");
     std::fs::write(&xes_path, b"\x00\x01\x02\xff\xfe NOT XML").unwrap();
     let oracle = WpmEvidenceOracle::new();
     if oracle.is_available() {
@@ -71,9 +71,9 @@ fn evidence_mutation_binary_garbage_refused() {
 #[test]
 fn evidence_mutation_truncated_xes_refused() {
     let dir = TempDir::new().unwrap();
-    let xes_path = dir.path().join("truncated.xes");
+    let xes_path = dir.path().join("truncated.ocel.json");
     let events = vec![ProcessEvent::new("status:show", "PASS")];
-    emit_xes(&events, &xes_path).expect("emit_xes must not fail");
+    emit_ocel(&events, &xes_path).expect("emit_ocel must not fail");
     // Truncate to first 20 bytes — cuts off mid-element
     let content = std::fs::read(&xes_path).unwrap();
     std::fs::write(&xes_path, &content[..20.min(content.len())]).unwrap();

@@ -12,7 +12,7 @@ mod engine;
 pub mod evidence;
 pub mod evidence_helpers;
 mod integrations;
-pub mod legacy_nouns;
+
 pub mod nouns;
 pub mod ocel;
 mod policies;

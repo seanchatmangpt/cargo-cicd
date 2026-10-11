@@ -8,8 +8,11 @@ use std::path::Path;
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct CicdToml {
+    #[serde(default)]
     pub workspace: WorkspaceSection,
+    #[serde(default)]
     pub state: StateSection,
+    #[serde(default)]
     pub target: TargetSection,
     #[serde(rename = "test")]
     pub test: TestSection,
@@ -123,7 +126,16 @@ impl Default for TestChangedSection {
     fn default() -> Self {
         Self {
             enabled: true,
-            base: "origin/main".into(),
+            // Route through the portable resolver (config > origin/main >
+            // main > first commit) instead of hardcoding `origin/main`;
+            // fall back to the legacy literal only when git is unavailable
+            // (e.g. parsing a config outside a repository).
+            base: cargo_cicd_core::git::resolve_base_ref(None, Path::new(".")).unwrap_or_else(
+                |e| {
+                    eprintln!("cargo-cicd: base ref resolution deferred ({e}); defaulting to origin/main");
+                    "origin/main".into()
+                },
+            ),
         }
     }
 }
@@ -274,7 +286,8 @@ impl CicdToml {
         cicd
     }
 
-    /// Write to the given path
+    /// Write to the given path (test-only helper; production uses `write_default_in`)
+    #[allow(dead_code, reason = "used by cicd_toml unit tests; production path is write_default_in")]
     pub fn write(&self, path: impl AsRef<Path>) -> Result<()> {
         let content = toml::to_string_pretty(self)
             .map_err(|e| anyhow::anyhow!("Failed to serialize cicd.toml: {}", e))?;
@@ -360,6 +373,34 @@ pub fn load_or_default() -> CicdToml {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gate_only_config_uses_section_defaults_not_empty() {
+        // Regression (test-lane finding): a `[standing.release_gates]`-only
+        // cicd.toml must parse with each omitted section taking its real
+        // Default (detected workspace name, toolchain, target defaults), not
+        // fall back to an empty config.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cicd.toml");
+        std::fs::write(
+            &path,
+            concat!(
+                "[standing]\nocel_logs = [\"target/evidence/*.ocel.json\"]\n",
+                "[test.changed]\nenabled = true\nbase = \"origin/main\"\n",
+                "[trybuild.changed]\nenabled = true\nsnapshot_mode = \"changed-only\"\n",
+                "[git.phase]\nrequire_clean_tree = true\ncommit_after_phase = false\n",
+                "[autonomic]\nenabled = true\nmode = \"suggest\"\n"
+            ),
+        )
+        .unwrap();
+        let loaded = CicdToml::from_file(&path).expect("gate-only config must parse");
+        assert!(
+            !loaded.workspace.target_dir.is_empty(),
+            "workspace section must carry its default, not be empty"
+        );
+        assert_eq!(loaded.target.max_size_gb, 20);
+        assert!(loaded.test.changed.enabled, "test.changed default enabled");
+    }
 
     #[test]
     fn valid_cicd_toml_admits() {
